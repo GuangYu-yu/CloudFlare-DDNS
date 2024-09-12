@@ -4,11 +4,10 @@
 mkdir -p CloudflareST
 
 # 进入文件夹
-cd CloudflareST || exit 1
+cd CloudflareST
 
 # 获取当前系统架构
 ARCH=$(uname -m)
-# 根据系统架构选择相应的文件名
 case "$ARCH" in
     x86_64) FILE_SUFFIX="amd64" ;;
     i386|i686) FILE_SUFFIX="386" ;;
@@ -33,7 +32,30 @@ fi
 # 下载的压缩包文件名
 FILENAME="CloudflareST_linux_${FILE_SUFFIX}.tar.gz"
 DOWNLOAD_URL="https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-SIZE_THRESHOLD=2500000  # 字节
+
+# 尝试 ping 测试下载源延迟
+ping_test() {
+    local url=$1
+    local host=$(echo "$url" | awk -F/ '{print $3}')
+    tcping -c 1 "$host" 2>/dev/null | grep -oP '\d+ms' | sed 's/ms//'
+}
+
+# 选择延迟最低的镜像
+choose_best_mirror() {
+    local mirrors=("$@")
+    local best_mirror=""
+    local lowest_ping=999999
+
+    for mirror in "${mirrors[@]}"; do
+        local ping=$(ping_test "$mirror")
+        if [ -n "$ping" ] && [ "$ping" -lt "$lowest_ping" ]; then
+            best_mirror="$mirror"
+            lowest_ping="$ping"
+        fi
+    done
+
+    echo "$best_mirror"
+}
 
 # 下载并检查文件完整性
 download_file() {
@@ -44,20 +66,17 @@ download_file() {
 
     while [ $attempt -lt $max_retries ]; do
         echo "从 $url 下载"
-        
-        # 使用 curl 下载，并显示进度
-        curl -L --progress-bar --retry 3 --output "$file" "$url"
-        
+        curl -L --silent --output "$file" "$url"
+
         # 检查 HTTP 状态码
         if [ $? -eq 0 ]; then
             local file_size=$(stat -c %s "$file")
             echo "下载完成，文件大小：$file_size 字节"
-            
+
             if [ "$file_size" -ge "$SIZE_THRESHOLD" ]; then
                 return 0
             else
                 echo "文件太小：$file_size 字节"
-                rm -f "$file"  # 删除不完整文件
             fi
         else
             echo "下载失败"
@@ -65,34 +84,31 @@ download_file() {
 
         attempt=$((attempt + 1))
         echo "重试 $attempt/$max_retries..."
-        sleep 1  # 等待1秒再重试
     done
-    
+
     return 1
 }
 
-# 尝试从主下载源下载
-if download_file "$DOWNLOAD_URL" "$FILENAME"; then
-    echo "下载完成。"
-else
-    # 尝试使用镜像下载
-    MIRRORS=(
-        "https://download.scholar.rr.nu/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-        "https://ghproxy.cc/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-        "https://ghproxy.net/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-        "https://gh-proxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-        "https://mirror.ghproxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    )
-    
-    for MIRROR in "${MIRRORS[@]}"; do
-        if download_file "$MIRROR" "$FILENAME"; then
-            echo "下载完成。"
-            break
-        else
-            echo "尝试镜像 $MIRROR 失败。"
-        fi
-    done
-fi
+# 尝试下载
+SIZE_THRESHOLD=2500000  # 字节
+MIRRORS=(
+    "https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://download.scholar.rr.nu/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://ghproxy.cc/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://ghproxy.net/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://gh-proxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://mirror.ghproxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+)
+
+while true; do
+    BEST_MIRROR=$(choose_best_mirror "${MIRRORS[@]}")
+    if download_file "$BEST_MIRROR" "$FILENAME"; then
+        echo "下载完成。"
+        break
+    else
+        echo "尝试镜像 $BEST_MIRROR 失败，重新尝试选择最佳镜像并下载..."
+    fi
+done
 
 # 检查文件是否下载成功
 if [ ! -f "$FILENAME" ]; then
