@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # 定义 setup_cloudflarest.sh 文件的 URL
-SETUP_SCRIPT_URL="https://your-domain.com/path/to/setup_cloudflarest.sh"
+SETUP_SCRIPT_URL="https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/setup_cloudflarest.sh"
 SETUP_SCRIPT_LOCAL="setup_cloudflarest.sh"
 
 # 定义 cfopw.sh 文件的 URL
-CFOPW_SCRIPT_URL="https://your-domain.com/path/to/cfopw.sh"
+CFOPW_SCRIPT_URL="https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cfopw.sh"
 CFOPW_SCRIPT_LOCAL="cfopw.sh"
 
 # 检查文件是否需要更新
