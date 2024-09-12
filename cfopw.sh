@@ -14,22 +14,23 @@ CFOPW_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/G
 echo "正在删除旧的脚本文件..."
 rm -f "$SETUP_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_LOCAL" "$CFOPW_SCRIPT_LOCAL"
 
-# 下载并更新 setup_cloudflarest.sh
+# 下载并更新 setup_cloudflarest.sh 并赋予执行权限
 echo "检查并更新 setup_cloudflarest.sh..."
 if curl -ksSL -o "$SETUP_SCRIPT_LOCAL" "$SETUP_SCRIPT_URL"; then
   echo "setup_cloudflarest.sh 已更新。"
+  chmod +x "$SETUP_SCRIPT_LOCAL"
 else
   echo "下载 setup_cloudflarest.sh 失败。"
   exit 1
 fi
 
-# 下载并更新 resolve_cloudflare.sh 并赋予执行权限
-echo "检查并更新 resolve_cloudflare.sh..."
+# 下载并更新 cf.sh 并赋予执行权限
+echo "检查并更新 cf.sh..."
 if curl -ksSL -o "$RESOLVE_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_URL"; then
-  echo "resolve_cloudflare.sh 已更新。"
+  echo "cf.sh 已更新。"
   chmod +x "$RESOLVE_SCRIPT_LOCAL"
 else
-  echo "下载 resolve_cloudflare.sh 失败。"
+  echo "下载 cf.sh 失败。"
   exit 1
 fi
 
