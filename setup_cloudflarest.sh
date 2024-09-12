@@ -56,22 +56,43 @@ fi
 # 下载的压缩包文件名
 FILENAME="CloudflareST_linux_${FILE_SUFFIX}.tar.gz"
 
-# 检查是否已有最新版本
-if [ -f "$FILENAME" ]; then
-    echo "$FILENAME 已经存在。检查是否是最新版本..."
-    CURRENT_VERSION=$(tar -tf "$FILENAME" | grep -oP 'v\d+\.\d+\.\d+' | head -n 1)
-    if [ "$CURRENT_VERSION" == "$LATEST_VERSION" ]; then
-        echo "已经下载了最新版本 $LATEST_VERSION。"
-        exit 0
-    fi
-    echo "现有版本 ($CURRENT_VERSION) 不是最新版本。正在下载最新版本..."
-fi
-
-# 下载最新版本的 CloudflareST
+# 下载 URL
 DOWNLOAD_URL="https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-echo "从 $DOWNLOAD_URL 下载"
-wget -N "$DOWNLOAD_URL" || {
-    echo "从 GitHub 下载失败。尝试使用镜像..."
+
+# 下载超时设置（秒）
+TIMEOUT=30
+# 下载速度阈值（KB/s）
+SPEED_THRESHOLD=100
+
+# 尝试下载文件
+download_file() {
+    local url=$1
+    local file=$2
+
+    echo "从 $url 下载"
+    wget --timeout="$TIMEOUT" --tries=3 --report-speed=bits "$url" -O "$file" 2>&1 | \
+    tee /dev/tty | \
+    grep -q "saved" || {
+        echo "下载失败，尝试使用其他镜像..."
+        return 1
+    }
+
+    # 获取下载速度
+    local speed=$(grep -oP '(?<=\s)\d+(?=\sKB/s)' /dev/tty | tail -n 1)
+
+    if [ -z "$speed" ] || [ "$speed" -lt "$SPEED_THRESHOLD" ]; then
+        echo "下载速度 ($speed KB/s) 低于阈值 ($SPEED_THRESHOLD KB/s)，尝试使用其他镜像..."
+        return 1
+    fi
+
+    return 0
+}
+
+# 尝试从主下载源下载
+if download_file "$DOWNLOAD_URL" "$FILENAME"; then
+    echo "下载完成。"
+else
+    # 尝试使用镜像下载
     MIRRORS=(
         "https://download.scholar.rr.nu/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
         "https://ghproxy.cc/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
@@ -80,10 +101,12 @@ wget -N "$DOWNLOAD_URL" || {
         "https://mirror.ghproxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
     )
     for MIRROR in "${MIRRORS[@]}"; do
-        echo "尝试使用镜像: $MIRROR"
-        wget -N "$MIRROR" && break
+        if download_file "$MIRROR" "$FILENAME"; then
+            echo "下载完成。"
+            break
+        fi
     done
-}
+fi
 
 # 解压文件
 tar -zxf "$FILENAME"
