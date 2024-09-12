@@ -61,8 +61,8 @@ DOWNLOAD_URL="https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LAT
 
 # 下载超时设置（秒）
 TIMEOUT=30
-# 下载速度阈值（KB/s）
-SPEED_THRESHOLD=100
+# 文件大小阈值（字节）
+SIZE_THRESHOLD=2500000
 
 # 尝试下载文件
 download_file() {
@@ -70,22 +70,16 @@ download_file() {
     local file=$2
 
     echo "从 $url 下载"
-    wget --timeout="$TIMEOUT" --tries=3 --report-speed=bits "$url" -O "$file" 2>&1 | \
-    tee /dev/tty | \
-    grep -q "saved" || {
-        echo "下载失败，尝试使用其他镜像..."
-        return 1
+    curl --connect-timeout "$TIMEOUT" --max-time "$TIMEOUT" -L "$url" -o "$file" --silent --show-error --write-out "%{size_download}" | {
+        read downloaded_size
+        if [ "$downloaded_size" -ge "$SIZE_THRESHOLD" ]; then
+            echo "下载完成，文件大小：$downloaded_size 字节"
+            return 0
+        else
+            echo "下载失败或文件太小，尝试使用其他镜像..."
+            return 1
+        fi
     }
-
-    # 获取下载速度
-    local speed=$(grep -oP '(?<=\s)\d+(?=\sKB/s)' /dev/tty | tail -n 1)
-
-    if [ -z "$speed" ] || [ "$speed" -lt "$SPEED_THRESHOLD" ]; then
-        echo "下载速度 ($speed KB/s) 低于阈值 ($SPEED_THRESHOLD KB/s)，尝试使用其他镜像..."
-        return 1
-    fi
-
-    return 0
 }
 
 # 尝试从主下载源下载
