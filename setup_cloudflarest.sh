@@ -44,7 +44,9 @@ download_file() {
 
     while [ $attempt -lt $max_retries ]; do
         echo "从 $url 下载"
-        curl -L --silent --output "$file" "$url"
+        
+        # 使用 wget 显示进度条
+        wget -O "$file" "$url"
         
         # 检查 HTTP 状态码
         if [ $? -eq 0 ]; then
@@ -63,6 +65,7 @@ download_file() {
 
         attempt=$((attempt + 1))
         echo "重试 $attempt/$max_retries..."
+        sleep 1  # 等待1秒再重试
     done
     
     return 1
