@@ -75,11 +75,15 @@ MIRRORS=(
 # 通过并发 tcping 检测所有下载源，选择第一个成功的源进行下载
 echo "正在测试下载源延迟..."
 for MIRROR in "${MIRRORS[@]}"; do
-    # 使用 tcping 测试每个源的响应时间
-    if tcping -t 3 "$(echo "$MIRROR" | sed 's|https://||' | cut -d '/' -f 1)" &>/dev/null; then
+    # 提取域名并使用 tcping 测试每个源的响应时间，设置超时时间为 5 秒
+    DOMAIN=$(echo "$MIRROR" | sed 's|https://||' | cut -d '/' -f 1)
+    echo "测试: $DOMAIN"
+    if tcping -t 5 -c 3 "$DOMAIN" 443 &>/dev/null; then
         echo "选定下载源: $MIRROR"
         DOWNLOAD_URL="$MIRROR"
         break
+    else
+        echo "$DOMAIN 无法访问，继续测试其他源..."
     fi
 done
 
