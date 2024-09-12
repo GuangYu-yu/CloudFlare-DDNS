@@ -2,24 +2,16 @@
 
 # 配置文件路径
 config_file="config.cfg"
+resolve_file="resolve_list.txt"
 
 # 显示网络支持状态
 detect_ip_addresses() {
-    echo "检测外网 IP 支持情况..."
-    IPV4=$(curl -s4 ifconfig.co || curl -s4 ipinfo.io || curl -s4 api64.ipify.org || curl -s4 test.ipw.cn)
-    IPV6=$(curl -s6 ifconfig.co || curl -s6 ipinfo.io || curl -s6 api64.ipify.org || curl -s6 test.ipw.cn)
+    echo "检测外网IP支持情况..."
+    ipv6_support=$(curl -s6 ifconfig.co || curl -s6 ipinfo.io || curl -s6 api64.ipify.org > /dev/null && echo "IPv6:√" || echo "IPv6:×")
+    ipv4_support=$(curl -s4 ifconfig.co || curl -s4 ipinfo.io || curl -s4 api64.ipify.org > /dev/null && echo "IPv4:√" || echo "IPv4:×")
 
-    if [[ -n "$IPV4" ]]; then
-        echo "IPv4:√"
-    else
-        echo "IPv4:×"
-    fi
-
-    if [[ -n "$IPV6" ]]; then
-        echo "IPv6:√"
-    else
-        echo "IPv6:×"
-    fi
+    echo "$ipv6_support"
+    echo "$ipv4_support"
 }
 
 # 主菜单
@@ -29,8 +21,6 @@ main_menu() {
         echo "================================="
         echo "           主菜单"
         echo "================================="
-        detect_ip_addresses
-        echo ""
         echo "1. 设置账户"
         echo "2. 解析地址"
         echo "3. 推送设置"
@@ -42,7 +32,7 @@ main_menu() {
         case $choice in
             1) account_settings ;;
             2) resolve_settings ;;
-            3) set_push ;;
+            3) push_settings ;;
             4) execute_resolve ;;
             5) exit 0 ;;
             *) echo "无效选项，请重新选择。" ;;
@@ -60,7 +50,6 @@ account_settings() {
         echo "1. 添加账户"
         echo "2. 删除账户"
         echo "3. 修改账户"
-        echo "4. 查看账户列表"
         echo "================================="
         read -p "请选择功能（留空则返回上级）: " choice
 
@@ -68,142 +57,10 @@ account_settings() {
             1) add_account ;;
             2) remove_account ;;
             3) modify_account ;;
-            4) show_accounts ;;
             "") return ;;
             *) echo "无效选项，请重新选择。" ;;
         esac
     done
-}
-
-# 添加账户
-add_account() {
-    while true; do
-        clear
-        echo "================================="
-        echo "           添加账户"
-        echo "================================="
-        echo "1. 设置账户登录邮箱"
-        echo "2. 设置区域ID"
-        echo "3. 设置API Key"
-        echo "================================="
-        read -p "请选择功能（留空则返回上级）: " choice
-
-        case $choice in
-            1) read -p "请输入账户登录邮箱: " email ;;
-            2) read -p "请输入区域ID: " zone_id ;;
-            3) read -p "请输入API Key: " api_key ;;
-            "") return ;;
-            *) echo "无效选项，请重新选择。" ;;
-        esac
-
-        # 保存到配置文件
-        if [[ -n "$email" ]]; then
-            echo "email=$email" >> "$config_file"
-        fi
-        if [[ -n "$zone_id" ]]; then
-            echo "zone_id=$zone_id" >> "$config_file"
-        fi
-        if [[ -n "$api_key" ]]; then
-            echo "api_key=$api_key" >> "$config_file"
-        fi
-
-        echo "账户信息已保存。"
-    done
-}
-
-# 删除账户
-remove_account() {
-    echo "================================="
-    echo "          删除账户"
-    echo "================================="
-    # 读取所有账户
-    accounts=($(grep -oP 'email=\K[^=]+' "$config_file"))
-
-    if [[ ${#accounts[@]} -eq 0 ]]; then
-        echo "没有找到任何账户记录。"
-        return
-    fi
-
-    echo "现有账户记录:"
-    for i in "${!accounts[@]}"; do
-        echo "$i. ${accounts[i]}"
-    done
-
-    read -p "请选择要删除的账户编号（留空则返回上级）: " account_choice
-
-    if [[ -z $account_choice || $account_choice -ge ${#accounts[@]} ]]; then
-        echo "无效选择或未选择，返回上级。"
-        return
-    fi
-
-    account_to_remove="${accounts[account_choice]}"
-
-    # 从配置文件中删除选定账户
-    sed -i "/email=$account_to_remove/d" "$config_file"
-
-    echo "账户 '$account_to_remove' 已删除。"
-}
-
-# 修改账户
-modify_account() {
-    echo "================================="
-    echo "          修改账户"
-    echo "================================="
-    # 读取所有账户
-    accounts=($(grep -oP 'email=\K[^=]+' "$config_file"))
-
-    if [[ ${#accounts[@]} -eq 0 ]]; then
-        echo "没有找到任何账户记录。"
-        return
-    fi
-
-    echo "现有账户记录:"
-    for i in "${!accounts[@]}"; do
-        echo "$i. ${accounts[i]}"
-    done
-
-    read -p "请选择要修改的账户编号（留空则返回上级）: " account_choice
-
-    if [[ -z $account_choice || $account_choice -ge ${#accounts[@]} ]]; then
-        echo "无效选择或未选择，返回上级。"
-        return
-    fi
-
-    account_to_modify="${accounts[account_choice]}"
-
-    echo "将要修改的账户: $account_to_modify"
-    read -p "请输入新的邮箱（留空则保持不变）: " new_email
-
-    if [[ -n "$new_email" ]]; then
-        # 从配置文件中删除旧账户
-        sed -i "/email=$account_to_modify/d" "$config_file"
-        echo "email=$new_email" >> "$config_file"
-        echo "账户信息已更新。"
-    else
-        echo "邮箱为空，未修改。"
-    fi
-}
-
-# 显示账户列表
-show_accounts() {
-    echo "================================="
-    echo "          账户列表"
-    echo "================================="
-    if [[ ! -f $config_file ]]; then
-        echo "配置文件不存在。"
-        return
-    fi
-
-    # 获取账户信息
-    accounts=$(grep -E 'email=' "$config_file" | sed 's/email=//')
-
-    if [[ -z $accounts ]]; then
-        echo "没有账户记录。"
-        return
-    fi
-
-    echo "现有账户记录:"
-    echo "$accounts"
 }
 
 # 解析地址设置
@@ -229,6 +86,127 @@ resolve_settings() {
             *) echo "无效选项，请重新选择。" ;;
         esac
     done
+}
+
+# 推送设置
+push_settings() {
+    while true; do
+        clear
+        echo "================================="
+        echo "         推送设置"
+        echo "================================="
+        echo "1. Telegram"
+        echo "2. Pushplus"
+        echo "================================="
+        read -p "请选择推送渠道（留空则返回上级）: " choice
+
+        case $choice in
+            1) read -p "请输入Telegram Token（留空则返回上级）: " tg_token ;;
+            2) read -p "请输入Pushplus Token（留空则返回上级）: " pp_token ;;
+            "") return ;;
+            *) echo "无效选项，请重新选择。" ;;
+        esac
+    done
+}
+
+# 添加账户
+add_account() {
+    local email=""
+    local zone_id=""
+    local api_key=""
+
+    while true; do
+        clear
+        echo "================================="
+        echo "           添加账户"
+        echo "================================="
+        echo "1. 设置账户登录邮箱 (当前: $email)"
+        echo "2. 设置区域ID (当前: $zone_id)"
+        echo "3. 设置API Key (当前: $api_key)"
+        echo "================================="
+        read -p "请选择功能（留空则返回上级）: " choice
+
+        case $choice in
+            1) read -p "请输入账户登录邮箱: " email ;;
+            2) read -p "请输入区域ID: " zone_id ;;
+            3) read -p "请输入API Key: " api_key ;;
+            "") 
+                if [[ -n "$email" && -n "$zone_id" && -n "$api_key" ]]; then
+                    # 保存到配置文件
+                    echo "email=$email" >> "$config_file"
+                    echo "zone_id=$zone_id" >> "$config_file"
+                    echo "api_key=$api_key" >> "$config_file"
+                    echo "账户信息已保存。"
+                else
+                    echo "信息不完整，无法保存账户。"
+                fi
+                return ;;
+            *) echo "无效选项，请重新选择。" ;;
+        esac
+    done
+}
+
+# 删除账户
+remove_account() {
+    echo "================================="
+    echo "           删除账户"
+    echo "================================="
+    # 读取账户记录
+    if [[ ! -f "$config_file" ]]; then
+        echo "没有找到账户记录。"
+        return
+    fi
+
+    cat "$config_file"
+
+    read -p "请输入要删除的账户邮箱（留空则返回上级）: " email_to_remove
+
+    if [[ -z "$email_to_remove" ]]; then
+        echo "未选择账户，返回上级。"
+        return
+    fi
+
+    # 删除账户
+    grep -v "^email=$email_to_remove" "$config_file" > temp_file && mv temp_file "$config_file"
+    echo "账户 '$email_to_remove' 已删除。"
+}
+
+# 修改账户
+modify_account() {
+    echo "================================="
+    echo "           修改账户"
+    echo "================================="
+    # 读取账户记录
+    if [[ ! -f "$config_file" ]]; then
+        echo "没有找到账户记录。"
+        return
+    fi
+
+    cat "$config_file"
+
+    read -p "请输入要修改的账户邮箱（留空则返回上级）: " email_to_modify
+
+    if [[ -z "$email_to_modify" ]]; then
+        echo "未选择账户，返回上级。"
+        return
+    fi
+
+    read -p "请输入新的账户登录邮箱（留空则保持不变）: " new_email
+    read -p "请输入新的区域ID（留空则保持不变）: " new_zone_id
+    read -p "请输入新的API Key（留空则保持不变）: " new_api_key
+
+    # 修改账户信息
+    if [[ -n "$new_email" ]]; then
+        sed -i "s/^email=$email_to_modify/email=$new_email/" "$config_file"
+    fi
+    if [[ -n "$new_zone_id" ]]; then
+        sed -i "s/^zone_id=.*$/zone_id=$new_zone_id/" "$config_file"
+    fi
+    if [[ -n "$new_api_key" ]]; then
+        sed -i "s/^api_key=.*$/api_key=$new_api_key/" "$config_file"
+    fi
+
+    echo "账户 '$email_to_modify' 已修改。"
 }
 
 # 添加解析
@@ -259,192 +237,158 @@ add_resolve() {
         # 显示参数
         echo "参数："
         echo "    -n 200"
-        echo "        延迟测速线程；越多延迟测速越快，性能弱的设备 (如路由器) 请勿太高；(默认 200 最多 1000)"
-        echo "    -t 4"
-        echo "        延迟测速次数；单个 IP 延迟测速的次数；(默认 4 次)"
-        echo "    -dn 10"
-        echo "        下载测速数量；延迟测速并排序后，从最低延迟起下载测速的数量；(默认 10 个)"
-        echo "    -dt 10"
-        echo "        下载测速时间；单个 IP 下载测速最长时间，不能太短；(默认 10 秒)"
-        echo "    -tp 443"
-        echo "        指定测速端口；延迟测速/下载测速时使用的端口；(默认 443 端口)"
-        echo "    -url https://cf.xiu2.xyz/url"
-        echo "        指定测速地址；延迟测速(HTTPing)/下载测速时使用的地址，默认地址不保证可用性，建议自建；"
-        echo ""
+        echo "        延迟测速线程；越多延迟测速越快，性能弱的设备 (如路由器) 请勿太
+        echo "    -p 2000"
+        echo "        CDN节点测试数量；设置为0表示不测试，设置为1表示测试1个节点，默认为2000个节点。"
+        echo "    -d 10"
+        echo "        延迟测速时间，单位秒。"
+        
+        # 保存解析信息到文件
+        echo "$primary_domain,$mode,$sub_domains,$sub_domain,$ipv4_count,$ipv6_count,$cf_command" >> "$resolve_file"
+        echo "解析信息已保存。"
 
-        read -p "请输入IPv4地址URL（留空则重新输入）: " ipv4_url
-        read -p "请输入IPv6地址URL（留空则重新输入）: " ipv6_url
-
-        # 下载CIDR
-        if [[ -n "$ipv4_url" ]]; then
-            curl -s "$ipv4_url" -o "ip4.txt"
-        fi
-        if [[ -n "$ipv6_url" ]]; then
-            curl -s "$ipv6_url" -o "ip6.txt"
+        read -p "是否需要设置计划任务？（y/n）: " set_cron
+        if [[ $set_cron == "y" ]]; then
+            setup_cron_jobs
         fi
 
-        # 根据解析数量执行测速
-        if [[ $ipv4_count -gt 0 ]]; then
-            # 执行 IPv4 测速
-            ./$cf_command -f ip4.txt
+        read -p "继续添加解析？（y/n）: " continue
+        if [[ $continue != "y" ]]; then
+            return
         fi
-        if [[ $ipv6_count -gt 0 ]]; then
-            # 执行 IPv6 测速
-            ./$cf_command -f ip6.txt
-        fi
-
-        echo "解析已添加。"
     done
 }
 
 # 删除解析
 remove_resolve() {
     echo "================================="
-    echo "          删除解析"
+    echo "           删除解析"
     echo "================================="
     # 读取解析记录
-    # 这里假设解析记录保存在一个文件中，您需要根据实际情况调整
-    resolve_list=$(cat resolve_list.txt)
-
-    if [[ -z $resolve_list ]]; then
-        echo "没有找到解析记录。"
+    if [[ ! -f "$resolve_file" ]]; then
+        echo "没有找到账户记录。"
         return
     fi
 
-    echo "现有解析记录:"
-    echo "$resolve_list"
+    cat "$resolve_file"
 
-    read -p "请选择要删除的解析（留空则返回上级）: " resolve_choice
+    read -p "请输入要删除的解析条目编号（留空则返回上级）: " entry_to_remove
 
-    if [[ -z $resolve_choice ]]; then
-        echo "未选择解析，返回上级。"
+    if [[ -z "$entry_to_remove" ]]; then
+        echo "未选择条目，返回上级。"
         return
     fi
 
-    # 从文件中删除选定解析
-    sed -i "/$resolve_choice/d" resolve_list.txt
-
-    echo "解析 '$resolve_choice' 已删除。"
+    # 删除解析条目
+    sed -i "${entry_to_remove}d" "$resolve_file"
+    echo "解析条目编号 '$entry_to_remove' 已删除。"
 }
 
 # 修改解析
 modify_resolve() {
     echo "================================="
-    echo "          修改解析"
+    echo "           修改解析"
     echo "================================="
     # 读取解析记录
-    # 这里假设解析记录保存在一个文件中，您需要根据实际情况调整
-    resolve_list=$(cat resolve_list.txt)
-
-    if [[ -z $resolve_list ]]; then
-        echo "没有找到解析记录。"
+    if [[ ! -f "$resolve_file" ]]; then
+        echo "没有找到账户记录。"
         return
     fi
 
-    echo "现有解析记录:"
-    echo "$resolve_list"
+    cat "$resolve_file"
 
-    read -p "请选择要修改的解析（留空则返回上级）: " resolve_choice
+    read -p "请输入要修改的解析条目编号（留空则返回上级）: " entry_to_modify
 
-    if [[ -z $resolve_choice ]]; then
-        echo "未选择解析，返回上级。"
+    if [[ -z "$entry_to_modify" ]]; then
+        echo "未选择条目，返回上级。"
         return
     fi
 
-    # 读取新的解析信息
     read -p "请输入新的一级域名（留空则保持不变）: " new_primary_domain
+    read -p "请选择新的模式（留空则保持不变）: " new_mode
     read -p "请输入新的二级域名（留空则保持不变）: " new_sub_domain
     read -p "请分别输入新的IPv4和IPv6地址解析数量（以空格隔开，留空则保持不变）: " new_ipv4_count new_ipv6_count
+    read -p "请输入新的CloudflareST命令（留空则保持不变）: " new_cf_command
 
-    # 更新解析记录
-    # 这里假设解析记录保存在一个文件中，您需要根据实际情况调整
-    sed -i "/$resolve_choice/d" resolve_list.txt
+    # 修改解析信息
+    current_entry=$(sed -n "${entry_to_modify}p" "$resolve_file")
+    IFS=',' read -r primary_domain mode sub_domains sub_domain ipv4_count ipv6_count cf_command <<< "$current_entry"
 
-    echo "新的解析记录："
-    echo "$new_primary_domain $new_sub_domain $new_ipv4_count $new_ipv6_count" >> resolve_list.txt
+    if [[ -n "$new_primary_domain" ]]; then primary_domain="$new_primary_domain"; fi
+    if [[ -n "$new_mode" ]]; then mode="$new_mode"; fi
+    if [[ -n "$new_sub_domain" ]]; then sub_domain="$new_sub_domain"; fi
+    if [[ -n "$new_ipv4_count" ]]; then ipv4_count="$new_ipv4_count"; fi
+    if [[ -n "$new_ipv6_count" ]]; then ipv6_count="$new_ipv6_count"; fi
+    if [[ -n "$new_cf_command" ]]; then cf_command="$new_cf_command"; fi
 
-    echo "解析 '$resolve_choice' 已修改。"
+    echo "$primary_domain,$mode,$sub_domains,$sub_domain,$ipv4_count,$ipv6_count,$cf_command" | sed -i "${entry_to_modify}s/.*/$(cat -)/" "$resolve_file"
+    echo "解析条目编号 '$entry_to_modify' 已修改。"
 }
 
 # 查看计划任务
 view_cron_jobs() {
+    clear
     echo "================================="
-    echo "        查看计划任务"
+    echo "         查看计划任务"
     echo "================================="
-    echo "1. 每天4点运行一次"
-    echo "2. 每6小时运行一次"
-    echo "================================="
-    read -p "请选择计划任务（留空则返回上级）: " choice
+    crontab -l | grep '/path/to/your/script.sh'
+    read -p "按 Enter 返回主菜单..."
+}
 
-    case $choice in
-        1) echo "示例：0 4 * * * /path/to/your/script.sh" ;;
-        2) echo "示例：0 */6 * * * /path/to/your/script.sh" ;;
-        "") return ;;
-        *) echo "无效选项，请重新选择。" ;;
-    esac
+# 设置计划任务
+setup_cron_jobs() {
+    echo "================================="
+    echo "       设置计划任务"
+    echo "================================="
+    while IFS=, read -r primary_domain mode sub_domains sub_domain ipv4_count ipv6_count cf_command; do
+        # 每个解析条目对应一个计划任务
+        entry_num=$(grep -n "$primary_domain" "$resolve_file" | cut -d: -f1)
+        cron_job="0 4 * * * /path/to/your/script.sh resolve ${entry_num}"
+        echo "设置计划任务：$cron_job"
+        (crontab -l; echo "$cron_job") | crontab -
+    done < "$resolve_file"
 }
 
 # 执行解析
 execute_resolve() {
-    echo "================================="
-    echo "          执行解析"
-    echo "================================="
-    read -p "请选择账户: " account
-    read -p "请选择解析: " resolve
+    while true; do
+        clear
+        echo "================================="
+        echo "         执行解析"
+        echo "================================="
+        read -p "请选择解析条目编号（留空则返回上级）: " entry_num
 
-    # 执行解析命令
-    ./CloudflareST --resolve "$resolve"
-
-    # 处理测速结果
-    results=$(parse_results "results.txt")
-    push_token="YOUR_PUSHPLUS_TOKEN"  # 替换为实际的推送 Token
-    send_results "$results" "$push_token"
-}
-
-# 解析测速结果
-parse_results() {
-    local results_file=$1
-    local results=""
-
-    while IFS= read -r line; do
-        if [[ "$line" == IP\ 地址* ]]; then
-            continue
+        if [[ -z "$entry_num" ]]; then
+            return
         fi
 
-        ip_address=$(echo "$line" | awk '{print $1}')
-        sent=$(echo "$line" | awk '{print $2}')
-        received=$(echo "$line" | awk '{print $3}')
-        packet_loss=$(echo "$line" | awk '{print $4}')
-        avg_latency=$(echo "$line" | awk '{print $5}')
-        download_speed=$(echo "$line" | awk '{print $6}')
+        entry=$(sed -n "${entry_num}p" "$resolve_file")
+        if [[ -z "$entry" ]]; then
+            echo "无效的条目编号。"
+            return
+        fi
 
-        results+="IP 地址: $ip_address\n已发送: $sent\n已接收: $received\n丢包率: $packet_loss\n平均延迟: $avg_latency\n下载速度: $download_speed MB/s\n\n"
-    done < "$results_file"
+        IFS=',' read -r primary_domain mode sub_domains sub_domain ipv4_count ipv6_count cf_command <<< "$entry"
+        # 执行解析逻辑
+        echo "执行 CloudflareST 命令：$cf_command"
+        $cf_command
 
-    echo -e "$results"
+        # 示例推送结果
+        echo "解析完成："
+        echo "    一级域名: $primary_domain"
+        echo "    模式: $mode"
+        echo "    IPv4 数量: $ipv4_count"
+        echo "    IPv6 数量: $ipv6_count"
+        
+        # 推送结果
+        # 这里可以添加推送逻辑
+
+        read -p "继续执行解析？（y/n）: " continue
+        if [[ $continue != "y" ]]; then
+            return
+        fi
+    done
 }
 
-# 通过推送功能发送结果
-send_results() {
-    local results=$1
-    local token=$2
-    local title="测速结果"
-    local content="测速结果如下:\n\n$results"
-
-    curl -s -X POST "http://www.pushplus.plus/send" \
-        -H "Content-Type: application/json" \
-        -d "{
-            \"token\": \"$token\",
-            \"title\": \"$title\",
-            \"content\": \"$content\",
-            \"topic\": \"code\",
-            \"template\": \"html\"
-        }"
-}
-
-# 主函数
-main() {
-    main_menu
-}
-
-main
+# 启动主菜单
+main_menu
