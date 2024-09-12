@@ -3,23 +3,17 @@
 # 配置文件路径
 config_file="config.cfg"
 
-# 显示网络支持状态
+# 检测设备是否有外网IPv4和IPv6地址，多个渠道检测，任意成功即表示支持
 check_network_support() {
-    echo "检测网络支持状态..."
-    ipv6_support=$(ip -6 addr show | grep "inet6" | wc -l)
-    ipv4_support=$(ip -4 addr show | grep "inet" | wc -l)
+    IPV4=$(curl -s4 ifconfig.co || curl -s4 ipinfo.io || curl -s4 api64.ipify.org)
+    IPV6=$(curl -s6 ifconfig.co || curl -s6 ipinfo.io || curl -s6 api64.ipify.org)
 
-    if [[ $ipv6_support -gt 0 ]]; then
-        echo "IPv6 支持：支持"
-    else
-        echo "IPv6 支持：不支持"
-    fi
-
-    if [[ $ipv4_support -gt 0 ]]; then
-        echo "IPv4 支持：支持"
-    else
-        echo "IPv4 支持：不支持"
-    fi
+    echo "      检测网络支持状态"
+    echo "================================="
+    echo -n "IPv4："
+    [ -n "$IPV4" ] && echo "√" || echo "×"
+    echo -n "IPv6："
+    [ -n "$IPV6" ] && echo "√" || echo "×"
 }
 
 # 主菜单
