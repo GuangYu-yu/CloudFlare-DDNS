@@ -12,7 +12,7 @@ RESOLVE_SCRIPT_LOCAL="resolve_cloudflare.sh"
 CFOPW_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cfopw.sh"
 CFOPW_SCRIPT_LOCAL="cfopw.sh"
 
-# 检测并更新 setup_cloudflarest.sh
+# 检测 setup_cloudflarest.sh 是否有更新
 echo "正在检查 setup_cloudflarest.sh 是否有更新..."
 curl -s -z "$SETUP_SCRIPT_LOCAL" -o "$SETUP_SCRIPT_LOCAL" "$SETUP_SCRIPT_URL"
 if [ $? -eq 0 ]; then
@@ -21,12 +21,12 @@ else
     echo "已更新 setup_cloudflarest.sh。"
 fi
 
-# 下载并赋予 resolve_cloudflare.sh 执行权限
+# 下载 resolve_cloudflare.sh 并赋予执行权限
 echo "正在下载 resolve_cloudflare.sh..."
 curl -ksSL "$RESOLVE_SCRIPT_URL" -o "$RESOLVE_SCRIPT_LOCAL"
 chmod +x "$RESOLVE_SCRIPT_LOCAL"
 
-# 提示用户 resolve_cloudflare.sh 已经准备好
+# 提示用户 resolve_cloudflare.sh 已经准备好，可以执行
 echo "resolve_cloudflare.sh 已经下载完成并赋予执行权限。"
 echo "你可以通过 './$RESOLVE_SCRIPT_LOCAL' 来执行解析。"
 
@@ -41,4 +41,8 @@ fi
 
 # 执行 resolve_cloudflare.sh
 echo "正在执行 resolve_cloudflare.sh..."
-./"$RESOLVE_SCRIPT_LOCAL"
+if [ -x "$RESOLVE_SCRIPT_LOCAL" ]; then
+    ./"$RESOLVE_SCRIPT_LOCAL"
+else
+    echo "无法执行 resolve_cloudflare.sh，文件不可执行。"
+fi
