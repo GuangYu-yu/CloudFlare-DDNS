@@ -67,23 +67,56 @@ if [ -f "$FILENAME" ]; then
     echo "现有版本 ($CURRENT_VERSION) 不是最新版本。正在下载最新版本..."
 fi
 
-# 下载最新版本的 CloudflareST
-DOWNLOAD_URL="https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-echo "从 $DOWNLOAD_URL 下载"
-wget -N "$DOWNLOAD_URL" || {
-    echo "从 GitHub 下载失败。尝试使用镜像..."
-    MIRRORS=(
-        "https://download.scholar.rr.nu/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-        "https://ghproxy.cc/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-        "https://ghproxy.net/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-        "https://gh-proxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-        "https://mirror.ghproxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    )
+# 定义镜像源列表
+MIRRORS=(
+    "https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://download.scholar.rr.nu/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://ghproxy.cc/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://ghproxy.net/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://gh-proxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://mirror.ghproxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+)
+
+# 并发测试镜像源延迟并选择第一个 ping 通的镜像
+ping_first_available_mirror() {
     for MIRROR in "${MIRRORS[@]}"; do
-        echo "尝试使用镜像: $MIRROR"
-        wget -N "$MIRROR" && break
+        HOST=$(echo "$MIRROR" | awk -F/ '{print $3}')
+        tcping -c 1 "$HOST" &>/dev/null && echo "$MIRROR" && return 0 &
     done
+    wait
+    echo "没有可用的下载源。" && exit 1
 }
+
+BEST_MIRROR=$(ping_first_available_mirror)
+
+echo "选择最快的下载源: $BEST_MIRROR"
+
+# 下载函数，监控下载速度
+download_with_speed_check() {
+    local url=$1
+    wget --progress=dot -e dotbytes=10M "$url" 2>&1 | \
+    while read -r line; do
+        if echo "$line" | grep -q "K/s"; then
+            speed=$(echo "$line" | grep -oP '\d+(?=K/s)')
+            if [ "$speed" -lt 100 ]; then
+                echo "下载速度低于 100KB/s，正在重新尝试..."
+                killall wget
+                return 1
+            fi
+        fi
+    done
+    return 0
+}
+
+# 重试下载
+while true; do
+    if download_with_speed_check "$BEST_MIRROR"; then
+        echo "下载完成。"
+        break
+    fi
+    echo "重新选择下载源..."
+    BEST_MIRROR=$(ping_first_available_mirror)
+done
 
 # 解压文件
 tar -zxf "$FILENAME"
