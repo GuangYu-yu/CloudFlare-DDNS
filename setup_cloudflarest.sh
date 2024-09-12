@@ -61,7 +61,7 @@ DOWNLOAD_URL="https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LAT
 
 # 下载超时设置（秒）
 TIMEOUT=30
-# 文件大小阈值（字节）
+# 文件大小阈值（字节），提高阈值以适应文件大小变化
 SIZE_THRESHOLD=2500000
 
 # 尝试下载文件
@@ -72,11 +72,11 @@ download_file() {
     echo "从 $url 下载"
     curl --connect-timeout "$TIMEOUT" --max-time "$TIMEOUT" -L "$url" -o "$file" --silent --show-error --write-out "%{size_download}" | {
         read downloaded_size
+        echo "下载完成，文件大小：$downloaded_size 字节"
         if [ "$downloaded_size" -ge "$SIZE_THRESHOLD" ]; then
-            echo "下载完成，文件大小：$downloaded_size 字节"
             return 0
         else
-            echo "下载失败或文件太小，尝试使用其他镜像..."
+            echo "文件太小：$downloaded_size 字节"
             return 1
         fi
     }
@@ -98,8 +98,16 @@ else
         if download_file "$MIRROR" "$FILENAME"; then
             echo "下载完成。"
             break
+        else
+            echo "尝试镜像 $MIRROR 失败。"
         fi
     done
+fi
+
+# 检查文件是否下载成功
+if [ ! -f "$FILENAME" ]; then
+    echo "下载失败，请检查网络连接或手动下载文件。"
+    exit 1
 fi
 
 # 解压文件
