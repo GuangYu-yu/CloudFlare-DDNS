@@ -1,41 +1,34 @@
 #!/bin/bash
 
-# 定义 setup_cloudflarest.sh 文件的 URL 和本地路径
+# 定义脚本的 URL 和本地路径
 SETUP_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/setup_cloudflarest.sh"
 SETUP_SCRIPT_LOCAL="setup_cloudflarest.sh"
 
-# 定义 resolve_cloudflare.sh 文件的 URL 和本地路径
 RESOLVE_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/resolve_cloudflare.sh"
 RESOLVE_SCRIPT_LOCAL="resolve_cloudflare.sh"
 
-# 定义 cfopw.sh 文件的 URL 和本地路径
 CFOPW_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cfopw.sh"
 CFOPW_SCRIPT_LOCAL="cfopw.sh"
 
-# 检查并更新 setup_cloudflarest.sh 文件
-echo "检查并更新 setup_cloudflarest.sh 文件..."
-if curl -s -z "$SETUP_SCRIPT_LOCAL" -o "$SETUP_SCRIPT_LOCAL" "$SETUP_SCRIPT_URL"; then
-  echo "setup_cloudflarest.sh 文件已经是最新版本。"
-else
-  echo "setup_cloudflarest.sh 文件已更新。"
-fi
+# 删除已存在的脚本
+echo "删除已存在的脚本..."
+rm -f "$SETUP_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_LOCAL" "$CFOPW_SCRIPT_LOCAL"
 
-# 检查并更新 resolve_cloudflare.sh 文件
-echo "检查并更新 resolve_cloudflare.sh 文件..."
-if curl -s -z "$RESOLVE_SCRIPT_LOCAL" -o "$RESOLVE_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_URL"; then
-  echo "resolve_cloudflare.sh 文件已经是最新版本。"
-else
-  echo "resolve_cloudflare.sh 文件已更新。"
-  chmod +x "$RESOLVE_SCRIPT_LOCAL"
-fi
+# 下载 setup_cloudflarest.sh 文件
+echo "下载 setup_cloudflarest.sh 文件..."
+curl -ksSL "$SETUP_SCRIPT_URL" -o "$SETUP_SCRIPT_LOCAL"
+echo "setup_cloudflarest.sh 文件下载完成。"
 
-# 检查并更新 cfopw.sh 文件
-echo "检查并更新 cfopw.sh 文件..."
-if curl -s -z "$CFOPW_SCRIPT_LOCAL" -o "$CFOPW_SCRIPT_LOCAL" "$CFOPW_SCRIPT_URL"; then
-  echo "cfopw.sh 文件已经是最新版本。"
-else
-  echo "cfopw.sh 文件已更新。"
-fi
+# 下载 resolve_cloudflare.sh 文件并赋予执行权限
+echo "下载 resolve_cloudflare.sh 文件..."
+curl -ksSL "$RESOLVE_SCRIPT_URL" -o "$RESOLVE_SCRIPT_LOCAL"
+chmod +x "$RESOLVE_SCRIPT_LOCAL"
+echo "resolve_cloudflare.sh 文件下载完成并赋予执行权限。"
+
+# 下载 cfopw.sh 文件
+echo "下载 cfopw.sh 文件..."
+curl -ksSL "$CFOPW_SCRIPT_URL" -o "$CFOPW_SCRIPT_LOCAL"
+echo "cfopw.sh 文件下载完成。"
 
 # 执行 resolve_cloudflare.sh 文件
 echo "正在执行 resolve_cloudflare.sh 文件..."
