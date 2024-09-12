@@ -4,7 +4,7 @@
 mkdir -p CloudflareST
 
 # 进入文件夹
-cd CloudflareST
+cd CloudflareST || exit 1
 
 # 获取当前系统架构
 ARCH=$(uname -m)
@@ -55,6 +55,7 @@ download_file() {
                 return 0
             else
                 echo "文件太小：$file_size 字节"
+                rm -f "$file"  # 删除不完整文件
             fi
         else
             echo "下载失败"
