@@ -1,15 +1,15 @@
 #!/bin/bash
 
 # 定义 setup_cloudflarest.sh 文件的 URL 和本地路径
-SETUP_SCRIPT_URL="https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/setup_cloudflarest.sh"
+SETUP_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/setup_cloudflarest.sh"
 SETUP_SCRIPT_LOCAL="setup_cloudflarest.sh"
 
 # 定义 resolve_cloudflare.sh 文件的 URL 和本地路径
-RESOLVE_SCRIPT_URL="https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/resolve_cloudflare.sh"
+RESOLVE_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/resolve_cloudflare.sh"
 RESOLVE_SCRIPT_LOCAL="resolve_cloudflare.sh"
 
 # 定义 cfopw.sh 文件的 URL 和本地路径
-CFOPW_SCRIPT_URL="https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cfopw.sh"
+CFOPW_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cfopw.sh"
 CFOPW_SCRIPT_LOCAL="cfopw.sh"
 
 # 检测 setup_cloudflarest.sh 是否有更新
