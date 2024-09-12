@@ -69,47 +69,20 @@ fi
 
 # 下载最新版本的 CloudflareST
 DOWNLOAD_URL="https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-
-# 定义镜像源列表
-MIRRORS=(
-    "$DOWNLOAD_URL"
-    "https://download.scholar.rr.nu/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    "https://ghproxy.cc/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    "https://ghproxy.net/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    "https://gh-proxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    "https://mirror.ghproxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-)
-
-# 使用 tcping 测试各个镜像的延迟，选择最快的源
-BEST_MIRROR=""
-BEST_TIME=1000000
-for MIRROR in "${MIRRORS[@]}"; do
-    HOST=$(echo "$MIRROR" | awk -F/ '{print $3}')
-    echo "正在测试 $HOST 的响应时间..."
-    TIME=$(tcping -c 3 "$HOST" | grep 'min/avg/max' | awk -F'/' '{print $5}' | sed 's/[^0-9.]//g')
-    
-    if [ -z "$TIME" ]; then
-        echo "$HOST 测试失败，跳过。"
-        continue
-    fi
-
-    echo "$HOST 平均延迟: $TIME ms"
-    if (( $(echo "$TIME < $BEST_TIME" | bc -l) )); then
-        BEST_TIME="$TIME"
-        BEST_MIRROR="$MIRROR"
-    fi
-done
-
-# 如果没有找到可用的镜像，退出
-if [ -z "$BEST_MIRROR" ]; then
-    echo "没有可用的下载源。"
-    exit 1
-fi
-
-echo "选择最快的下载源: $BEST_MIRROR"
-wget -N "$BEST_MIRROR" || {
-    echo "下载失败，请重试。"
-    exit 1
+echo "从 $DOWNLOAD_URL 下载"
+wget -N "$DOWNLOAD_URL" || {
+    echo "从 GitHub 下载失败。尝试使用镜像..."
+    MIRRORS=(
+        "https://download.scholar.rr.nu/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+        "https://ghproxy.cc/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+        "https://ghproxy.net/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+        "https://gh-proxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+        "https://mirror.ghproxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    )
+    for MIRROR in "${MIRRORS[@]}"; do
+        echo "尝试使用镜像: $MIRROR"
+        wget -N "$MIRROR" && break
+    done
 }
 
 # 解压文件
