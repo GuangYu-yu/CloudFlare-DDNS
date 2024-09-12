@@ -4,8 +4,8 @@
 SETUP_SCRIPT_LOCAL="setup_cloudflarest.sh"
 SETUP_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/setup_cloudflarest.sh"
 
-RESOLVE_SCRIPT_LOCAL="resolve_cloudflare.sh"
-RESOLVE_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/resolve_cloudflare.sh"
+RESOLVE_SCRIPT_LOCAL="cf.sh"
+RESOLVE_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cf.sh"
 
 CFOPW_SCRIPT_LOCAL="cfopw.sh"
 CFOPW_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cfopw.sh"
@@ -42,11 +42,20 @@ else
   exit 1
 fi
 
-# 执行 resolve_cloudflare.sh
-echo "正在执行 resolve_cloudflare.sh..."
-if ./"$RESOLVE_SCRIPT_LOCAL"; then
-  echo "resolve_cloudflare.sh 执行完成。"
+# 执行 setup_cloudflarest.sh
+echo "正在执行 setup_cloudflarest.sh..."
+if ./"$SETUP_SCRIPT_LOCAL"; then
+  echo "setup_cloudflarest.sh 执行完成。"
 else
-  echo "执行 resolve_cloudflare.sh 失败。"
+  echo "执行 setup_cloudflarest.sh 失败。"
+  exit 1
+fi
+
+# 执行 cf.sh
+echo "正在执行 cf.sh..."
+if ./"$RESOLVE_SCRIPT_LOCAL"; then
+  echo "cf.sh 执行完成。"
+else
+  echo "执行 cf.sh 失败。"
   exit 1
 fi
