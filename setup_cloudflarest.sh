@@ -44,11 +44,11 @@ fi
 
 # 定义下载源列表
 SOURCES=(
+    "https://mirror.ghproxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
     "https://download.scholar.rr.nu/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
     "https://ghproxy.cc/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
     "https://ghproxy.net/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
     "https://gh-proxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    "https://mirror.ghproxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
 )
 
 # 官方下载源
@@ -57,30 +57,21 @@ OFFICIAL_SOURCE="https://github.com/XIU2/CloudflareSpeedTest/releases/download/$
 # 定义重试次数
 MAX_RETRIES=3
 
-# 随机打乱下载源列表
-shuffled_sources=($(shuf -e "${SOURCES[@]}"))
-
-# 遍历随机打乱的下载源列表，使用curl测试连通性并下载
-for SOURCE in "${shuffled_sources[@]}"; do
-    echo "测试下载源: $SOURCE"
-    if curl --connect-timeout 5 --output /dev/null --silent --head --fail "$SOURCE"; then
-        echo "下载源可用: $SOURCE"
-        RETRY_COUNT=0
-        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            echo "从 $SOURCE 下载..."
-            if wget --timeout=10 -N "$SOURCE"; then
-                echo "下载成功！"
-                break 2
-            else
-                RETRY_COUNT=$((RETRY_COUNT + 1))
-                echo "下载失败，重试第 $RETRY_COUNT 次..."
-            fi
-        done
-        if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-            echo "从 $SOURCE 下载失败，尝试下一个下载源..."
+# 遍历下载源列表，尝试下载
+for SOURCE in "${SOURCES[@]}"; do
+    echo "尝试从 $SOURCE 下载..."
+    RETRY_COUNT=0
+    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+        if wget --timeout=10 -N "$SOURCE"; then
+            echo "下载成功！"
+            break 2
+        else
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            echo "下载失败，重试第 $RETRY_COUNT 次..."
         fi
-    else
-        echo "下载源不可用: $SOURCE"
+    done
+    if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+        echo "从 $SOURCE 下载失败，尝试下一个下载源..."
     fi
 done
 
