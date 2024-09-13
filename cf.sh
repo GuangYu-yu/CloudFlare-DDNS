@@ -3,20 +3,10 @@
 # 配置文件路径，优先使用环境变量，否则使用默认值
 config_file=${CONFIG_FILE:-"config.cfg"}
 
-# 检查依赖项
-check_dependencies() {
-    for cmd in curl yq; do
-        if ! command -v $cmd &> /dev/null; then
-            echo "错误：缺少依赖项 $cmd，请先安装。"
-            exit 1
-        fi
-    done
-}
-
 # 显示网络支持状态
 detect_ip_addresses() {
-    ipv6_support=$(curl -s6 ifconfig.co || curl -s6 ipinfo.io || curl -s6 test.ipw.cn || curl -s6 api64.ipify.org > /dev/null && echo "IPv6:√" || echo "IPv6:×")
-    ipv4_support=$(curl -s4 ifconfig.co || curl -s4 ipinfo.io || curl -s4 test.ipw.cn || curl -s4 api64.ipify.org > /dev/null && echo "IPv4:√" || echo "IPv4:×")
+    ipv6_support=$(curl -s6 ifconfig.co || curl -s6 whatismyipaddress.info || curl -s6 cdnjs.cloudflare.com || curl -s6 whatismyipaddress.com || curl -s6 iplocation.io || curl -s6 whatismyip.com || curl -s6 ipaddress.my || curl -s6 iplocation.net || curl -s6 ipqualityscore.com > /dev/null && echo "IPv6:√" || echo "IPv6:×")
+    ipv4_support=$(curl -s4 ifconfig.co || curl -s4 whatismyipaddress.info || curl -s4 cdnjs.cloudflare.com || curl -s4 whatismyipaddress.com || curl -s4 iplocation.io || curl -s4 whatismyip.com || curl -s4 ipaddress.my || curl -s4 iplocation.net || curl -s4 ipqualityscore.com > /dev/null && echo "IPv4:√" || echo "IPv4:×")
 
     echo "$ipv6_support"
     echo "$ipv4_support"
