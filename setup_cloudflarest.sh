@@ -8,42 +8,22 @@ cd CloudflareST
 
 # 获取当前系统架构
 ARCH=$(uname -m)
+
 # 根据系统架构选择相应的文件名
 case "$ARCH" in
-    x86_64)
-        FILE_SUFFIX="amd64"
-        ;;
-    i386|i686)
-        FILE_SUFFIX="386"
-        ;;
-    aarch64)
-        FILE_SUFFIX="arm64"
-        ;;
-    armv5*)
-        FILE_SUFFIX="armv5"
-        ;;
-    armv6*)
-        FILE_SUFFIX="armv6"
-        ;;
-    armv7*)
-        FILE_SUFFIX="armv7"
-        ;;
-    mips)
-        FILE_SUFFIX="mips"
-        ;;
-    mips64)
-        FILE_SUFFIX="mips64"
-        ;;
-    mipsle)
-        FILE_SUFFIX="mipsle"
-        ;;
-    mips64le)
-        FILE_SUFFIX="mips64le"
-        ;;
+    x86_64) FILE_SUFFIX="amd64" ;;
+    i386|i686) FILE_SUFFIX="386" ;;
+    aarch64) FILE_SUFFIX="arm64" ;;
+    armv5*) FILE_SUFFIX="armv5" ;;
+    armv6*) FILE_SUFFIX="armv6" ;;
+    armv7*) FILE_SUFFIX="armv7" ;;
+    mips) FILE_SUFFIX="mips" ;;
+    mips64) FILE_SUFFIX="mips64" ;;
+    mipsle) FILE_SUFFIX="mipsle" ;;
+    mips64le) FILE_SUFFIX="mips64le" ;;
     *)
         echo "不支持的架构: $ARCH"
-        exit 1
-        ;;
+        exit 1 ;;
 esac
 
 # 获取最新版本号
@@ -62,26 +42,56 @@ if [ -f "$FILENAME" ]; then
     rm -f "$FILENAME"
 fi
 
-# 下载最新版本的 CloudflareST
-DOWNLOAD_URL="https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-echo "从 $DOWNLOAD_URL 下载"
-wget -N "$DOWNLOAD_URL" || {
-    echo "从 GitHub 下载失败。尝试使用镜像..."
-    MIRRORS=(
-        "https://download.scholar.rr.nu/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-        "https://ghproxy.cc/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-        "https://ghproxy.net/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-        "https://gh-proxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-        "https://mirror.ghproxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    )
-    for MIRROR in "${MIRRORS[@]}"; do
-        echo "尝试使用镜像: $MIRROR"
-        wget -N "$MIRROR" && break
-    done
-}
+# 定义下载源列表
+SOURCES=(
+    "https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://download.scholar.rr.nu/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://ghproxy.cc/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://ghproxy.net/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://gh-proxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://mirror.ghproxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+)
+
+# 定义tcping命令
+TCPING_CMD="tcping -q -c 1"
+
+# 遍历下载源列表，使用tcping测试连通性
+for SOURCE in "${SOURCES[@]}"; do
+    HOST=$(echo "$SOURCE" | awk -F/ '{print $3}')
+    PORT=443  # 默认使用443端口
+    if $TCPING_CMD "$HOST" "$PORT"; then
+        DOWNLOAD_URL="$SOURCE"
+        echo "首个ping通的下载源: $DOWNLOAD_URL"
+        break
+    fi
+done
+
+# 如果找到可用的下载源，则进行下载
+if [ -n "$DOWNLOAD_URL" ]; then
+    echo "从 $DOWNLOAD_URL 下载"
+    wget -N "$DOWNLOAD_URL" || {
+        RETRY_COUNT=0
+        MAX_RETRIES=3
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            echo "下载失败，重试第 $RETRY_COUNT 次..."
+            wget -N "$DOWNLOAD_URL" && break
+        done
+        if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+            echo "所有重试均失败，下载终止。"
+            exit 1
+        fi
+    }
+else
+    echo "所有下载源均不可用，下载失败。"
+    exit 1
+fi
 
 # 解压文件
 tar -zxf "$FILENAME"
+
+# 删除压缩包
+rm -f "$FILENAME"
 
 # 赋予执行权限
 chmod +x CloudflareST
