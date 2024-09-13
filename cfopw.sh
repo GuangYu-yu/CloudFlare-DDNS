@@ -20,41 +20,61 @@ RETRY_DELAY=5
 retry_count=0
 
 while [ $retry_count -lt $MAX_RETRIES ]; do
-echo "获取 setup_cloudflarest.sh..."
-if curl -ksSL -o "$SETUP_SCRIPT_LOCAL" "$SETUP_SCRIPT_URL"; then
-  echo "setup_cloudflarest.sh 已更新。"
-  chmod +x "$SETUP_SCRIPT_LOCAL"
-else
-  echo "下载 setup_cloudflarest.sh 失败。"
+  echo "获取 setup_cloudflarest.sh..."
+  if curl -ksSL -o "$SETUP_SCRIPT_LOCAL" "$SETUP_SCRIPT_URL"; then
+    echo "setup_cloudflarest.sh 已更新。"
+    chmod +x "$SETUP_SCRIPT_LOCAL"
+    break
+  else
+    echo "下载 setup_cloudflarest.sh 失败。"
+    retry_count=$((retry_count + 1))
+    sleep $RETRY_DELAY
+  fi
+done
+
+if [ $retry_count -eq $MAX_RETRIES ]; then
+  echo "多次尝试下载 setup_cloudflarest.sh 失败，退出。"
   exit 1
 fi
 
 # 下载 cf.sh 并赋予执行权限
-echo "获取 cf.sh..."
-MAX_RETRIES=3
-RETRY_DELAY=5
 retry_count=0
 
 while [ $retry_count -lt $MAX_RETRIES ]; do
-if curl -ksSL -o "$RESOLVE_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_URL"; then
-  echo "cf.sh 已更新。"
-  chmod +x "$RESOLVE_SCRIPT_LOCAL"
-else
-  echo "下载 cf.sh 失败。"
+  echo "获取 cf.sh..."
+  if curl -ksSL -o "$RESOLVE_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_URL"; then
+    echo "cf.sh 已更新。"
+    chmod +x "$RESOLVE_SCRIPT_LOCAL"
+    break
+  else
+    echo "下载 cf.sh 失败。"
+    retry_count=$((retry_count + 1))
+    sleep $RETRY_DELAY
+  fi
+done
+
+if [ $retry_count -eq $MAX_RETRIES ]; then
+  echo "多次尝试下载 cf.sh 失败，退出。"
   exit 1
 fi
 
 # 下载 cfopw.sh
-MAX_RETRIES=3
-RETRY_DELAY=5
 retry_count=0
 
 while [ $retry_count -lt $MAX_RETRIES ]; do
-echo "获取 cfopw.sh..."
-if curl -ksSL -o "$CFOPW_SCRIPT_LOCAL" "$CFOPW_SCRIPT_URL"; then
-  echo "cfopw.sh 已更新。"
-else
-  echo "下载 cfopw.sh 失败。"
+  echo "获取 cfopw.sh..."
+  if curl -ksSL -o "$CFOPW_SCRIPT_LOCAL" "$CFOPW_SCRIPT_URL"; then
+    echo "cfopw.sh 已更新。"
+    break
+  else
+    echo "下载 cfopw.sh 失败。"
+    retry_count=$((retry_count + 1))
+    sleep $RETRY_DELAY
+  fi
+done
+
+if [ $retry_count -eq $MAX_RETRIES ]; then
+  echo "多次尝试下载 cfopw.sh 失败，退出。"
   exit 1
 fi
 
