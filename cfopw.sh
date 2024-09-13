@@ -58,6 +58,60 @@ execute_script() {
     fi
 }
 
+# 初始化包列表
+packages=""
+
+# 检查依赖是否安装
+check_dependency() {
+    local dependency=$1
+    local package_name=$2
+
+    if ! command -v "$dependency" &> /dev/null; then
+        echo "$dependency 未找到。将其添加到所需软件包列表中。"
+        packages="$packages $package_name"
+    else
+        echo "$dependency 已安装。"
+    fi
+}
+
+# 检查所有依赖
+check_dependency "bash" "bash"
+check_dependency "jq" "jq"
+check_dependency "wget" "wget"
+check_dependency "curl" "curl"
+check_dependency "tar" "tar"
+check_dependency "sed" "sed"
+check_dependency "awk" "gawk"
+check_dependency "tr" "coreutils"
+
+# 判断系统进行安装
+if [ -n "$packages" ]; then
+    echo "以下软件包是必需的: $packages"
+    if grep -qi "alpine" /etc/os-release; then
+        echo "使用 apk 安装软件包..."
+        apk update
+        apk add $packages
+    elif grep -qi "openwrt" /etc/os-release; then
+        echo "使用 opkg 安装软件包..."
+        opkg update
+        for package in $packages; do
+            opkg install "$package"
+        done
+        # openwrt 没有安装 timeout
+        opkg install coreutils-timeout
+    elif grep -qi "ubuntu\|debian" /etc/os-release; then
+        echo "使用 apt-get 安装软件包..."
+        sudo apt-get update
+        sudo apt-get install $packages -y
+    elif grep -qi "centos\|red hat\|fedora" /etc/os-release; then
+        echo "使用 yum 安装软件包..."
+        sudo yum install $packages -y
+    else
+        echo "未能检测出你的系统：$(uname)，请自行安装$packages这些软件。"
+        exit 1
+    fi
+fi
+
 # 下载 setup_cloudflarest.sh
 download_script "$SETUP_SCRIPT_LOCAL" "$SETUP_SCRIPT_URL" "setup_cloudflarest.sh"
 
