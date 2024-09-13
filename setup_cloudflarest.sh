@@ -52,16 +52,11 @@ SOURCES=(
     "https://mirror.ghproxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
 )
 
-# 定义tcping命令
-TCPING_CMD="tcping -q -c 1"
-
-# 遍历下载源列表，使用tcping测试连通性
+# 遍历下载源列表，使用curl测试连通性
 for SOURCE in "${SOURCES[@]}"; do
-    HOST=$(echo "$SOURCE" | awk -F/ '{print $3}')
-    PORT=443  # 默认使用443端口
-    if $TCPING_CMD "$HOST" "$PORT"; then
+    if curl --connect-timeout 5 --output /dev/null --silent --head --fail "$SOURCE"; then
         DOWNLOAD_URL="$SOURCE"
-        echo "首个ping通的下载源: $DOWNLOAD_URL"
+        echo "首个可用的下载源: $DOWNLOAD_URL"
         break
     fi
 done
