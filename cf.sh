@@ -1,7 +1,17 @@
 #!/bin/bash
 
-# 配置文件路径
-config_file="config.cfg"
+# 配置文件路径，优先使用环境变量，否则使用默认值
+config_file=${CONFIG_FILE:-"config.cfg"}
+
+# 检查依赖项
+check_dependencies() {
+    for cmd in curl yq; do
+        if ! command -v $cmd &> /dev/null; then
+            echo "错误：缺少依赖项 $cmd，请先安装。"
+            exit 1
+        fi
+    done
+}
 
 # 显示网络支持状态
 detect_ip_addresses() {
@@ -75,6 +85,14 @@ add_account() {
     read -p "请输入区域ID：" region_id
     read -p "请输入API Key：" api_key
 
+    # 验证邮箱格式
+    if ! [[ "$email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+        echo "邮箱格式不正确，请重新输入。"
+        sleep 2
+        add_account
+        return
+    fi
+
     # 将账户信息写入配置文件
     echo "email=$email" >> $config_file
     echo "region_id=$region_id" >> $config_file
@@ -126,6 +144,14 @@ modify_account() {
     read -p "请输入新的账户登陆邮箱（留空则不修改）：" new_email
     read -p "请输入新的区域ID（留空则不修改）：" new_region_id
     read -p "请输入新的API Key（留空则不修改）：" new_api_key
+
+    # 验证邮箱格式
+    if [ -n "$new_email" ] && ! [[ "$new_email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+        echo "邮箱格式不正确，请重新输入。"
+        sleep 2
+        modify_account
+        return
+    fi
 
     # 更新配置文件中的账户信息
     if [ -n "$new_email" ]; then
@@ -589,14 +615,14 @@ execute_resolve() {
 # DDNS到Cloudflare
 ddns_to_cloudflare() {
     # 获取配置信息
-    x_email=$(yq eval ".x_email" $configfile)
-    zone_id=$(yq eval ".zone_id" $configfile)
-    api_key=$(yq eval ".api_key" $configfile)
-    domains=$(yq eval ".domains" $configfile)
-    subdomains=$(yq eval ".subdomains" $configfile)
-    ipv4_count=$(yq eval ".ipv4_count" $configfile)
-    ipv6_count=$(yq eval ".ipv6_count" $configfile)
-    cf_command=$(yq eval ".cf_command" $configfile)
+    x_email=$(yq eval ".x_email" $config_file)
+    zone_id=$(yq eval ".zone_id" $config_file)
+    api_key=$(yq eval ".api_key" $config_file)
+    domains=$(yq eval ".domains" $config_file)
+    subdomains=$(yq eval ".subdomains" $config_file)
+    ipv4_count=$(yq eval ".ipv4_count" $config_file)
+    ipv6_count=$(yq eval ".ipv6_count" $config_file)
+    cf_command=$(yq eval ".cf_command" $config_file)
 
     # 验证配置信息
     if [ -z "$x_email" ] || [ -z "$zone_id" ] || [ -z "$api_key" ] || [ -z "$domains" ] || [ -z "$subdomains" ] || [ -z "$ipv4_count" ] || [ -z "$ipv6_count" ] || [ -z "$cf_command" ]; then
@@ -658,39 +684,39 @@ ddns_to_cloudflare() {
     done
 
     # 测速完毕
-echo "测速完毕"
-if [ "$pause" = "false" ]; then
-  echo "按要求未重启科学上网服务"
-  sleep 3s
-else
-  /etc/init.d/$CLIEN restart
-  echo "已重启$CLIEN"
-  echo "为保证cloudflareAPI连接正常 将在3秒后开始更新域名解析"
-  sleep 3s
-fi
+    echo "测速完毕"
+    if [ "$pause" = "false" ]; then
+        echo "按要求未重启科学上网服务"
+        sleep 3s
+    else
+        /etc/init.d/$CLIEN restart
+        echo "已重启$CLIEN"
+        echo "为保证cloudflareAPI连接正常 将在3秒后开始更新域名解析"
+        sleep 3s
+    fi
 
-# 调用ddns_to_cloudflare函数
-ddns_to_cloudflare
+    # 调用ddns_to_cloudflare函数
+    ddns_to_cloudflare
 
-# 推送消息
-pushmessage=$(cat informlog)
-echo $pushmessage
+    # 推送消息
+    pushmessage=$(cat informlog)
+    echo $pushmessage
 
-if [ ! -z "$sendType" ]; then
-  if [[ $sendType -eq 1 ]]; then
-    source ./msg/cf_push
-  elif [[ $sendType -eq 2 ]]; then
-    source ./msg/wxsend_jiang.sh
-  elif [[ $sendType -eq 3 ]]; then
-    source ./msg/cf_push
-    source ./msg/wxsend_jiang.sh
-  else
-    echo "$sendType is invalid type!"
-  fi
-fi
+    if [ ! -z "$sendType" ]; then
+        if [[ $sendType -eq 1 ]]; then
+            source ./msg/cf_push
+        elif [[ $sendType -eq 2 ]]; then
+            source ./msg/wxsend_jiang.sh
+        elif [[ $sendType -eq 3 ]]; then
+            source ./msg/cf_push
+            source ./msg/wxsend_jiang.sh
+        else
+            echo "$sendType is invalid type!"
+        fi
+    fi
     echo "所有域名更新完成！"
 }
 
-
 # 主程序入口
+check_dependencies
 main_menu
