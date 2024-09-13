@@ -44,7 +44,6 @@ fi
 
 # 定义下载源列表
 SOURCES=(
-    "https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
     "https://download.scholar.rr.nu/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
     "https://ghproxy.cc/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
     "https://ghproxy.net/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
@@ -52,34 +51,57 @@ SOURCES=(
     "https://mirror.ghproxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
 )
 
-# 遍历下载源列表，使用curl测试连通性
-for SOURCE in "${SOURCES[@]}"; do
+# 官方下载源
+OFFICIAL_SOURCE="https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+
+# 定义重试次数
+MAX_RETRIES=3
+
+# 随机打乱下载源列表
+shuffled_sources=($(shuf -e "${SOURCES[@]}"))
+
+# 遍历随机打乱的下载源列表，使用curl测试连通性并下载
+for SOURCE in "${shuffled_sources[@]}"; do
+    echo "测试下载源: $SOURCE"
     if curl --connect-timeout 5 --output /dev/null --silent --head --fail "$SOURCE"; then
-        DOWNLOAD_URL="$SOURCE"
-        echo "首个可用的下载源: $DOWNLOAD_URL"
-        break
+        echo "下载源可用: $SOURCE"
+        RETRY_COUNT=0
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "从 $SOURCE 下载..."
+            if wget --timeout=10 -N "$SOURCE"; then
+                echo "下载成功！"
+                break 2
+            else
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                echo "下载失败，重试第 $RETRY_COUNT 次..."
+            fi
+        done
+        if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+            echo "从 $SOURCE 下载失败，尝试下一个下载源..."
+        fi
+    else
+        echo "下载源不可用: $SOURCE"
     fi
 done
 
-# 如果找到可用的下载源，则进行下载
-if [ -n "$DOWNLOAD_URL" ]; then
-    echo "从 $DOWNLOAD_URL 下载"
-    wget -N "$DOWNLOAD_URL" || {
-        RETRY_COUNT=0
-        MAX_RETRIES=3
-        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+# 如果所有其他下载源均失败，则使用官方下载源
+if [ ! -f "$FILENAME" ]; then
+    echo "所有其他下载源均不可用，尝试官方下载源: $OFFICIAL_SOURCE"
+    RETRY_COUNT=0
+    while [ $RETRY_COUNT -lt 2 ]; do
+        echo "从 $OFFICIAL_SOURCE 下载..."
+        if wget --timeout=30 -N "$OFFICIAL_SOURCE"; then
+            echo "下载成功！"
+            break
+        else
             RETRY_COUNT=$((RETRY_COUNT + 1))
             echo "下载失败，重试第 $RETRY_COUNT 次..."
-            wget -N "$DOWNLOAD_URL" && break
-        done
-        if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-            echo "所有重试均失败，下载终止。"
-            exit 1
         fi
-    }
-else
-    echo "所有下载源均不可用，下载失败。"
-    exit 1
+    done
+    if [ $RETRY_COUNT -eq 2 ]; then
+        echo "从官方下载源下载失败，下载终止。"
+        exit 1
+    fi
 fi
 
 # 解压文件
