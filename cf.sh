@@ -1,15 +1,64 @@
 #!/bin/bash
 
 # 配置文件路径，优先使用环境变量，否则使用默认值
-config_file=${CONFIG_FILE:-"config.cfg"}
+config_file=${CONFIG_FILE:-"config.cfg"};
 
-# 显示网络支持状态
+# 检测网络状况
+
+TIMEOUT=5 # 定义超时时间
+
+# 检测单个网络协议
+detect_protocol() {
+    local protocol=$1
+    local urls=("${!2}")
+    local pids=()
+
+    # 并发检测 URL
+    for url in "${urls[@]}"; do
+        curl -s"$protocol" --connect-timeout $TIMEOUT "https://$url" > /dev/null &
+        pids+=($!)
+    done
+
+    # 等待任意一个请求成功
+    for pid in "${pids[@]}"; do
+        if wait $pid; then
+            return 0  # 成功
+        fi
+    done
+
+    return 1  # 失败
+}
+
+# 通用检测函数
+check_network_status() {
+    local protocol=$1
+    local status_var_name=$2
+    local urls=("${!3}")
+
+    if detect_protocol $protocol urls[@]; then
+        eval $status_var_name="√"
+    else
+        eval $status_var_name="×"
+    fi
+}
+
+# 检测 IPv6 和 IPv4
 detect_ip_addresses() {
-    ipv6_support=$(curl -s6 ifconfig.co || curl -s6 whatismyipaddress.info || curl -s6 cdnjs.cloudflare.com || curl -s6 whatismyipaddress.com || curl -s6 iplocation.io || curl -s6 whatismyip.com || curl -s6 ipaddress.my || curl -s6 iplocation.net || curl -s6 ipqualityscore.com > /dev/null && echo "IPv6:√" || echo "IPv6:×")
-    ipv4_support=$(curl -s4 ifconfig.co || curl -s4 whatismyipaddress.info || curl -s4 cdnjs.cloudflare.com || curl -s4 whatismyipaddress.com || curl -s4 iplocation.io || curl -s4 whatismyip.com || curl -s4 ipaddress.my || curl -s4 iplocation.net || curl -s4 ipqualityscore.com > /dev/null && echo "IPv4:√" || echo "IPv4:×")
+    echo -n "正在检测网络..."
 
-    echo "$ipv6_support"
-    echo "$ipv4_support"
+    # 定义检测的 URL 列表（各个URL必须同时支持IPv4和IPv6）
+    urls=("ifconfig.co" "whatismyipaddress.info" "cdnjs.cloudflare.com" "whatismyipaddress.com" "iplocation.io" "whatismyip.com" "ipaddress.my" "iplocation.net" "ipqualityscore.com" "ip.sb")
+
+    # 检测 IPv6 和 IPv4
+    check_network_status 6 ipv6_status urls[@]
+    check_network_status 4 ipv4_status urls[@]
+
+    # 清除 "正在检测网络..."
+    echo -e "\r\033[K"
+
+    # 输出结果
+    echo "IPv6: $ipv6_status"
+    echo "IPv4: $ipv4_status"
 }
 
 # 主菜单
@@ -709,5 +758,4 @@ ddns_to_cloudflare() {
 }
 
 # 主程序入口
-check_dependencies
 main_menu
