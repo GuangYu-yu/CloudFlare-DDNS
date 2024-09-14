@@ -1,32 +1,51 @@
 #!/bin/bash
 
-# 配置文件路径，优先使用环境变量，否则使用默认值
-config_file=${CONFIG_FILE:-"config.cfg"};
+# 全局变量：用于存储网络状态
+ipv6_status=""
+ipv4_status=""
 
-# 检测网络状况
+# 检测cf.yaml文件
+if [ ! -f "cf.yaml" ]; then
+    touch cf.yaml
+fi
 
-TIMEOUT=5 # 定义超时时间
+config_file=cf.yaml
+
+TIMEOUT=5    # 默认超时时间
+RETRY_LIMIT=10 # 默认最大重试次数
 
 # 检测单个网络协议
 detect_protocol() {
     local protocol=$1
     local urls=("${!2}")
+    local timeout=$3
+    local retry=$4
     local pids=()
+    local attempt=0
 
-    # 并发检测 URL
-    for url in "${urls[@]}"; do
-        curl -s"$protocol" --connect-timeout $TIMEOUT "https://$url" > /dev/null &
-        pids+=($!)
+    # 开始重试逻辑
+    while [ $attempt -lt $retry ]; do
+        echo "尝试第 $((attempt + 1)) 次检测 (协议: IPv$protocol)"
+        pids=()
+
+        # 并发检测 URL
+        for url in "${urls[@]}"; do
+            curl -s"$protocol" --connect-timeout $timeout "https://$url" > /dev/null &
+            pids+=($!)
+        done
+
+        # 等待任意一个请求成功
+        for pid in "${pids[@]}"; do
+            if wait $pid; then
+                return 0  # 成功
+            fi
+        done
+
+        # 增加尝试次数
+        attempt=$((attempt + 1))
     done
 
-    # 等待任意一个请求成功
-    for pid in "${pids[@]}"; do
-        if wait $pid; then
-            return 0  # 成功
-        fi
-    done
-
-    return 1  # 失败
+    return 1  # 全部尝试失败
 }
 
 # 通用检测函数
@@ -34,56 +53,72 @@ check_network_status() {
     local protocol=$1
     local status_var_name=$2
     local urls=("${!3}")
+    local timeout=$4
+    local retry=$5
 
-    if detect_protocol $protocol urls[@]; then
-        eval $status_var_name="√"
+    if detect_protocol $protocol urls[@] $timeout $retry; then
+        eval "$status_var_name='√'"
     else
-        eval $status_var_name="×"
+        eval "$status_var_name='×'"
     fi
 }
 
-# 检测 IPv6 和 IPv4
+# 检测 IPv6 和 IPv4 状态
 detect_ip_addresses() {
-    echo -n "正在检测网络..."
 
     # 定义检测的 URL 列表（各个URL必须同时支持IPv4和IPv6）
     urls=("ifconfig.co" "whatismyipaddress.info" "cdnjs.cloudflare.com" "whatismyipaddress.com" "iplocation.io" "whatismyip.com" "ipaddress.my" "iplocation.net" "ipqualityscore.com" "ip.sb")
 
     # 检测 IPv6 和 IPv4
-    check_network_status 6 ipv6_status urls[@]
-    check_network_status 4 ipv4_status urls[@]
-
-    # 清除 "正在检测网络..."
-    echo -e "\r\033[K"
-
-    # 输出结果
-    echo "IPv6: $ipv6_status"
-    echo "IPv4: $ipv4_status"
+    check_network_status 6 ipv6_status urls[@] $TIMEOUT $RETRY_LIMIT
+    check_network_status 4 ipv4_status urls[@] $TIMEOUT $RETRY_LIMIT
 }
+
+# 显示网络状态
+display_network_status() {
+    # 使用 \r 清除上一行内容，保持输出行刷新
+    echo -e "\rIPv6 状态: $ipv6_status         IPv4 状态: $ipv4_status"
+}
+
+# 刷新网络状态
+refresh_network_status() {
+    echo "正在检测网络..."
+    detect_ip_addresses
+}
+
+# 运行检测
+refresh_network_status
 
 # 主菜单
 main_menu() {
+    
     while true; do
         clear
         echo "================================="
-        echo "           主菜单"
+        echo "             主菜单"
         echo "================================="
-        detect_ip_addresses
+        
+        # 显示当前网络状态
+        display_network_status
+
+        echo "================================="
         echo "1. 设置账户"
         echo "2. 解析地址"
         echo "3. 推送设置"
         echo "4. 执行解析"
-        echo "5. 退出"
+        echo "5. 刷新网络"
+        echo "6. 退出"
         echo "================================="
-        read -p "请选择 (1-5): " choice
+        read -p "请选择 (1-6): " choice
 
         case $choice in
             1) account_settings ;;
             2) resolve_settings ;;
             3) push_settings ;;
             4) execute_resolve ;;
-            5) exit 0 ;;
-            *) echo "无效选项，请重新选择。" ;;
+            5) refresh_network_status ;;  # 选择刷新网络状态
+            6) exit 0 ;;
+            *) continue ;;
         esac
     done
 }
@@ -96,7 +131,12 @@ account_settings() {
         echo "           账户设置"
         echo "================================="
         echo "已设置的账户信息："
-        awk -F'=' '{if ($1 == "email") print "邮箱: " $2; else if ($1 == "region_id") print "区域ID: " $2; else if ($1 == "api_key") print "API Key: " $2}' $config_file
+
+    # 使用 awk 输出已存在的账户信息
+    awk -F' ' '{for (i=1; i<=NF; i++) { split($i, a, "="); if (a[1] == "account_group") printf "账户组: %s ", a[2]; else if (a[1] == "x_email") printf "邮箱: %s ", a[2]; else if (a[1] == "zone_id") printf "区域ID: %s ", a[2]; else if (a[1] == "api_key") printf "API Key: %s ", a[2]; }
+        print "";
+    }' $config_file
+
         echo "================================="
         echo "1. 添加账户"
         echo "2. 删除账户"
@@ -110,7 +150,7 @@ account_settings() {
             2) delete_account ;;
             3) modify_account ;;
             4) return ;;
-            *) echo "无效选项，请重新选择。" ;;
+            *) continue ;;
         esac
     done
 }
@@ -121,22 +161,39 @@ add_account() {
     echo "================================="
     echo "           添加账户"
     echo "================================="
-    read -p "请输入账户登陆邮箱：" email
-    read -p "请输入区域ID：" region_id
-    read -p "请输入API Key：" api_key
+    
+    read -p "请输入自定义账户组名称（只能包含字母、数字和下划线）：" account_group
+
+    # 验证账户组名称
+    while ! [[ "$account_group" =~ ^[A-Za-z0-9_]+$ ]]; do
+        echo "账户组名称格式不正确，请重新输入。"
+        read -p "请输入自定义账户组名称（只能包含字母、数字和下划线）：" account_group
+    done
+
+    read -p "请输入账户登陆邮箱：" x_email
 
     # 验证邮箱格式
-    if ! [[ "$email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+    while ! [[ "$x_email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; do
         echo "邮箱格式不正确，请重新输入。"
-        sleep 2
-        add_account
-        return
-    fi
+        read -p "请输入账户登陆邮箱：" x_email
+    done
 
-    # 将账户信息写入配置文件
-    echo "email=$email" >> $config_file
-    echo "region_id=$region_id" >> $config_file
-    echo "api_key=$api_key" >> $config_file
+    # 输入区域ID，检测不能为空
+    read -p "请输入区域ID：" zone_id
+    while [[ -z "$zone_id" ]]; do
+        echo "区域ID不能为空，请重新输入。"
+        read -p "请输入区域ID：" zone_id
+    done
+
+    # 输入API Key，检测不能为空
+    read -p "请输入API Key：" api_key
+    while [[ -z "$api_key" ]]; do
+        echo "API Key不能为空，请重新输入。"
+        read -p "请输入API Key：" api_key
+    done
+
+    # 将账户信息写入配置文件，格式为一行
+    echo "account_group=$account_group x_email=$x_email zone_id=$zone_id api_key=$api_key" >> "$config_file"
 
     echo "账户添加成功！"
     sleep 2
@@ -150,19 +207,31 @@ delete_account() {
     echo "           删除账户"
     echo "================================="
     echo "已设置的账户信息："
-    awk -F'=' '{if ($1 == "email") print "邮箱: " $2; else if ($1 == "region_id") print "区域ID: " $2; else if ($1 == "api_key") print "API Key: " $2}' $config_file
+
+    # 使用 awk 输出已存在的账户信息
+    awk -F' ' '{for (i=1; i<=NF; i++) { split($i, a, "="); if (a[1] == "account_group") printf "账户组: %s ", a[2]; else if (a[1] == "x_email") printf "邮箱: %s ", a[2]; else if (a[1] == "zone_id") printf "区域ID: %s ", a[2]; else if (a[1] == "api_key") printf "API Key: %s ", a[2]; }
+        print "";
+    }' $config_file
+
     echo "================================="
-    read -p "请输入要删除的账户邮箱（留空则返回上级）：" delete_email
-    if [ -z "$delete_email" ]; then
+    read -p "请输入要删除的账户组名称（留空则返回上级）：" delete_group
+
+    if [ -z "$delete_group" ]; then
         return
     fi
 
-    # 删除配置文件中的账户信息
-    sed -i "/^email=$delete_email/d" $config_file
-    sed -i "/^region_id=/d" $config_file
-    sed -i "/^api_key=/d" $config_file
+    # 检查账户组名称是否存在
+    if ! grep -q "^account_group=$delete_group " "$config_file"; then
+        echo "不存在该账户组名称！"
+        sleep 2
+        delete_account
+        return
+    fi
 
-    echo "账户已删除。"
+    # 删除指定账户组的相关信息
+    sed -i "/^account_group=$delete_group /,/^account_group=/d" "$config_file"
+
+    echo "账户组 $delete_group 已成功删除！"
     sleep 2
     account_settings
 }
@@ -174,37 +243,59 @@ modify_account() {
     echo "           修改账户"
     echo "================================="
     echo "已设置的账户信息："
-    awk -F'=' '{if ($1 == "email") print "邮箱: " $2; else if ($1 == "region_id") print "区域ID: " $2; else if ($1 == "api_key") print "API Key: " $2}' $config_file
+    
+    # 使用 awk 输出已存在的账户信息
+    awk -F' ' '{for (i=1; i<=NF; i++) { split($i, a, "="); if (a[1] == "account_group") printf "账户组: %s ", a[2]; else if (a[1] == "x_email") printf "邮箱: %s ", a[2]; else if (a[1] == "zone_id") printf "区域ID: %s ", a[2]; else if (a[1] == "api_key") printf "API Key: %s ", a[2]; }
+    print "";
+    }' $config_file
+
     echo "================================="
-    read -p "请输入要修改的账户邮箱（留空则返回上级）：" modify_email
-    if [ -z "$modify_email" ]; then
+    read -p "请输入要修改的账户组（留空则返回上级）：" modify_account_group
+    if [ -z "$modify_account_group" ]; then
         return
     fi
 
-    read -p "请输入新的账户登陆邮箱（留空则不修改）：" new_email
-    read -p "请输入新的区域ID（留空则不修改）：" new_region_id
-    read -p "请输入新的API Key（留空则不修改）：" new_api_key
+    # 提示用户选择要修改的内容
+    while true; do
+        echo "请选择要修改的内容："
+        echo "1. 账户登陆邮箱"
+        echo "2. 区域ID"
+        echo "3. API Key"
+        echo "4. 退出"
+        read -p "请输入选项 (1-4)：" choice
 
-    # 验证邮箱格式
-    if [ -n "$new_email" ] && ! [[ "$new_email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
-        echo "邮箱格式不正确，请重新输入。"
-        sleep 2
-        modify_account
-        return
-    fi
+        case $choice in
+            1)  read -p "请输入新的账户登陆邮箱：" new_email
+                # 验证邮箱格式
+                if [[ -z "$new_email" ]]; then
+                    echo "输入不能为空，请重新输入"
+                elif ! [[ "$new_email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+                    echo "邮箱格式不正确，请重新输入"
+                else
+                    sed -i "s/^x_email=.*/x_email=$new_email/" $config_file
+                    echo "邮箱已更新"
+                fi ;;
+            2)  read -p "请输入新的区域ID：" new_region_id
+                if [[ -z "$new_region_id" ]]; then
+                    echo "输入不能为空，请重新输入"
+                else
+                    sed -i "s/^zone_id=.*/zone_id=$new_region_id/" $config_file
+                    echo "区域ID已更新"
+                fi ;;
+            3)  read -p "请输入新的API Key：" new_api_key
+                if [[ -z "$new_api_key" ]]; then
+                    echo "输入不能为空，请重新输入"
+                else
+                    sed -i "s/^api_key=.*/api_key=$new_api_key/" $config_file
+                    echo "API Key已更新"
+                fi ;;
+            4)  break ;;
+            *)  modify_account ;;
+                
+        esac
+    done
 
-    # 更新配置文件中的账户信息
-    if [ -n "$new_email" ]; then
-        sed -i "s/^email=$modify_email/email=$new_email/" $config_file
-    fi
-    if [ -n "$new_region_id" ]; then
-        sed -i "s/^region_id=.*/region_id=$new_region_id/" $config_file
-    fi
-    if [ -n "$new_api_key" ]; then
-        sed -i "s/^api_key=.*/api_key=$new_api_key/" $config_file
-    fi
-
-    echo "账户信息已更新。"
+    echo "账户信息修改完毕。"
     sleep 2
     account_settings
 }
@@ -230,7 +321,7 @@ resolve_settings() {
             3) modify_resolve ;;
             4) view_schedule ;;
             5) return ;;
-            *) echo "无效选项，请重新选择。" ;;
+            *) continue ;;
         esac
     done
 }
