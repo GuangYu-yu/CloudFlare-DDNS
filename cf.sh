@@ -4,7 +4,7 @@
 ipv6_status=""
 ipv4_status=""
 
-# 检测cf.yaml文件
+# 检测 cf.yaml 文件
 if [ ! -f "cf.yaml" ]; then
     touch cf.yaml
 fi
@@ -51,27 +51,45 @@ detect_protocol() {
 # 通用检测函数
 check_network_status() {
     local protocol=$1
-    local status_var_name=$2
+    local status_file=$2
     local urls=("${!3}")
     local timeout=$4
     local retry=$5
 
     if detect_protocol $protocol urls[@] $timeout $retry; then
-        eval "$status_var_name='√'"
+        echo "√" > "$status_file"
     else
-        eval "$status_var_name='×'"
+        echo "×" > "$status_file"
     fi
 }
 
 # 检测 IPv6 和 IPv4 状态
 detect_ip_addresses() {
-
     # 定义检测的 URL 列表（各个URL必须同时支持IPv4和IPv6）
-    urls=("ip.sb")
+    urls=("ifconfig.co" "whatismyipaddress.info" "cdnjs.cloudflare.com" "whatismyipaddress.com" "iplocation.io" "whatismyip.com" "ipaddress.my" "iplocation.net" "ipqualityscore.com" "ip.sb")
 
-    # 检测 IPv6 和 IPv4
-    check_network_status 6 ipv6_status urls[@] $TIMEOUT $RETRY_LIMIT
-    check_network_status 4 ipv4_status urls[@] $TIMEOUT $RETRY_LIMIT
+    # 临时文件来存储检测结果
+    temp_ipv6_status=$(mktemp)
+    temp_ipv4_status=$(mktemp)
+
+    # 并发检测 IPv6 和 IPv4
+    check_network_status 6 "$temp_ipv6_status" urls[@] $TIMEOUT $RETRY_LIMIT &
+    pid_ipv6=$!
+
+    check_network_status 4 "$temp_ipv4_status" urls[@] $TIMEOUT $RETRY_LIMIT &
+    pid_ipv4=$!
+
+    # 等待检测完成
+    wait $pid_ipv6
+    wait $pid_ipv4
+
+    # 从临时文件中读取状态
+    ipv6_status=$(cat "$temp_ipv6_status")
+    ipv4_status=$(cat "$temp_ipv4_status")
+
+    # 删除临时文件
+    rm "$temp_ipv6_status"
+    rm "$temp_ipv4_status"
 }
 
 # 显示网络状态
@@ -101,12 +119,36 @@ look_account_group() {
 
 # 查看解析
 look_ddns() {
-    sed -n '/add_ddns=(\([^)]*\)), ddns_name=(\([^)]*\)), hostname1=(\([^)]*\)), hostname2=(\([^)]*\)), v4_num=(\([^)]*\)), v6_num=(\([^)]*\)), cf_command=(\([^)]*\)), v4_url=(\([^)]*\)), v6_url=(\([^)]*\))/ {
-        s/add_ddns=(\([^)]*\)), ddns_name=(\([^)]*\)), hostname1=(\([^)]*\)), hostname2=(\([^)]*\)), v4_num=(\([^)]*\)), v6_num=(\([^)]*\)), cf_command=(\([^)]*\)), v4_url=(\([^)]*\)), v6_url=(\([^)]*\))/账户组：\1\n解析组：\2\n一级域名：\3\n二级域名：\4\nIPv4数量：\5\nIPv6数量：\6\nCloudflareST命令：\7\nIPv4地址URL：\8\nIPv6地址URL：\9\n\n/
-        p
-    }' "$config_file"
-}
+    sed -n 's/add_ddns=(\([^)]*\)), ddns_name=(\([^)]*\)), hostname1=(\([^)]*\)), hostname2=(\([^)]*\)), v4_num=(\([^)]*\)), v6_num=(\([^)]*\)), cf_command=(\([^)]*\)), v4_url=(\([^)]*\)), v6_url=(\([^)]*\)),push_mod=(\([^)]*\))/账户组：\1\n解析组：\2\n一级域名：\3\n二级域名：\4\nIPv4数量：\5\nIPv6数量：\6\nCloudflareST命令：\7\IPv4地址URL：\8\IPv6地址URL：\9\n推送方式：\10\n/p' "$config_file" | while read -r line; do
+        # 提取推送方式并转换为对应的名称
+        push_mod=$(echo "$line" | sed -n 's/.*推送方式：\([^ ]*\).*/\1/p')
+        
+        # 处理多个推送方式
+        push_names=""
+        IFS=',' read -ra mods <<< "$push_mod"
+        for mod in "${mods[@]}"; do
+            case $mod in
+                0) push_name="未设置" ;;
+                1) push_name="Telegram" ;;
+                2) push_name="PushPlus" ;;
+                3) push_name="Server 酱" ;;
+                4) push_name="PushDeer" ;;
+                5) push_name="企业微信" ;;
+                6) push_name="Synology Chat" ;;
+                *) push_name="错误" ;;
+            esac
+            push_names="$push_names $push_name"
+        done
 
+        # 清理空格
+        push_names=$(echo "$push_names" | sed 's/^ //')
+
+        # 替换逗号为空格，并修改输出，将推送方式替换为对应的名称
+        echo "$line" | sed "s/推送方式：.*/推送方式：$push_names/" \
+                          | sed 's/二级域名：\([^ ]*\)/二级域名：\1/g; s/,/ /g' \
+                          | sed 's/CloudflareST命令：\([^ ]*\)/CloudflareST命令：\1/g; s/,/ /g'
+    done
+}
 
 look_cfst_rules() {
     echo "    示例：-n 500 -tll 40 -tl 280 -dn 5 -sl 15 -p 5"
@@ -123,6 +165,13 @@ look_cfst_rules() {
     echo "    -sl 5       下载速度下限（默认 0.00 MB/s）"
     echo "    -dd         禁用下载测速（默认启用）"
     echo "    -allip      测速全部的IP（仅支持 IPv4,默认每个/24段随机测速一个IP）"
+}
+
+# 检查最后一行是否为空行
+add_blank_line() {
+if [ -n "$(tail -n 1 "$config_file")" ]; then
+    echo "" >> "$config_file"  # 如果前一行不是空行，插入一个空行
+fi
 }
 
 main_menu() {
@@ -150,7 +199,7 @@ main_menu() {
         clear_input_buffer
         
         # 使用timeout命令设置超时时间
-        read -t $timeout_sec -p "请选择 (1-6): " choice
+        read -t $timeout_sec -p "请选择 (1-7): " choice
 
         # 如果超时，则退出
         if [ $? -ne 0 ]; then
@@ -198,8 +247,7 @@ account_settings() {
             1) add_account ;;
             2) delete_account ;;
             3) modify_account ;;
-            4) clear_input_buffer 
-               main_menu;;
+            4) clear_input_buffer; main_menu ;;
             *) continue ;;
         esac
     done
@@ -247,6 +295,9 @@ add_account() {
         read -p "请输入API Key：" api_key
     done
 
+
+    add_blank_line
+    
     # 写入账户相关信息到配置文件，并使用标识分隔账户部分
     echo "# Account section" >> "$config_file"
     echo "account_group=($account_group), x_email=($x_email), zone_id=($zone_id), api_key=($api_key)" >> "$config_file"
@@ -259,9 +310,9 @@ add_account() {
 
 # 删除账户
 delete_account() {
-    
+
     clear_input_buffer
-    
+
     clear
     echo "================================="
     echo "           删除账户"
@@ -285,14 +336,22 @@ delete_account() {
         return
     fi
 
-    # 从配置文件中删除匹配的账户组整行
-    sed -i "/account_group=($delete_group),/d" "$config_file"
+    # 确认删除
+    read -p "确认删除账户组 $delete_group 吗？(y/n): " confirm_delete
+    if [ "$confirm_delete" != "y" ]; then
+        echo "取消删除操作。"
+        sleep 1
+        return
+    fi
+
+    # 从配置文件中删除匹配的账户组整行和前一行注释
+    sed -i "/# Account section/,+1 {/account_group=($delete_group),/d}" "$config_file"
 
     echo "账户组 $delete_group 已成功删除！"
     sleep 1
-    
+
     clear_input_buffer
-    
+
     account_settings
 }
 
@@ -399,7 +458,7 @@ resolve_settings() {
         echo "5. 返回主菜单"
         echo "================================="
         
-        read -p "请选择 (1-4): " choice
+        read -p "请选择 (1-5): " choice
 
         case $choice in
             1) view_resolve ;;
@@ -431,7 +490,7 @@ add_resolve() {
     echo "================================="
     echo "           添加解析"
     echo "================================="
-    
+
     look_account_group
 
     while true; do
@@ -528,8 +587,8 @@ add_resolve() {
         fi
     done
     cf_command=$(echo "$cf_command" | tr ' ' ',')
-
-    while true; do
+    
+     while true; do
         read -p "从URL链接获取IPv4地址：" v4_url
         if [ -n "$v4_url" ] && ! [[ "$v4_url" =~ ^https?://.* ]]; then
             echo "无效的IPv4 URL，请重新输入！"
@@ -547,15 +606,43 @@ add_resolve() {
         fi
     done
 
-    # 写入解析相关信息到配置文件，并使用标识分隔解析部分
+    while true; do
+        read -p "请选择推送方式 (0-不设置, 1-Telegram, 2-PushPlus, 3-Server酱, 4-PushDeer, 5-企业微信, 6-Synology Chat，以空格分开)： " push_mod
+
+        # 将输入的推送方式按空格分隔
+        push_mod=$(echo "$push_mod" | tr -s ' ')
+
+        # 验证输入是否包含非法字符
+        if [[ ! "$push_mod" =~ ^[0-6]+([[:space:]][0-6]+)*$ ]]; then
+            echo "无效输入，请输入 0 或 1-6 的数字"
+            continue
+        fi
+
+        # 判断是否同时包含 0 和其他数字
+        if [[ "$push_mod" =~ (^0[[:space:]]|[[:space:]]0[[:space:]]|0$) && "$push_mod" != "0" ]]; then
+            echo "无效输入：0 只能单独存在，不能与其他数字一起使用"
+            continue
+        fi
+
+        # 检查是否有重复项
+        if [[ $(echo "$push_mod" | tr ' ' '\n' | sort | uniq -d | wc -l) -gt 0 ]]; then
+            echo "无效输入：数字不能重复"
+            continue
+        fi
+
+        break
+    done
+    
+    add_blank_line
+
+    # 写入解析信息到配置文件
     echo "# Resolve section" >> "$config_file"
-    echo "add_ddns=($add_ddns), ddns_name=($ddns_name), hostname1=($hostname1), hostname2=($hostname2), v4_num=($ipv4_count), v6_num=($ipv6_count), cf_command=($cf_command), v4_url=($v4_url), v6_url=($v6_url)" >> "$config_file"
+    echo "add_ddns=($add_ddns), ddns_name=($add_ddns), hostname1=($hostname1), hostname2=($hostname2), v4_num=($ipv4_count), v6_num=($ipv6_count), cf_command=($cf_command), v4_url=($v4_url), v6_url=($v6_url), push_mod=($push_mod)" >> "$config_file"
 
     echo "解析条目添加成功！"
     sleep 1
-    resolve_settings
+    push_settings  # 直接进入推送设置
 }
-
 
 # 删除解析
 delete_resolve() {
@@ -580,8 +667,16 @@ delete_resolve() {
         return
     fi
 
-    # 从配置文件中删除匹配的解析组整行
-    sed -i "/ddns_name=($delete_ddns),/d" "$config_file"
+    # 确认删除
+    read -p "确认删除解析组 $delete_ddns 吗？(y/n): " confirm_delete
+    if [ "$confirm_delete" != "y" ]; then
+        echo "取消删除操作。"
+        sleep 1
+        return
+    fi
+
+    # 从配置文件中删除匹配的解析组整行和前一行注释
+    sed -i "/# Resolve section/,+1 {/ddns_name=($delete_ddns),/d}" "$config_file"
 
     echo "解析组 $delete_ddns 已成功删除！"
     sleep 1
@@ -621,8 +716,9 @@ modify_resolve() {
         echo "5. CloudflareST命令"
         echo "6. IPv4地址URL"
         echo "7. IPv6地址URL"
-        echo "8. 返回"
-        read -p "请输入选项 (1-8): " choice
+        echo "8. 推送渠道"
+        echo "9. 返回"
+        read -p "请输入选项 (1-9): " choice
 
         case $choice in
             1)
@@ -670,15 +766,48 @@ modify_resolve() {
             7)
                 read -p "请输入新的IPv6地址URL：" new_v6_url
                 if [[ -n "$new_v6_url" && "$new_v6_url" =~ ^https?://.* ]]; then
-                    sed -i "s|\(ddns_name=($modify_ddns), \(.*\), v6_url=(\)[^)]*|\1($new_v6_url|g" "$config_file"
+                    sed -i "s|\(ddns_name=($modify_ddns), \(.*\), v6_url=\)[^)]*|\1($new_v6_url)|" "$config_file"
                     echo "IPv6地址URL已更新"
                 else
                     echo "URL格式不正确，请重新输入"
                 fi ;;
             8)
-                break ;;
+                while true; do
+                    read -p "请输入新的推送方式（0-不设置, 1-Telegram, 2-PushPlus, 3-Server酱, 4-PushDeer, 5-企业微信, 6-Synology Chat，以空格分隔）： " new_push_mod
+
+                    # 去掉多余的空格
+                    new_push_mod=$(echo "$new_push_mod" | tr -s ' ')
+
+                    # 检查是否有非法字符
+                    if [[ ! "$new_push_mod" =~ ^[0-6]+([[:space:]][0-6]+)*$ ]]; then
+                        echo "无效输入，请输入 0 或 1-6 的数字"
+                        continue
+                    fi
+
+                    # 检查是否同时包含0和其他数字
+                    if [[ "$new_push_mod" =~ (^0[[:space:]]|[[:space:]]0[[:space:]]|0$) && "$new_push_mod" != "0" ]]; then
+                        echo "无效输入：0 只能单独存在，不能与其他数字一起使用"
+                        continue
+                    fi
+
+                    # 检查是否有重复数字
+                    if [[ $(echo "$new_push_mod" | tr ' ' '\n' | sort | uniq -d | wc -l) -gt 0 ]]; then
+                        echo "无效输入：数字不能重复"
+                        continue
+                    fi
+
+                    # 更新配置文件
+                    sed -i "s/\(ddns_name=($modify_ddns), \(.*\), push_mod=\)[^)]*/\1($formatted_push_mod)/" "$config_file"
+                    echo "推送方式已更新"
+                    break
+                done
+                ;;
+            9)
+                break
+                ;;
             *)
-                continue ;;
+                continue
+                ;;
         esac
     done
 
@@ -693,7 +822,7 @@ start() {
     local ddns_name=$1
 
     # 检查 ddns_name 是否存在，并从 Resolve Section 查找
-    local resolve_line=$(grep -E "^add_ddns=\(.*\), ddns_name=\($ddns_name\)" "$config_file")
+    local resolve_line=$(grep -E "^add_ddns=$.*$, ddns_name=$$ddns_name$" "$config_file")
 
     if [ -z "$resolve_line" ]; then
         echo "未找到指定的解析组，请检查输入。"
@@ -701,38 +830,39 @@ start() {
     fi
 
     # 提取 add_ddns 和相关解析信息
-    local add_ddns=$(echo "$resolve_line" | sed -n 's/.*add_ddns=(\([^)]*\)).*/\1/p')
-    local hostname1=$(echo "$resolve_line" | sed -n 's/.*hostname1=(\([^)]*\)).*/\1/p')
-    local hostname2=$(echo "$resolve_line" | sed -n 's/.*hostname2=(\([^)]*\)).*/\1/p' | sed 's/,/ /g')  # 替换逗号为空格
-    local v4_num=$(echo "$resolve_line" | sed -n 's/.*v4_num=(\([^)]*\)).*/\1/p')
-    local v6_num=$(echo "$resolve_line" | sed -n 's/.*v6_num=(\([^)]*\)).*/\1/p')
-    local cf_command=$(echo "$resolve_line" | sed -n 's/.*cf_command=(\([^)]*\)).*/\1/p' | sed 's/,/ /g')  # 替换逗号为空格
-    local v4_url=$(echo "$resolve_line" | sed -n 's/.*v4_url=(\([^)]*\)).*/\1/p')
-    local v6_url=$(echo "$resolve_line" | sed -n 's/.*v6_url=(\([^)]*\)).*/\1/p')
-    
+    local add_ddns=$(echo "$resolve_line" | sed -n 's/.*add_ddns=($[^)]*$).*/\1/p')
+    local hostname1=$(echo "$resolve_line" | sed -n 's/.*hostname1=($[^)]*$).*/\1/p')
+    local hostname2=$(echo "$resolve_line" | sed -n 's/.*hostname2=($[^)]*$).*/\1/p' | sed 's/,/ /g')  # 替换逗号为空格
+    local v4_num=$(echo "$resolve_line" | sed -n 's/.*v4_num=($[^)]*$).*/\1/p')
+    local v6_num=$(echo "$resolve_line" | sed -n 's/.*v6_num=($[^)]*$).*/\1/p')
+    local cf_command=$(echo "$resolve_line" | sed -n 's/.*cf_command=($[^)]*$).*/\1/p' | sed 's/,/ /g')  # 替换逗号为空格
+    local v4_url=$(echo "$resolve_line" | sed -n 's/.*v4_url=($[^)]*$).*/\1/p')
+    local v6_url=$(echo "$resolve_line" | sed -n 's/.*v6_url=($[^)]*$).*/\1/p')
+    local push_mod=$(echo "$resolve_line" | sed -n 's/.*push_mod=($[^)]*$).*/\1/p')
+
     # 使用 add_ddns 查找对应的 account_group
-    local account_group_line=$(grep "^account_group=(\($add_ddns\))" "$config_file")
+    local account_group_line=$(grep "^account_group=($$add_ddns$)" "$config_file")
     if [ -z "$account_group_line" ]; then
         echo "未找到对应的账户组，请检查配置。"
         return 1
     fi
 
     # 提取从账户组获取的信息
-    local x_email=$(echo "$account_group_line" | sed -n 's/.*x_email=(\([^)]*\)).*/\1/p')
-    local zone_id=$(echo "$account_group_line" | sed -n 's/.*zone_id=(\([^)]*\)).*/\1/p')
-    local api_key=$(echo "$account_group_line" | sed -n 's/.*api_key=(\([^)]*\)).*/\1/p')
+    local x_email=$(echo "$account_group_line" | sed -n 's/.*x_email=($[^)]*$).*/\1/p')
+    local zone_id=$(echo "$account_group_line" | sed -n 's/.*zone_id=($[^)]*$).*/\1/p')
+    local api_key=$(echo "$account_group_line" | sed -n 's/.*api_key=($[^)]*$).*/\1/p')
     
     # 确保所有必要信息都已提取
     if [ -z "$x_email" ] || [ -z "$zone_id" ] || [ -z "$api_key" ] || \
        [ -z "$hostname1" ] || [ -z "$hostname2" ] || [ -z "$v4_num" ] || \
        [ -z "$v6_num" ] || [ -z "$cf_command" ] || [ -z "$v4_url" ] || \
-       [ -z "$v6_url" ]; then
+       [ -z "$v6_url" ] || [ -z "$push_mod" ]; then  # 添加 push_mod 的检测
         echo "某些必要信息缺失，请检查配置。"
         return 1
     fi
 
-    # 运行 start_ddns.sh 并传递所有参数，使用 exec 来替换当前脚本进程
-exec ./start_ddns.sh "$x_email" "$zone_id" "$api_key" "$hostname1" "$hostname2" "$v4_num" "$v6_num" "$cf_command" "$v4_url" "$v6_url"
+    # 运行 start_ddns.sh 并传递所有参数，包括 push_mod，使用 exec 来替换当前脚本进程
+    exec ./start_ddns.sh "$x_email" "$zone_id" "$api_key" "$hostname1" "$hostname2" "$v4_num" "$v6_num" "$cf_command" "$v4_url" "$v6_url" "$push_mod"
 }
 
 # 执行解析
@@ -801,42 +931,42 @@ view_schedule() {
         1) 
             new_task="0 */4 * * * cd $script_dir && bash cf.sh start $selected_ddns"
             (echo "$existing_crontab"; echo "$new_task") | crontab -
-            echo "计划任务示例1已创建！"
-            ;;
+            echo "计划任务示例1已创建！" ;;
+           
         2) 
             new_task="0 5 * * * cd $script_dir && bash cf.sh start $selected_ddns"
             (echo "$existing_crontab"; echo "$new_task") | crontab -
-            echo "计划任务示例2已创建！"
-            ;;
+            echo "计划任务示例2已创建！" ;;
+            
         3) 
-            echo "返回上级菜单。"
-            return
-            ;;
+            clear_input_buffer; main_menu ;;
         *) 
-            echo "无效选项，请重新选择。"
-            ;;
+            continue ;;
+            
     esac
 
     echo "================================="
     read -p "按任意键返回上级菜单..." -n1 -s
 }
 
-# 推送设置
+# 推送参数
 push_settings() {
     while true; do
         clear
         echo "================================="
-        echo "           推送设置"
+        echo "           推送参数"
         echo "================================="
-        echo "1. 设置Telegram推送"
-        echo "2. 设置PushPlus推送"
-        echo "3. 设置Server 酱推送"
-        echo "4. 设置PushDeer推送"
-        echo "5. 设置企业微信推送"
-        echo "6. 设置Synology Chat推送"
-        echo "7. 返回主菜单"
+        echo "1. 设置Telegram参数"
+        echo "2. 设置PushPlus参数"
+        echo "3. 设置Server 酱参数"
+        echo "4. 设置PushDeer参数"
+        echo "5. 设置企业微信参数"
+        echo "6. 设置Synology Chat参数"
+        echo "7. 修改推送参数"
+        echo "8. 删除推送参数"
+        echo "9. 返回主菜单"
         echo "================================="
-        read -p "请选择 (1-7): " choice
+        read -p "请选择 (1-9): " choice
 
         case $choice in
             1) set_telegram_push ;;
@@ -845,13 +975,15 @@ push_settings() {
             4) set_pushdeer_push ;;
             5) set_wechat_push ;;
             6) set_synology_chat_push ;;
-            7) return ;;
-            *) echo "无效选项，请重新选择。" ;;
+            7) modify_push_parameters ;; 
+            8) delete_push ;;
+            9) clear_input_buffer; main_menu ;;
+            *) continue ;;
         esac
     done
 }
 
-# 设置Telegram推送
+# 设置Telegram参数
 set_telegram_push() {
     clear
     echo "================================="
@@ -867,16 +999,20 @@ set_telegram_push() {
         return
     fi
 
-    # 将Telegram推送信息写入配置文件
-    echo "telegram_bot_token=$telegram_bot_token" >> $config_file
-    echo "telegram_user_id=$telegram_user_id" >> $config_file
+    add_blank_line
+    
+    # 写入推送信息到配置文件
+    {
+        echo "# Push section"
+        echo "push_name=(1),telegram_bot_token=($telegram_bot_token),telegram_user_id=($telegram_user_id)"
+    } >> $config_file;
 
     echo "Telegram推送设置成功！"
     sleep 2
     push_settings
 }
 
-# 设置PushPlus推送
+# 设置PushPlus参数
 set_pushplus_push() {
     clear
     echo "================================="
@@ -887,15 +1023,20 @@ set_pushplus_push() {
         return
     fi
 
-    # 将PushPlus推送信息写入配置文件
-    echo "pushplus_token=$pushplus_token" >> $config_file
+    add_blank_line
+
+    # 写入推送信息到配置文件
+    {
+        echo "# Push section"
+        echo "push_name=(2),pushplus_token=($pushplus_token)"
+    } >> $config_file;
 
     echo "PushPlus推送设置成功！"
     sleep 2
     push_settings
 }
 
-# 设置Server 酱推送
+# 设置Server 酱参数
 set_server_push() {
     clear
     echo "================================="
@@ -906,15 +1047,20 @@ set_server_push() {
         return
     fi
 
-    # 将Server 酱推送信息写入配置文件
-    echo "server_sendkey=$server_sendkey" >> $config_file
+    add_blank_line
+
+    # 写入推送信息到配置文件
+    {
+        echo "# Push section"
+        echo "push_name=(3),server_sendkey=($server_sendkey)"
+    } >> $config_file;
 
     echo "Server 酱推送设置成功！"
     sleep 2
     push_settings
 }
 
-# 设置PushDeer推送
+# 设置PushDeer参数
 set_pushdeer_push() {
     clear
     echo "================================="
@@ -925,15 +1071,20 @@ set_pushdeer_push() {
         return
     fi
 
-    # 将PushDeer推送信息写入配置文件
-    echo "pushdeer_pushkey=$pushdeer_pushkey" >> $config_file
+    add_blank_line
+
+    # 写入推送信息到配置文件
+    {
+        echo "# Push section"
+        echo "push_name=(4),pushdeer_pushkey=($pushdeer_pushkey)"
+    } >> $config_file;
 
     echo "PushDeer推送设置成功！"
     sleep 2
     push_settings
 }
 
-# 设置企业微信推送
+# 设置企业微信参数
 set_wechat_push() {
     clear
     echo "================================="
@@ -959,18 +1110,20 @@ set_wechat_push() {
         return
     fi
 
-    # 将企业微信推送信息写入配置文件
-    echo "wechat_corpid=$wechat_corpid" >> $config_file
-    echo "wechat_secret=$wechat_secret" >> $config_file
-    echo "wechat_agentid=$wechat_agentid" >> $config_file
-    echo "wechat_userid=$wechat_userid" >> $config_file
+    add_blank_line
+
+    # 写入推送信息到配置文件
+    {
+        echo "# Push section"
+        echo "push_name=(5),wechat_corpid=($wechat_corpid),wechat_secret=($wechat_secret),wechat_agentid=($wechat_agentid),wechat_userid=($wechat_userid)"
+    } >> $config_file;
 
     echo "企业微信推送设置成功！"
     sleep 2
     push_settings
 }
 
-# 设置Synology Chat推送
+# 设置Synology Chat参数
 set_synology_chat_push() {
     clear
     echo "================================="
@@ -981,120 +1134,191 @@ set_synology_chat_push() {
         return
     fi
 
-    # 将Synology Chat推送信息写入配置文件
-    echo "synology_chat_url=$synology_chat_url" >> $config_file
+    add_blank_line
+
+    # 写入推送信息到配置文件
+    {
+        echo "# Push section"
+        echo "push_name=(6),synology_chat_url=($synology_chat_url)"
+    } >> $config_file;
 
     echo "Synology Chat推送设置成功！"
     sleep 2
     push_settings
 }
 
+# 修改推送参数
+modify_push_parameters() {
+    clear
+    echo "================================="
+    echo "           修改推送参数"
+    echo "================================="
+    
+    local push_name=$1
+    local config_line=$(grep -E "^push_name=\($push_name\)" "$config_file")
 
-
-
-# DDNS到Cloudflare
-ddns_to_cloudflare() {
-    # 获取配置信息
-    x_email=$(yq eval ".x_email" $config_file)
-    zone_id=$(yq eval ".zone_id" $config_file)
-    api_key=$(yq eval ".api_key" $config_file)
-    domains=$(yq eval ".domains" $config_file)
-    subdomains=$(yq eval ".subdomains" $config_file)
-    ipv4_count=$(yq eval ".ipv4_count" $config_file)
-    ipv6_count=$(yq eval ".ipv6_count" $config_file)
-    cf_command=$(yq eval ".cf_command" $config_file)
-
-    # 验证配置信息
-    if [ -z "$x_email" ] || [ -z "$zone_id" ] || [ -z "$api_key" ] || [ -z "$domains" ] || [ -z "$subdomains" ] || [ -z "$ipv4_count" ] || [ -z "$ipv6_count" ] || [ -z "$cf_command" ]; then
-        echo "配置信息不完整，请检查配置文件。"
-        return 1
+    if [ -z "$config_line" ]; then
+        echo "该推送还未设置，是否跳转到对应设置？(y/n)"
+        read -p "选择: " confirm
+        if [ "$confirm" = "y" ]; then
+            case $push_name in
+                1) set_telegram_push ;;
+                2) set_pushplus_push ;;
+                3) set_server_push ;;
+                4) set_pushdeer_push ;;
+                5) set_wechat_push ;;
+                6) set_synology_chat_push ;;
+                *) echo "无效的推送类型";;
+            esac
+        fi
+        return
     fi
 
-    # 执行CloudflareST获取IP测速结果
-    echo "正在执行CloudflareST获取IP测速结果..."
-    $cf_command
+    echo "当前推送配置: $config_line"
+    echo "请选择要修改的参数："
+    
+    case $push_name in
+        1)  # Telegram
+            echo "1. 修改Telegram Bot Token"
+            echo "2. 修改Telegram User ID"
+            read -p "请选择要修改的参数 (1-2): " choice
+            
+            case $choice in
+                1)
+                    read -p "请输入新的Telegram Bot Token（空则不修改）：" new_bot_token
+                    [[ -n "$new_bot_token" ]] && config_line=$(sed "s/telegram_bot_token=([^)]*)/telegram_bot_token=($new_bot_token)/" <<< "$config_line")
+                    ;;
+                2)
+                    read -p "请输入新的Telegram User ID（空则不修改）：" new_user_id
+                    [[ -n "$new_user_id" ]] && config_line=$(sed "s/telegram_user_id=([^)]*)/telegram_user_id=($new_user_id)/" <<< "$config_line")
+                    ;;
+                *)
+                    echo "无效选项"
+                    return
+                    ;;
+            esac
+            ;;
+        2)  # PushPlus
+            read -p "请输入新的PushPlus Token（空则不修改）：" new_token
+            [[ -n "$new_token" ]] && config_line=$(sed "s/pushplus_token=([^)]*)/pushplus_token=($new_token)/" <<< "$config_line")
+            ;;
+        3)  # Server 酱
+            read -p "请输入新的Server 酱 SendKey（空则不修改）：" new_sendkey
+            [[ -n "$new_sendkey" ]] && config_line=$(sed "s/server_sendkey=([^)]*)/server_sendkey=($new_sendkey)/" <<< "$config_line")
+            ;;
+        4)  # PushDeer
+            read -p "请输入新的PushDeer PushKey（空则不修改）：" new_pushkey
+            [[ -n "$new_pushkey" ]] && config_line=$(sed "s/pushdeer_pushkey=([^)]*)/pushdeer_pushkey=($new_pushkey)/" <<< "$config_line")
+            ;;
+        5)  # 企业微信
+            echo "1. 修改企业微信 CorpID"
+            echo "2. 修改企业微信 Secret"
+            echo "3. 修改企业微信 AgentID"
+            echo "4. 修改企业微信 UserID"
+            read -p "请选择要修改的参数 (1-4): " choice
+            
+            case $choice in
+                1)
+                    read -p "请输入新的企业微信CorpID（空则不修改）：" new_corpid
+                    [[ -n "$new_corpid" ]] && config_line=$(sed "s/wechat_corpid=([^)]*)/wechat_corpid=($new_corpid)/" <<< "$config_line")
+                    ;;
+                2)
+                    read -p "请输入新的企业微信Secret（空则不修改）：" new_secret
+                    [[ -n "$new_secret" ]] && config_line=$(sed "s/wechat_secret=([^)]*)/wechat_secret=($new_secret)/" <<< "$config_line")
+                    ;;
+                3)
+                    read -p "请输入新的企业微信AgentID（空则不修改）：" new_agentid
+                    [[ -n "$new_agentid" ]] && config_line=$(sed "s/wechat_agentid=([^)]*)/wechat_agentid=($new_agentid)/" <<< "$config_line")
+                    ;;
+                4)
+                    read -p "请输入新的企业微信UserID（空则不修改）：" new_userid
+                    [[ -n "$new_userid" ]] && config_line=$(sed "s/wechat_userid=([^)]*)/wechat_userid=($new_userid)/" <<< "$config_line")
+                    ;;
+                *)
+                    echo "无效选项"
+                    return
+                    ;;
+            esac
+            ;;
+        6)  # Synology Chat
+            read -p "请输入新的Synology Chat URL（空则不修改）：" new_url
+            [[ -n "$new_url" ]] && config_line=$(sed "s/synology_chat_url=([^)]*)/synology_chat_url=($new_url)/" <<< "$config_line")
+            ;;
+        *)
+            echo "无效的推送类型"
+            return
+            ;;
+    esac
+    
+    # 更新配置文件
+    sed -i "s|^push_name=($push_name).*|$config_line|" "$config_file"
+    echo "推送参数已更新！"
+    sleep 2
+    push_settings
+}
 
-    # 处理每个域名和二级域名
-    IFS=',' read -r -a domain_array <<< "$domains"
-    IFS=',' read -r -a subdomain_array <<< "$subdomains"
+# 删除推送参数
+delete_push() {
+    clear
+    echo "================================="
+    echo "           删除推送"
+    echo "================================="
 
-    for domain in "${domain_array[@]}"; do
-        for subdomain in "${subdomain_array[@]}"; do
-            CDNhostname="${subdomain}.${domain}"
-            echo "正在更新域名：$CDNhostname"
+    # 获取已添加的推送配置
+    local push_list=$(grep "^push_name=" "$config_file" | cut -d '=' -f 2 | tr -d '()')
 
-            # 获取测速结果文件
-            if [ "$ipv4_count" -gt 0 ]; then
-                csvfile="result.csv"
-            elif [ "$ipv6_count" -gt 0 ]; then
-                csvfile="result_ipv6.csv"
-            else
-                echo "未指定IPv4或IPv6解析数量。"
-                continue
-            fi
+    if [ -z "$push_list" ]; then
+        echo "当前没有设置任何推送参数。"
+        sleep 2
+        return
+    fi
 
-            # 如果没有生成对应结果文件，跳过
-            if [ ! -e $csvfile ]; then
-                echo "未找到测速结果文件：$csvfile"
-                continue
-            fi
-
-            # 读取测速结果文件并更新DNS记录
-            lineNo=0
-            ipcount=0
-            while read -r line; do
-                ((lineNo++))
-                if ((lineNo == 1)); then
-                    continue
-                fi
-                IFS=, read -ra fields <<<"$line"
-                ipAddr=${fields[0]}
-
-                ((ipcount++))
-                echo "开始更新第${ipcount}个---$ipAddr"
-                UpInsetCF $ipAddr
-
-                if ((ipcount >= ipv4_count + ipv6_count)); then
-                    break
-                fi
-            done <$csvfile
-
-            echo "完成$CDNhostname的IP更新!"
-        done
+    echo "已设置的推送："
+    # 展示已设置的推送，转换数字为推送名称
+    for push in $push_list; do
+        case $push in
+            1) echo "1. Telegram推送" ;;
+            2) echo "2. PushPlus推送" ;;
+            3) echo "3. Server 酱推送" ;;
+            4) echo "4. PushDeer推送" ;;
+            5) echo "5. 企业微信推送" ;;
+            6) echo "6. Synology Chat推送" ;;
+            *) echo "未知的推送类型" ;;
+        esac
     done
 
-    # 测速完毕
-    echo "测速完毕"
-    if [ "$pause" = "false" ]; then
-        echo "按要求未重启科学上网服务"
-        sleep 3s
-    else
-        /etc/init.d/$CLIEN restart
-        echo "已重启$CLIEN"
-        echo "为保证cloudflareAPI连接正常 将在3秒后开始更新域名解析"
-        sleep 3s
+    read -p "请选择要删除的推送 (1-6): " delete_choice
+
+    # 检测输入的推送是否已设置
+    if ! echo "$push_list" | grep -q "\b$delete_choice\b"; then
+        echo "未设置该推送，请重新选择。"
+        sleep 2
+        return
     fi
 
-    # 调用ddns_to_cloudflare函数
-    ddns_to_cloudflare
+    # 确认删除
+    case $delete_choice in
+        1) push_name="Telegram推送" ;;
+        2) push_name="PushPlus推送" ;;
+        3) push_name="Server 酱推送" ;;
+        4) push_name="PushDeer推送" ;;
+        5) push_name="企业微信推送" ;;
+        6) push_name="Synology Chat推送" ;;
+        *) echo "无效选项。" ; return ;;
+    esac
 
-    # 推送消息
-    pushmessage=$(cat informlog)
-    echo $pushmessage
-
-    if [ ! -z "$sendType" ]; then
-        if [[ $sendType -eq 1 ]]; then
-            source ./msg/cf_push
-        elif [[ $sendType -eq 2 ]]; then
-            source ./msg/wxsend_jiang.sh
-        elif [[ $sendType -eq 3 ]]; then
-            source ./msg/cf_push
-            source ./msg/wxsend_jiang.sh
-        else
-            echo "$sendType is invalid type!"
-        fi
+    read -p "确认删除 $push_name? (y/n): " confirm_delete
+    if [ "$confirm_delete" != "y" ]; then
+        echo "取消删除。"
+        sleep 2
+        return
     fi
-    echo "所有域名更新完成！"
+
+    # 删除特定的推送段落（包括# Push section和push_name行）
+    sed -i "/# Push section/,+1 {/push_name=($delete_choice)/d}" "$config_file"
+
+    echo "$push_name 已成功删除。"
+    sleep 2
 }
 
 # 主程序入口
