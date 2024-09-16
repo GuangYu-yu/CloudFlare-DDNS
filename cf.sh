@@ -11,7 +11,7 @@ fi
 
 config_file=cf.yaml
 
-TIMEOUT=5    # 默认超时时间
+TIMEOUT=3    # 默认超时时间
 RETRY_LIMIT=10 # 默认最大重试次数
 
 # 检测单个网络协议
@@ -67,7 +67,7 @@ check_network_status() {
 detect_ip_addresses() {
 
     # 定义检测的 URL 列表（各个URL必须同时支持IPv4和IPv6）
-    urls=("ifconfig.co" "whatismyipaddress.info" "cdnjs.cloudflare.com" "whatismyipaddress.com" "iplocation.io" "whatismyip.com" "ipaddress.my" "iplocation.net" "ipqualityscore.com" "ip.sb")
+    urls=("ip.sb")
 
     # 检测 IPv6 和 IPv4
     check_network_status 6 ipv6_status urls[@] $TIMEOUT $RETRY_LIMIT
@@ -89,9 +89,45 @@ refresh_network_status() {
 # 运行检测
 refresh_network_status
 
-# 主菜单
+# 读取并丢弃所有在缓冲区中的输入
+clear_input_buffer() {
+    cat /dev/null > /dev/tty
+}
+
+# 输出已存在的账户信息
+look_account_group() {
+    sed -n 's/account_group=(\([^)]*\)), x_email=(\([^)]*\)), zone_id=(\([^)]*\)), api_key=(\([^)]*\))/账户组：\1 邮箱：\2 区域ID：\3 API Key：\4/p' "$config_file"
+}
+
+# 查看解析
+look_ddns() {
+    sed -n '/add_ddns=(\([^)]*\)), ddns_name=(\([^)]*\)), hostname1=(\([^)]*\)), hostname2=(\([^)]*\)), v4_num=(\([^)]*\)), v6_num=(\([^)]*\)), cf_command=(\([^)]*\)), v4_url=(\([^)]*\)), v6_url=(\([^)]*\))/ {
+        s/add_ddns=(\([^)]*\)), ddns_name=(\([^)]*\)), hostname1=(\([^)]*\)), hostname2=(\([^)]*\)), v4_num=(\([^)]*\)), v6_num=(\([^)]*\)), cf_command=(\([^)]*\)), v4_url=(\([^)]*\)), v6_url=(\([^)]*\))/账户组：\1\n解析组：\2\n一级域名：\3\n二级域名：\4\nIPv4数量：\5\nIPv6数量：\6\nCloudflareST命令：\7\nIPv4地址URL：\8\nIPv6地址URL：\9\n\n/
+        p
+    }' "$config_file"
+}
+
+
+look_cfst_rules() {
+    echo "    示例：-n 500 -tll 40 -tl 280 -dn 5 -sl 15 -p 5"
+    echo "    HTTP  端口  80  8080 2052 2082 2086 2095 8880"
+    echo "    HTTPS 端口  443 8443 2053 2083 2087 2096 "
+    echo "    -n 200      延迟测速线程（最大 1000）"
+    echo "    -t 4        延迟测速次数（默认 4 次）"
+    echo "    -dt 10      下载测速时间（默认 10 秒）"
+    echo "    -tp 443     指定测速端口（默认 443）"
+    echo "    -url <URL>  指定测速地址（默认 https://cf.xiu2.xyz/url）"
+    echo "    -tl 200     平均延迟上限（默认 9999 ms）"
+    echo "    -tll 40     平均延迟下限（默认 0 ms）"
+    echo "    -tlr 0.2    丢包几率上限（默认 1.00）"
+    echo "    -sl 5       下载速度下限（默认 0.00 MB/s）"
+    echo "    -dd         禁用下载测速（默认启用）"
+    echo "    -allip      测速全部的IP（仅支持 IPv4,默认每个/24段随机测速一个IP）"
+}
+
 main_menu() {
-    
+    local timeout_sec=60  # 设置超时时间，单位为秒
+
     while true; do
         clear
         echo "================================="
@@ -102,14 +138,25 @@ main_menu() {
         display_network_status
 
         echo "================================="
-        echo "1. 设置账户"
-        echo "2. 解析地址"
+        echo "1. 账户设置"
+        echo "2. 解析设置"
         echo "3. 推送设置"
         echo "4. 执行解析"
         echo "5. 刷新网络"
-        echo "6. 退出"
+        echo "6. 计划任务"
+        echo "7. 退出"
         echo "================================="
-        read -p "请选择 (1-6): " choice
+        
+        clear_input_buffer
+        
+        # 使用timeout命令设置超时时间
+        read -t $timeout_sec -p "请选择 (1-6): " choice
+
+        # 如果超时，则退出
+        if [ $? -ne 0 ]; then
+            echo "操作超时，已退出。"
+            exit 1
+        fi
 
         case $choice in
             1) account_settings ;;
@@ -117,7 +164,8 @@ main_menu() {
             3) push_settings ;;
             4) execute_resolve ;;
             5) refresh_network_status ;;  # 选择刷新网络状态
-            6) exit 0 ;;
+            6) view_schedule;;
+            7) exit 0 ;;
             *) continue ;;
         esac
     done
@@ -126,16 +174,14 @@ main_menu() {
 # 账户设置
 account_settings() {
     while true; do
+    
         clear
         echo "================================="
         echo "           账户设置"
         echo "================================="
         echo "已设置的账户信息："
 
-    # 使用 awk 输出已存在的账户信息
-    awk -F' ' '{for (i=1; i<=NF; i++) { split($i, a, "="); if (a[1] == "account_group") printf "账户组: %s ", a[2]; else if (a[1] == "x_email") printf "邮箱: %s ", a[2]; else if (a[1] == "zone_id") printf "区域ID: %s ", a[2]; else if (a[1] == "api_key") printf "API Key: %s ", a[2]; }
-        print "";
-    }' $config_file
+        look_account_group
 
         echo "================================="
         echo "1. 添加账户"
@@ -143,13 +189,17 @@ account_settings() {
         echo "3. 修改账户"
         echo "4. 返回主菜单"
         echo "================================="
+        
+        clear_input_buffer
+        
         read -p "请选择 (1-4): " choice
 
         case $choice in
             1) add_account ;;
             2) delete_account ;;
             3) modify_account ;;
-            4) return ;;
+            4) clear_input_buffer 
+               main_menu;;
             *) continue ;;
         esac
     done
@@ -157,61 +207,68 @@ account_settings() {
 
 # 添加账户
 add_account() {
+    clear_input_buffer
     clear
     echo "================================="
     echo "           添加账户"
     echo "================================="
     
-    read -p "请输入自定义账户组名称（只能包含字母、数字和下划线）：" account_group
-
-    # 验证账户组名称
-    while ! [[ "$account_group" =~ ^[A-Za-z0-9_]+$ ]]; do
-        echo "账户组名称格式不正确，请重新输入。"
+    while true; do
         read -p "请输入自定义账户组名称（只能包含字母、数字和下划线）：" account_group
+
+        if ! [[ "$account_group" =~ ^[A-Za-z0-9_]+$ ]]; then
+            echo "账户组名称格式不正确"
+            continue
+        fi
+
+        if grep -q "account_group=($account_group)" "$config_file"; then
+            echo "已有该账户组名称！"
+            continue
+        fi
+        
+        break
     done
 
     read -p "请输入账户登陆邮箱：" x_email
-
-    # 验证邮箱格式
     while ! [[ "$x_email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; do
-        echo "邮箱格式不正确，请重新输入。"
+        echo "邮箱格式不正确"
         read -p "请输入账户登陆邮箱：" x_email
     done
 
-    # 输入区域ID，检测不能为空
     read -p "请输入区域ID：" zone_id
     while [[ -z "$zone_id" ]]; do
-        echo "区域ID不能为空，请重新输入。"
+        echo "区域ID不能为空"
         read -p "请输入区域ID：" zone_id
     done
 
-    # 输入API Key，检测不能为空
     read -p "请输入API Key：" api_key
     while [[ -z "$api_key" ]]; do
-        echo "API Key不能为空，请重新输入。"
+        echo "API Key不能为空"
         read -p "请输入API Key：" api_key
     done
 
-    # 将账户信息写入配置文件，格式为一行
-    echo "account_group=$account_group x_email=$x_email zone_id=$zone_id api_key=$api_key" >> "$config_file"
+    # 写入账户相关信息到配置文件，并使用标识分隔账户部分
+    echo "# Account section" >> "$config_file"
+    echo "account_group=($account_group), x_email=($x_email), zone_id=($zone_id), api_key=($api_key)" >> "$config_file"
 
     echo "账户添加成功！"
-    sleep 2
+    sleep 1
+    clear_input_buffer
     account_settings
 }
 
 # 删除账户
 delete_account() {
+    
+    clear_input_buffer
+    
     clear
     echo "================================="
     echo "           删除账户"
     echo "================================="
     echo "已设置的账户信息："
 
-    # 使用 awk 输出已存在的账户信息
-    awk -F' ' '{for (i=1; i<=NF; i++) { split($i, a, "="); if (a[1] == "account_group") printf "账户组: %s ", a[2]; else if (a[1] == "x_email") printf "邮箱: %s ", a[2]; else if (a[1] == "zone_id") printf "区域ID: %s ", a[2]; else if (a[1] == "api_key") printf "API Key: %s ", a[2]; }
-        print "";
-    }' $config_file
+    look_account_group
 
     echo "================================="
     read -p "请输入要删除的账户组名称（留空则返回上级）：" delete_group
@@ -221,37 +278,48 @@ delete_account() {
     fi
 
     # 检查账户组名称是否存在
-    if ! grep -q "^account_group=$delete_group " "$config_file"; then
+    if ! grep -q "account_group=($delete_group)" "$config_file"; then
         echo "不存在该账户组名称！"
-        sleep 2
+        sleep 1
         delete_account
         return
     fi
 
-    # 删除指定账户组的相关信息
-    sed -i "/^account_group=$delete_group /,/^account_group=/d" "$config_file"
+    # 从配置文件中删除匹配的账户组整行
+    sed -i "/account_group=($delete_group),/d" "$config_file"
 
     echo "账户组 $delete_group 已成功删除！"
-    sleep 2
+    sleep 1
+    
+    clear_input_buffer
+    
     account_settings
 }
 
 # 修改账户
 modify_account() {
+    
+    clear_input_buffer
+    
     clear
     echo "================================="
     echo "           修改账户"
     echo "================================="
     echo "已设置的账户信息："
-    
-    # 使用 awk 输出已存在的账户信息
-    awk -F' ' '{for (i=1; i<=NF; i++) { split($i, a, "="); if (a[1] == "account_group") printf "账户组: %s ", a[2]; else if (a[1] == "x_email") printf "邮箱: %s ", a[2]; else if (a[1] == "zone_id") printf "区域ID: %s ", a[2]; else if (a[1] == "api_key") printf "API Key: %s ", a[2]; }
-    print "";
-    }' $config_file
+
+    look_account_group
 
     echo "================================="
     read -p "请输入要修改的账户组（留空则返回上级）：" modify_account_group
     if [ -z "$modify_account_group" ]; then
+        return
+    fi
+
+    # 检查账户组名称是否存在
+    if ! grep -q "account_group=($modify_account_group)" "$config_file"; then
+        echo "账户组不存在，请重新输入。"
+        sleep 1
+        modify_account
         return
     fi
 
@@ -261,42 +329,54 @@ modify_account() {
         echo "1. 账户登陆邮箱"
         echo "2. 区域ID"
         echo "3. API Key"
-        echo "4. 退出"
+        echo "4. 返回"
         read -p "请输入选项 (1-4)：" choice
 
         case $choice in
-            1)  read -p "请输入新的账户登陆邮箱：" new_email
+            1)  
+                read -p "请输入新的账户登陆邮箱：" new_email
                 # 验证邮箱格式
-                if [[ -z "$new_email" ]]; then
-                    echo "输入不能为空，请重新输入"
-                elif ! [[ "$new_email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
-                    echo "邮箱格式不正确，请重新输入"
-                else
-                    sed -i "s/^x_email=.*/x_email=$new_email/" $config_file
+                if [[ -n "$new_email" && "$new_email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+                    # 使用 sed 精确更新邮箱字段，保留其他字段
+                    sed -i "s/\(account_group=($modify_account_group), x_email=\)[^,]*,/\1($new_email),/" "$config_file"
                     echo "邮箱已更新"
-                fi ;;
-            2)  read -p "请输入新的区域ID：" new_region_id
-                if [[ -z "$new_region_id" ]]; then
-                    echo "输入不能为空，请重新输入"
                 else
-                    sed -i "s/^zone_id=.*/zone_id=$new_region_id/" $config_file
-                    echo "区域ID已更新"
+                    echo "邮箱格式不正确，请重新输入"
                 fi ;;
-            3)  read -p "请输入新的API Key：" new_api_key
-                if [[ -z "$new_api_key" ]]; then
-                    echo "输入不能为空，请重新输入"
-                else
-                    sed -i "s/^api_key=.*/api_key=$new_api_key/" $config_file
-                    echo "API Key已更新"
-                fi ;;
-            4)  break ;;
-            *)  modify_account ;;
                 
+            2)  
+                read -p "请输入新的区域ID：" new_zone_id
+                if [[ -n "$new_zone_id" ]]; then
+                    # 使用 sed 精确更新区域ID字段，保留其他字段
+                    sed -i "s/\(account_group=($modify_account_group), \(.*\), zone_id=\)[^,]*,/\1($new_zone_id),/" "$config_file"
+                    echo "区域ID已更新"
+                else
+                    echo "输入不能为空，请重新输入"
+                fi ;;
+                
+            3)  
+                read -p "请输入新的API Key：" new_api_key
+                if [[ -n "$new_api_key" ]]; then
+                    # 使用 sed 精确更新 API Key 字段，保留其他字段
+                    sed -i "s/\(account_group=($modify_account_group), \(.*\), api_key=(\)[^)]*/\1$new_api_key/" "$config_file"
+                    echo "API Key已更新"
+                else
+                    echo "输入不能为空，请重新输入"
+                fi ;;
+                
+            4)  
+                break ;;
+                
+            *)  
+                continue ;;
         esac
     done
 
     echo "账户信息修改完毕。"
-    sleep 2
+    sleep 1
+    
+    clear_input_buffer
+    
     account_settings
 }
 
@@ -307,23 +387,42 @@ resolve_settings() {
         echo "================================="
         echo "           解析设置"
         echo "================================="
-        echo "1. 添加解析"
-        echo "2. 删除解析"
-        echo "3. 修改解析"
-        echo "4. 查看计划任务"
+        
+        look_account_group
+
+        echo "================================="
+        
+        echo "1. 查看解析"
+        echo "2. 添加解析"
+        echo "3. 删除解析"
+        echo "4. 修改解析"
         echo "5. 返回主菜单"
         echo "================================="
-        read -p "请选择 (1-5): " choice
+        
+        read -p "请选择 (1-4): " choice
 
         case $choice in
-            1) add_resolve ;;
-            2) delete_resolve ;;
-            3) modify_resolve ;;
-            4) view_schedule ;;
-            5) return ;;
+            1) view_resolve ;;
+            2) add_resolve ;;
+            3) delete_resolve ;;
+            4) modify_resolve ;;
+            5) clear_input_buffer; main_menu ;;
             *) continue ;;
         esac
     done
+}
+
+# 查看解析
+view_resolve() {
+    clear
+    echo "================================="
+    echo "           查看解析"
+    echo "================================="
+
+    # 显示该解析组的信息
+    look_ddns
+
+    read -p "按回车返回上级"
 }
 
 # 添加解析
@@ -332,119 +431,131 @@ add_resolve() {
     echo "================================="
     echo "           添加解析"
     echo "================================="
-    read -p "请选择账户 （留空则返回上级）：" account
-    if [ -z "$account" ]; then
-        return
-    fi
+    
+    look_account_group
 
-    read -p "请输入要解析的一级域名（留空则返回上级）：" domain
-    if [ -z "$domain" ]; then
-        return
-    fi
+    while true; do
+        read -p "请输入账户组名称（留空则返回上级）：" add_ddns
+        if [ -z "$add_ddns" ]; then
+            return
+        fi
+        
+        if ! grep -q "account_group=($add_ddns)" "$config_file"; then
+            echo "账户组不存在，请重新输入。"
+        else
+            break
+        fi
+    done
 
-    echo "请选择模式（留空则返回上级）："
-    echo "1. 多个IP分别解析到多个域名"
-    echo "2. 多个IP解析到同一个域名"
-    read -p "请选择 (1-2): " mode
+    while true; do
+        read -p "请输入自定义解析组名称（只能包含字母、数字和下划线）： " ddns_name
+        if ! [[ "$ddns_name" =~ ^[A-Za-z0-9_]+$ ]]; then
+            echo "解析组名称格式不正确"
+            continue
+        fi
 
-    case $mode in
-        1) add_resolve_multi ;;
-        2) add_resolve_single ;;
-        *) return ;;
-    esac
-}
+        if grep -q "ddns_name=($ddns_name)" "$config_file"; then
+            echo "已有该解析组名称！"
+            continue
+        fi
+        
+        break
+    done
 
-# 多个IP分别解析到多个域名
-add_resolve_multi() {
-    clear
-    echo "================================="
-    echo "           多个IP分别解析到多个域名"
-    echo "================================="
-    read -p "请输入多个二级域名（不含一级域名，以空格分开，留空则返回上级）：" subdomains
-    if [ -z "$subdomains" ]; then
-        return
-    fi
+    while true; do
+        read -p "请输入要解析的一级域名（留空则返回上级）：" hostname1
+        if [ -z "$hostname1" ]; then
+            return
+        fi
+        if [[ "$hostname1" =~ ^[a-zA-Z0-9\u4e00-\u9fa5.-]+$ ]]; then
+            break
+        else
+            echo "格式不正确，请重新输入!"
+        fi
+    done
 
-    process_resolve
-}
+    while true; do
+        read -p "请输入一个或多个二级域名（不含一级域名，以空格分开）：" subdomains
+        if [ -z "$subdomains" ]; then
+            return
+        fi
+        valid=true
+        for sub in $subdomains; do
+            if ! [[ "$sub" =~ ^[a-zA-Z0-9\u4e00-\u9fa5.-]+$ ]]; then
+                valid=false
+                break
+            fi
+        done
+        
+        if $valid; then
+            hostname2=$(echo "$subdomains" | tr ' ' ',')
+            break
+        else
+            echo "格式不正确，请重新输入!"
+        fi
+    done
 
-# 多个IP解析到同一个域名
-add_resolve_single() {
-    clear
-    echo "================================="
-    echo "           多个IP解析到同一个域名"
-    echo "================================="
-    read -p "请输入一个二级域名（不含一级域名，留空则返回上级）：" subdomain
-    if [ -z "$subdomain" ]; then
-        return
-    fi
+    while true; do
+        read -p "请输入IPv4解析数量（可设置为0，留空则返回上级）：" ipv4_count
+        if [[ -z "$ipv4_count" ]]; then
+            return
+        elif [[ "$ipv4_count" =~ ^[0-9]+$ ]]; then
+            break
+        else
+            echo "格式不正确，请重新输入!"
+        fi
+    done
+    
+    while true; do
+        read -p "请输入IPv6解析数量（可设置为0，留空则返回上级）：" ipv6_count
+        if [[ -z "$ipv6_count" ]]; then
+            return
+        elif [[ "$ipv6_count" =~ ^[0-9]+$ ]]; then
+            break
+        else
+            echo "格式不正确，请重新输入!"
+        fi
+    done
 
-    process_resolve
-}
+    look_cfst_rules
 
-# 处理解析设置的通用函数
-process_resolve() {
-    clear
-    echo "================================="
-    echo "           解析设置"
-    echo "================================="
-    read -p "请分别输入IPv4和IPv6地址解析数量（以空格隔开，输入0则不解析，留空则返回上级）：" ipv4_count ipv6_count
-    if [ -z "$ipv4_count" ] || [ -z "$ipv6_count" ]; then
-        return
-    fi
+    while true; do
+        read -p "请输入CloudflareST命令（无需以“./CloudflareST”开头，留空则返回上级）：" cf_command
+        if [ -z "$cf_command" ]; then
+            return
+        else
+            break
+        fi
+    done
+    cf_command=$(echo "$cf_command" | tr ' ' ',')
 
-    read -p "请输入CloudflareST命令，以“./CloudflareST”开头（不包含引号，留空则返回上级）：" cf_command
-    if [ -z "$cf_command" ]; then
-        return
-    fi
+    while true; do
+        read -p "从URL链接获取IPv4地址：" v4_url
+        if [ -n "$v4_url" ] && ! [[ "$v4_url" =~ ^https?://.* ]]; then
+            echo "无效的IPv4 URL，请重新输入！"
+        else
+            break
+        fi
+    done
 
-    echo "参数："
-    echo "    -n 200"
-    echo "        延迟测速线程；越多延迟测速越快，性能弱的设备 (如路由器) 请勿太高；(默认 200 最多 1000)"
-    echo "    -t 4"
-    echo "        延迟测速次数；单个 IP 延迟测速的次数；(默认 4 次)"
-    echo "    -dn 10"
-    echo "        下载测速数量；延迟测速并排序后，从最低延迟起下载测速的数量；(默认 10 个)"
-    echo "    -dt 10"
-    echo "        下载测速时间；单个 IP 下载测速最长时间，不能太短；(默认 10 秒)"
-    echo "    -tp 443"
-    echo "        指定测速端口；延迟测速/下载测速时使用的端口；(默认 443 端口)"
-    echo "    -url https://cf.xiu2.xyz/url"
-    echo "        指定测速地址；延迟测速(HTTPing)/下载测速时使用的地址，默认地址不保证可用性，建议自建；"
-    echo "    -httping"
-    echo "        切换测速模式；延迟测速模式改为 HTTP 协议，所用测试地址为 [-url] 参数；(默认 TCPing)"
-    echo "    -httping-code 200"
-    echo "        有效状态代码；HTTPing 延迟测速时网页返回的有效 HTTP 状态码，仅限一个；(默认 200 301 302)"
-    echo "    -tl 200"
-    echo "        平均延迟上限；只输出低于指定平均延迟的 IP，各上下限条件可搭配使用；(默认 9999 ms)"
-    echo "    -tll 40"
-    echo "        平均延迟下限；只输出高于指定平均延迟的 IP；(默认 0 ms)"
-    echo "    -tlr 0.2"
-    echo "        丢包几率上限；只输出低于/等于指定丢包率的 IP，范围 0.00~1.00，0 过滤掉任何丢包的 IP；(默认 1.00)"
-    echo "    -sl 5"
-    echo "        下载速度下限；只输出高于指定下载速度的 IP，凑够指定数量 [-dn] 才会停止测速；(默认 0.00 MB/s)"
-    echo "    -p 10"
-    echo "        显示结果数量；测速后直接显示指定数量的结果，为 0 时不显示结果直接退出；(默认 10 个)"
-    echo "    -dd"
-    echo "        禁用下载测速；禁用后测速结果会按延迟排序 (默认按下载速度排序)；(默认 启用)"
+    while true; do
+        read -p "从URL链接获取IPv6地址：" v6_url
+        if [ -n "$v6_url" ] && ! [[ "$v6_url" =~ ^https?://.* ]]; then
+            echo "无效的IPv6 URL，请重新输入！"
+        else
+            break
+        fi
+    done
 
-    read -p "请输入IPv4地址URL（留空则重新输入）：" ipv4_url
-    read -p "请输入IPv6地址URL（留空则重新输入）：" ipv6_url
+    # 写入解析相关信息到配置文件，并使用标识分隔解析部分
+    echo "# Resolve section" >> "$config_file"
+    echo "add_ddns=($add_ddns), ddns_name=($ddns_name), hostname1=($hostname1), hostname2=($hostname2), v4_num=($ipv4_count), v6_num=($ipv6_count), cf_command=($cf_command), v4_url=($v4_url), v6_url=($v6_url)" >> "$config_file"
 
-    if [ -n "$ipv4_url" ] && [ "$ipv4_count" -gt 0 ]; then
-        curl -s "$ipv4_url" > ip4.txt
-        cf_command="$cf_command -f ip4.txt"
-    fi
-
-    if [ -n "$ipv6_url" ] && [ "$ipv6_count" -gt 0 ]; then
-        curl -s "$ipv6_url" > ip6.txt
-        cf_command="$cf_command -f ip6.txt"
-    fi
-
-    echo "解析设置完成。"
-    sleep 2
+    echo "解析条目添加成功！"
+    sleep 1
     resolve_settings
 }
+
 
 # 删除解析
 delete_resolve() {
@@ -452,23 +563,28 @@ delete_resolve() {
     echo "================================="
     echo "           删除解析"
     echo "================================="
-    echo "已设置的解析信息："
-    awk -F'=' '{if ($1 == "domain") print "域名: " $2; else if ($1 == "subdomain") print "二级域名: " $2; else if ($1 == "ipv4_count") print "IPv4解析数量: " $2; else if ($1 == "ipv6_count") print "IPv6解析数量: " $2; else if ($1 == "cf_command") print "CloudflareST命令: " $2}' $config_file
+    
+    look_account_group
+
     echo "================================="
-    read -p "请输入要删除的解析域名（留空则返回上级）：" delete_domain
-    if [ -z "$delete_domain" ]; then
+    
+    read -p "请输入要删除的解析组名称（留空则返回上级）：" delete_ddns
+    if [ -z "$delete_ddns" ]; then
         return
     fi
 
-    # 删除配置文件中的解析信息
-    sed -i "/^domain=$delete_domain/d" $config_file
-    sed -i "/^subdomain=/d" $config_file
-    sed -i "/^ipv4_count=/d" $config_file
-    sed -i "/^ipv6_count=/d" $config_file
-    sed -i "/^cf_command=/d" $config_file
+    # 检查解析组名称是否存在
+    if ! grep -q "ddns_name=($delete_ddns)" "$config_file"; then
+        echo "不存在该解析组名称！"
+        sleep 1
+        return
+    fi
 
-    echo "解析已删除。"
-    sleep 2
+    # 从配置文件中删除匹配的解析组整行
+    sed -i "/ddns_name=($delete_ddns),/d" "$config_file"
+
+    echo "解析组 $delete_ddns 已成功删除！"
+    sleep 1
     resolve_settings
 }
 
@@ -478,36 +594,164 @@ modify_resolve() {
     echo "================================="
     echo "           修改解析"
     echo "================================="
-    echo "已设置的解析信息："
-    awk -F'=' '{if ($1 == "domain") print "域名: " $2; else if ($1 == "subdomain") print "二级域名: " $2; else if ($1 == "ipv4_count") print "IPv4解析数量: " $2; else if ($1 == "ipv6_count") print "IPv6解析数量: " $2; else if ($1 == "cf_command") print "CloudflareST命令: " $2}' $config_file
+    
+    look_ddns  # 显示现有解析
+
     echo "================================="
-    read -p "请输入要修改的解析域名（留空则返回上级）：" modify_domain
-    if [ -z "$modify_domain" ]; then
+    read -p "请输入要修改的解析组名称（留空则返回上级）：" modify_ddns
+    if [ -z "$modify_ddns" ]; then
         return
     fi
 
-    read -p "请输入新的二级域名（留空则不修改）：" new_subdomain
-    read -p "请输入新的IPv4解析数量（留空则不修改）：" new_ipv4_count
-    read -p "请输入新的IPv6解析数量（留空则不修改）：" new_ipv6_count
-    read -p "请输入新的CloudflareST命令（留空则不修改）：" new_cf_command
-
-    # 更新配置文件中的解析信息
-    if [ -n "$new_subdomain" ]; then
-        sed -i "s/^subdomain=.*/subdomain=$new_subdomain/" $config_file
-    fi
-    if [ -n "$new_ipv4_count" ]; then
-        sed -i "s/^ipv4_count=.*/ipv4_count=$new_ipv4_count/" $config_file
-    fi
-    if [ -n "$new_ipv6_count" ]; then
-        sed -i "s/^ipv6_count=.*/ipv6_count=$new_ipv6_count/" $config_file
-    fi
-    if [ -n "$new_cf_command" ]; then
-        sed -i "s/^cf_command=.*/cf_command=$new_cf_command/" $config_file
+    # 检查解析组名称是否存在
+    if ! grep -q "ddns_name=($modify_ddns)" "$config_file"; then
+        echo "解析组不存在，请重新输入。"
+        sleep 1
+        modify_resolve
+        return
     fi
 
-    echo "解析信息已更新。"
-    sleep 2
+    # 提示用户选择要修改的内容
+    while true; do
+        echo "请选择要修改的内容："
+        echo "1. 一级域名"
+        echo "2. 二级域名"
+        echo "3. IPv4解析数量"
+        echo "4. IPv6解析数量"
+        echo "5. CloudflareST命令"
+        echo "6. IPv4地址URL"
+        echo "7. IPv6地址URL"
+        echo "8. 返回"
+        read -p "请输入选项 (1-8): " choice
+
+        case $choice in
+            1)
+                read -p "请输入新的一级域名：" new_hostname1
+                if [[ -n "$new_hostname1" && "$new_hostname1" =~ ^[a-zA-Z0-9\u4e00-\u9fa5.-]+$ ]]; then
+                    sed -i "s/\(ddns_name=($modify_ddns), hostname1=\)[^,]*,/\1($new_hostname1),/" "$config_file"
+                    echo "一级域名已更新"
+                else
+                    echo "格式不正确，请重新输入"
+                fi ;;
+            2)
+                read -p "请输入新的二级域名（以空格分开）：" new_hostname2
+                new_hostname2=$(echo "$new_hostname2" | tr ' ' ',')
+                sed -i "s/\(ddns_name=($modify_ddns), \(.*\), hostname2=\)[^,]*,/\1($new_hostname2),/" "$config_file"
+                echo "二级域名已更新" ;;
+            3)
+                read -p "请输入新的IPv4解析数量：" new_ipv4_count
+                if [[ "$new_ipv4_count" =~ ^[0-9]+$ ]]; then
+                    sed -i "s/\(ddns_name=($modify_ddns), \(.*\), v4_num=\)[^,]*,/\1($new_ipv4_count),/" "$config_file"
+                    echo "IPv4解析数量已更新"
+                else
+                    echo "格式不正确，请重新输入"
+                fi ;;
+            4)
+                read -p "请输入新的IPv6解析数量：" new_ipv6_count
+                if [[ "$new_ipv6_count" =~ ^[0-9]+$ ]]; then
+                    sed -i "s/\(ddns_name=($modify_ddns), \(.*\), v6_num=\)[^,]*,/\1($new_ipv6_count),/" "$config_file"
+                    echo "IPv6解析数量已更新"
+                else
+                    echo "格式不正确，请重新输入"
+                fi ;;
+            5)
+                read -p "请输入新的CloudflareST命令：" new_cf_command
+                new_cf_command=$(echo "$new_cf_command" | tr ' ' ',')
+                sed -i "s/\(ddns_name=($modify_ddns), \(.*\), cf_command=\)[^,]*,/\1($new_cf_command),/" "$config_file"
+                echo "CloudflareST命令已更新" ;;
+            6)
+                read -p "请输入新的IPv4地址URL：" new_v4_url
+                if [[ -n "$new_v4_url" && "$new_v4_url" =~ ^https?://.* ]]; then
+                    sed -i "s|\(ddns_name=($modify_ddns), \(.*\), v4_url=\)[^,]*,|\1($new_v4_url),|" "$config_file"
+                    echo "IPv4地址URL已更新"
+                else
+                    echo "URL格式不正确，请重新输入"
+                fi ;;
+            7)
+                read -p "请输入新的IPv6地址URL：" new_v6_url
+                if [[ -n "$new_v6_url" && "$new_v6_url" =~ ^https?://.* ]]; then
+                    sed -i "s|\(ddns_name=($modify_ddns), \(.*\), v6_url=(\)[^)]*|\1($new_v6_url|g" "$config_file"
+                    echo "IPv6地址URL已更新"
+                else
+                    echo "URL格式不正确，请重新输入"
+                fi ;;
+            8)
+                break ;;
+            *)
+                continue ;;
+        esac
+    done
+
+    echo "解析信息修改完毕。"
+    sleep 1
+    clear_input_buffer
     resolve_settings
+}
+
+# 启动解析
+start() {
+    local ddns_name=$1
+
+    # 检查 ddns_name 是否存在，并从 Resolve Section 查找
+    local resolve_line=$(grep -E "^add_ddns=\(.*\), ddns_name=\($ddns_name\)" "$config_file")
+
+    if [ -z "$resolve_line" ]; then
+        echo "未找到指定的解析组，请检查输入。"
+        return 1
+    fi
+
+    # 提取 add_ddns 和相关解析信息
+    local add_ddns=$(echo "$resolve_line" | sed -n 's/.*add_ddns=(\([^)]*\)).*/\1/p')
+    local hostname1=$(echo "$resolve_line" | sed -n 's/.*hostname1=(\([^)]*\)).*/\1/p')
+    local hostname2=$(echo "$resolve_line" | sed -n 's/.*hostname2=(\([^)]*\)).*/\1/p' | sed 's/,/ /g')  # 替换逗号为空格
+    local v4_num=$(echo "$resolve_line" | sed -n 's/.*v4_num=(\([^)]*\)).*/\1/p')
+    local v6_num=$(echo "$resolve_line" | sed -n 's/.*v6_num=(\([^)]*\)).*/\1/p')
+    local cf_command=$(echo "$resolve_line" | sed -n 's/.*cf_command=(\([^)]*\)).*/\1/p' | sed 's/,/ /g')  # 替换逗号为空格
+    local v4_url=$(echo "$resolve_line" | sed -n 's/.*v4_url=(\([^)]*\)).*/\1/p')
+    local v6_url=$(echo "$resolve_line" | sed -n 's/.*v6_url=(\([^)]*\)).*/\1/p')
+    
+    # 使用 add_ddns 查找对应的 account_group
+    local account_group_line=$(grep "^account_group=(\($add_ddns\))" "$config_file")
+    if [ -z "$account_group_line" ]; then
+        echo "未找到对应的账户组，请检查配置。"
+        return 1
+    fi
+
+    # 提取从账户组获取的信息
+    local x_email=$(echo "$account_group_line" | sed -n 's/.*x_email=(\([^)]*\)).*/\1/p')
+    local zone_id=$(echo "$account_group_line" | sed -n 's/.*zone_id=(\([^)]*\)).*/\1/p')
+    local api_key=$(echo "$account_group_line" | sed -n 's/.*api_key=(\([^)]*\)).*/\1/p')
+    
+    # 确保所有必要信息都已提取
+    if [ -z "$x_email" ] || [ -z "$zone_id" ] || [ -z "$api_key" ] || \
+       [ -z "$hostname1" ] || [ -z "$hostname2" ] || [ -z "$v4_num" ] || \
+       [ -z "$v6_num" ] || [ -z "$cf_command" ] || [ -z "$v4_url" ] || \
+       [ -z "$v6_url" ]; then
+        echo "某些必要信息缺失，请检查配置。"
+        return 1
+    fi
+
+    # 运行 start_ddns.sh 并传递所有参数，使用 exec 来替换当前脚本进程
+exec ./start_ddns.sh "$x_email" "$zone_id" "$api_key" "$hostname1" "$hostname2" "$v4_num" "$v6_num" "$cf_command" "$v4_url" "$v6_url"
+}
+
+# 执行解析
+execute_resolve() {
+    clear
+    echo "================================="
+    echo "           执行解析"
+    echo "================================="
+
+    look_ddns  # 查看现有解析组
+
+    echo "================================="
+    read -p "请输入要执行的解析组名称（留空则返回上级）：" selected_ddns
+    if [ -z "$selected_ddns" ]; then
+        return
+    fi
+
+    # 调用 start 函数获取相关信息并执行
+    start "$selected_ddns"
 }
 
 # 查看计划任务
@@ -516,41 +760,65 @@ view_schedule() {
     echo "================================="
     echo "           查看计划任务"
     echo "================================="
-    echo "已设置的解析信息："
-    awk -F'=' '{if ($1 == "domain") print "域名: " $2; else if ($1 == "subdomain") print "二级域名: " $2; else if ($1 == "ipv4_count") print "IPv4解析数量: " $2; else if ($1 == "ipv6_count") print "IPv6解析数量: " $2; else if ($1 == "cf_command") print "CloudflareST命令: " $2}' $config_file
+
+    look_ddns  # 查看现有解析组
+
     echo "================================="
-    read -p "请输入要查看计划任务的解析域名（留空则返回上级）：" view_domain
-    if [ -z "$view_domain" ]; then
+    # 提示用户输入解析组名称
+    read -p "请输入要查看计划任务的解析组名称（留空则返回上级）：" selected_ddns
+    if [ -z "$selected_ddns" ]; then
         return
     fi
 
-    # 读取配置文件中的解析信息
-    domain=$(grep "^domain=$view_domain" $config_file | cut -d'=' -f2)
-    subdomain=$(grep "^subdomain=" $config_file | cut -d'=' -f2)
-    ipv4_count=$(grep "^ipv4_count=" $config_file | cut -d'=' -f2)
-    ipv6_count=$(grep "^ipv6_count=" $config_file | cut -d'=' -f2)
-    cf_command=$(grep "^cf_command=" $config_file | cut -d'=' -f2)
+    # 验证解析组是否存在
+    if ! grep -q "ddns_name=($selected_ddns)" "$config_file"; then
+        echo "解析组不存在，请重新输入。"
+        sleep 1
+        view_schedule
+        return
+    fi
 
-    # 显示计划任务示例
+    # 获取当前脚本路径
+    script_dir="$(cd "$(dirname "$0")" && pwd)"
+
+    # 显示计划任务成品
     echo "================================="
     echo "计划任务示例："
-    echo "1. 每天4点更新一次"
-    echo "2. 每6小时更新一次"
+    echo "示例1：每4小时更新一次: 0 */4 * * * cd $script_dir && bash cf.sh start $selected_ddns"
+    echo "示例2：每天5点更新一次: 0 5 * * * cd $script_dir && bash cf.sh start $selected_ddns"
     echo "================================="
-    read -p "请选择计划任务示例 (1-2): " schedule_choice
+    echo "请选择操作："
+    echo "1. 创建计划任务示例1"
+    echo "2. 创建计划任务示例2"
+    echo "3. 返回上级"
+    echo "================================="
+    read -p "请选择操作 (1-3): " action_choice
 
-    case $schedule_choice in
-        1) schedule_cron="0 4 * * *" ;;
-        2) schedule_cron="0 */6 * * *" ;;
-        *) echo "无效选项，请重新选择。" ;;
+    # 读取现有的计划任务
+    existing_crontab=$(crontab -l 2>/dev/null)
+
+    case $action_choice in
+        1) 
+            new_task="0 */4 * * * cd $script_dir && bash cf.sh start $selected_ddns"
+            (echo "$existing_crontab"; echo "$new_task") | crontab -
+            echo "计划任务示例1已创建！"
+            ;;
+        2) 
+            new_task="0 5 * * * cd $script_dir && bash cf.sh start $selected_ddns"
+            (echo "$existing_crontab"; echo "$new_task") | crontab -
+            echo "计划任务示例2已创建！"
+            ;;
+        3) 
+            echo "返回上级菜单。"
+            return
+            ;;
+        *) 
+            echo "无效选项，请重新选择。"
+            ;;
     esac
 
-    # 生成计划任务
-    echo "计划任务："
-    echo "$schedule_cron $cf_command"
     echo "================================="
     read -p "按任意键返回上级菜单..." -n1 -s
-    resolve_settings
 }
 
 # 推送设置
@@ -721,27 +989,8 @@ set_synology_chat_push() {
     push_settings
 }
 
-# 执行解析
-execute_resolve() {
-    clear
-    echo "================================="
-    echo "           执行解析"
-    echo "================================="
-    echo "已设置的解析信息："
-    awk -F'=' '{if ($1 == "domain") print "域名: " $2; else if ($1 == "subdomain") print "二级域名: " $2; else if ($1 == "ipv4_count") print "IPv4解析数量: " $2; else if ($1 == "ipv6_count") print "IPv6解析数量: " $2; else if ($1 == "cf_command") print "CloudflareST命令: " $2}' $config_file
-    echo "================================="
-    read -p "请确认是否执行解析（y/n）：" confirm
-    if [ "$confirm" != "y" ]; then
-        return
-    fi
 
-    # 执行CloudflareST命令
-    eval "$(grep "^cf_command=" $config_file | cut -d'=' -f2)"
 
-    echo "解析执行完成。"
-    sleep 2
-    main_menu
-}
 
 # DDNS到Cloudflare
 ddns_to_cloudflare() {
