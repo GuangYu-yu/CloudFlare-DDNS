@@ -114,42 +114,76 @@ clear_input_buffer() {
 
 # 输出已存在的账户信息
 look_account_group() {
-    sed -n 's/account_group=(\([^)]*\)), x_email=(\([^)]*\)), zone_id=(\([^)]*\)), api_key=(\([^)]*\))/账户组：\1 邮箱：\2 区域ID：\3 API Key：\4/p' "$config_file"
+    # 使用 sed 提取 account_group, x_email, zone_id, api_key
+    sed -n 's/account_group=(\([^)]*\)),x_email=(\([^)]*\)),zone_id=(\([^)]*\)),api_key=(\([^)]*\))/账户组：\1 邮箱：\2 区域ID：\3 API Key：\4/p' "$config_file"
+    printf "\n"
 }
 
 # 查看解析
 look_ddns() {
-    sed -n 's/add_ddns=(\([^)]*\)), ddns_name=(\([^)]*\)), hostname1=(\([^)]*\)), hostname2=(\([^)]*\)), v4_num=(\([^)]*\)), v6_num=(\([^)]*\)), cf_command=(\([^)]*\)), v4_url=(\([^)]*\)), v6_url=(\([^)]*\)),push_mod=(\([^)]*\))/账户组：\1\n解析组：\2\n一级域名：\3\n二级域名：\4\nIPv4数量：\5\nIPv6数量：\6\nCloudflareST命令：\7\IPv4地址URL：\8\IPv6地址URL：\9\n推送方式：\10\n/p' "$config_file" | while read -r line; do
-        # 提取推送方式并转换为对应的名称
-        push_mod=$(echo "$line" | sed -n 's/.*推送方式：\([^ ]*\).*/\1/p')
-        
-        # 处理多个推送方式
-        push_names=""
-        IFS=',' read -ra mods <<< "$push_mod"
-        for mod in "${mods[@]}"; do
-            case $mod in
-                0) push_name="未设置" ;;
-                1) push_name="Telegram" ;;
-                2) push_name="PushPlus" ;;
-                3) push_name="Server 酱" ;;
-                4) push_name="PushDeer" ;;
-                5) push_name="企业微信" ;;
-                6) push_name="Synology Chat" ;;
-                *) push_name="错误" ;;
-            esac
-            push_names="$push_names $push_name"
-        done
+    awk -F'[=(,) ]+' '
+    function get_push_mod(push) {
+        mods = ""
+        n = split(push, arr, " ")
+        err = 0  # 初始化错误标志
 
-        # 清理空格
-        push_names=$(echo "$push_names" | sed 's/^ //')
+        # 遍历每个推送方式并检查是否在0~6范围内
+        for (i = 1; i <= n; i++) {
+            if (arr[i] == "1") mods = mods "Telegram "
+            else if (arr[i] == "2") mods = mods "PushPlus "
+            else if (arr[i] == "3") mods = mods "Server酱 "
+            else if (arr[i] == "4") mods = mods "PushDeer "
+            else if (arr[i] == "5") mods = mods "企业微信 "
+            else if (arr[i] == "6") mods = mods "SynologyChat "
+            else if (arr[i] == "0") mods = mods "未设置 ";  # 如果arr[i] 为0，则添加"未设置"
+            else {
+                # 如果有不在0~6范围内的值，标记错误并退出循环
+                err = 1
+                break
+            }
+        }
 
-        # 替换逗号为空格，并修改输出，将推送方式替换为对应的名称
-        echo "$line" | sed "s/推送方式：.*/推送方式：$push_names/" \
-                          | sed 's/二级域名：\([^ ]*\)/二级域名：\1/g; s/,/ /g' \
-                          | sed 's/CloudflareST命令：\([^ ]*\)/CloudflareST命令：\1/g; s/,/ /g'
-    done
+        # 检查错误和返回最终结果
+        if (err == 1) return "错误"
+        return (mods == "") ? "未设置" : mods
+    }
+
+    /add_ddns/ {
+        acc = ""; ddns = ""; host1 = ""; host2 = ""; v4 = ""; v6 = ""; cf = ""; v4url = ""; v6url = ""; push = "";
+        for (i=1; i<=NF; i++) {
+            if ($i == "add_ddns") { acc=$(i+1) }
+            if ($i == "ddns_name") { ddns=$(i+1) }
+            if ($i == "hostname1") { host1=$(i+1) }
+            if ($i == "hostname2") {
+                host2 = $(i+1)
+                for (j = i+2; j <= NF && $j !~ /^(v4_num|v6_num|cf_command)$/; j++) {
+                    host2 = host2 " " $j
+                }
+            }
+            if ($i == "v4_num") { v4=$(i+1) }
+            if ($i == "v6_num") { v6=$(i+1) }
+            if ($i == "cf_command") {
+                cf = $(i+1)
+                for (j = i+2; j <= NF && $j !~ /^(v4_url|v6_url|push_mod)$/; j++) {
+                    cf = cf " " $j
+                }
+            }
+            if ($i == "v4_url") { v4url=$(i+1) }
+            if ($i == "v6_url") { v6url=$(i+1) }
+            if ($i == "push_mod") {
+                push = $(i+1)
+                for (j = i+2; j <= NF && $j !~ /^(add_ddns|ddns_name)$/; j++) {
+                    push = push " " $j
+                }
+            }
+        }
+        push_mods = get_push_mod(push)
+        print "账户组：" acc "\n解析组：" ddns "\n一级域名：" host1 "\n二级域名：" host2 "\nIPv4数量：" v4 "\nIPv6数量：" v6 "\nCloudflareST命令：" cf "\nIPv4地址URL：" v4url "\nIPv6地址URL：" v6url "\n推送方式：" push_mods "\n"
+    }
+    ' "$config_file"
 }
 
+# CloudflareST命令
 look_cfst_rules() {
     echo "    示例：-n 500 -tll 40 -tl 280 -dn 5 -sl 15 -p 5"
     echo "    HTTP  端口  80  8080 2052 2082 2086 2095 8880"
@@ -168,11 +202,11 @@ look_cfst_rules() {
 }
 
 # 检查最后一行是否为空行
-add_blank_line() {
-if [ -n "$(tail -n 1 "$config_file")" ]; then
-    echo "" >> "$config_file"  # 如果前一行不是空行，插入一个空行
-fi
-}
+#    add_blank_line() {
+#    if [ -n "$(tail -n 1 "$config_file")" ]; then
+#        echo "" >> "$config_file"  # 如果前一行不是空行，插入一个空行
+#    fi
+#    }
 
 main_menu() {
     local timeout_sec=60  # 设置超时时间，单位为秒
@@ -262,7 +296,11 @@ add_account() {
     echo "================================="
     
     while true; do
-        read -p "请输入自定义账户组名称（只能包含字母、数字和下划线）：" account_group
+        read -p "请输入自定义账户组名称（留空则返回上级）：" account_group
+        
+        if [ -z "$account_group" ]; then
+        return
+    fi
 
         if ! [[ "$account_group" =~ ^[A-Za-z0-9_]+$ ]]; then
             echo "账户组名称格式不正确"
@@ -296,11 +334,11 @@ add_account() {
     done
 
 
-    add_blank_line
+    #add_blank_line
     
     # 写入账户相关信息到配置文件，并使用标识分隔账户部分
     echo "# Account section" >> "$config_file"
-    echo "account_group=($account_group), x_email=($x_email), zone_id=($zone_id), api_key=($api_key)" >> "$config_file"
+    echo "account_group=($account_group),x_email=($x_email),zone_id=($zone_id),api_key=($api_key)" >> "$config_file"
 
     echo "账户添加成功！"
     sleep 1
@@ -310,7 +348,6 @@ add_account() {
 
 # 删除账户
 delete_account() {
-
     clear_input_buffer
 
     clear
@@ -344,10 +381,11 @@ delete_account() {
         return
     fi
 
-    # 从配置文件中删除匹配的账户组整行和前一行注释
-    sed -i "/# Account section/,+1 {/account_group=($delete_group),/d}" "$config_file"
+    # 使用 sed 删除指定的账户组
+    sed -i "/^# Account section/ { :a; N; /account_group=($delete_group)/!ba; d; }" "$config_file"
 
-    echo "账户组 $delete_group 已成功删除！"
+    echo "账户组 $delete_group 成功删除！"
+    
     sleep 1
 
     clear_input_buffer
@@ -357,9 +395,6 @@ delete_account() {
 
 # 修改账户
 modify_account() {
-    
-    clear_input_buffer
-    
     clear
     echo "================================="
     echo "           修改账户"
@@ -369,11 +404,24 @@ modify_account() {
     look_account_group
 
     echo "================================="
+    
+    update_field() {
+    local field="$1"
+    local new_value="$2"
+    local config_file="$3"
+    local account_group="$4"
+
+    sed -i -e "/account_group=($account_group)/{
+        s/\($field=(\)[^),]*/\1$new_value/
+    }" "$config_file"
+}
+
+    
     read -p "请输入要修改的账户组（留空则返回上级）：" modify_account_group
     if [ -z "$modify_account_group" ]; then
         return
     fi
-
+    
     # 检查账户组名称是否存在
     if ! grep -q "account_group=($modify_account_group)" "$config_file"; then
         echo "账户组不存在，请重新输入。"
@@ -381,61 +429,49 @@ modify_account() {
         modify_account
         return
     fi
-
+    
     # 提示用户选择要修改的内容
     while true; do
         echo "请选择要修改的内容："
         echo "1. 账户登陆邮箱"
         echo "2. 区域ID"
         echo "3. API Key"
-        echo "4. 返回"
+        echo "4. 退出"
         read -p "请输入选项 (1-4)：" choice
 
         case $choice in
-            1)  
-                read -p "请输入新的账户登陆邮箱：" new_email
+            1)  read -p "请输入新的账户登陆邮箱：" new_email
                 # 验证邮箱格式
-                if [[ -n "$new_email" && "$new_email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
-                    # 使用 sed 精确更新邮箱字段，保留其他字段
-                    sed -i "s/\(account_group=($modify_account_group), x_email=\)[^,]*,/\1($new_email),/" "$config_file"
-                    echo "邮箱已更新"
-                else
+                if [[ -z "$new_email" ]]; then
+                    echo "输入不能为空，请重新输入"
+                elif ! [[ "$new_email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
                     echo "邮箱格式不正确，请重新输入"
+                else
+                    update_field "x_email" "$new_email" "$config_file" "$modify_account_group"
+                    echo "邮箱已更新"
                 fi ;;
-                
-            2)  
-                read -p "请输入新的区域ID：" new_zone_id
-                if [[ -n "$new_zone_id" ]]; then
-                    # 使用 sed 精确更新区域ID字段，保留其他字段
-                    sed -i "s/\(account_group=($modify_account_group), \(.*\), zone_id=\)[^,]*,/\1($new_zone_id),/" "$config_file"
+            2)  read -p "请输入新的区域ID：" new_region_id
+                if [[ -z "$new_region_id" ]]; then
+                    echo "输入不能为空，请重新输入"
+                else
+                    update_field "zone_id" "$new_region_id" "$config_file" "$modify_account_group"
                     echo "区域ID已更新"
-                else
-                    echo "输入不能为空，请重新输入"
                 fi ;;
-                
-            3)  
-                read -p "请输入新的API Key：" new_api_key
-                if [[ -n "$new_api_key" ]]; then
-                    # 使用 sed 精确更新 API Key 字段，保留其他字段
-                    sed -i "s/\(account_group=($modify_account_group), \(.*\), api_key=(\)[^)]*/\1$new_api_key/" "$config_file"
+            3)  read -p "请输入新的API Key：" new_api_key
+                if [[ -z "$new_api_key" ]]; then
+                    echo "输入不能为空，请重新输入"
+                else
+                    update_field "api_key" "$new_api_key" "$config_file" "$modify_account_group"
                     echo "API Key已更新"
-                else
-                    echo "输入不能为空，请重新输入"
                 fi ;;
-                
-            4)  
-                break ;;
-                
-            *)  
-                continue ;;
+            4)  break ;;
+            *)  echo "无效选项，请重新输入。" ;;
         esac
     done
 
     echo "账户信息修改完毕。"
     sleep 1
-    
     clear_input_buffer
-    
     account_settings
 }
 
@@ -607,41 +643,43 @@ add_resolve() {
     done
 
     while true; do
-        read -p "请选择推送方式 (0-不设置, 1-Telegram, 2-PushPlus, 3-Server酱, 4-PushDeer, 5-企业微信, 6-Synology Chat，以空格分开)： " push_mod
+    read -p "请选择推送方式 (0-不设置, 1-Telegram, 2-PushPlus, 3-Server酱, 4-PushDeer, 5-企业微信, 6-Synology Chat，以空格分开)： " push_mod
 
-        # 将输入的推送方式按空格分隔
-        push_mod=$(echo "$push_mod" | tr -s ' ')
+    # 将输入的推送方式按空格分隔并删除多余空格
+    push_mod=$(echo "$push_mod" | tr -s ' ')
 
-        # 验证输入是否包含非法字符
-        if [[ ! "$push_mod" =~ ^[0-6]+([[:space:]][0-6]+)*$ ]]; then
-            echo "无效输入，请输入 0 或 1-6 的数字"
-            continue
-        fi
+    # 验证输入是否仅包含0~6之间的数字，并且按空格分隔
+    if [[ ! "$push_mod" =~ ^([0-6])([[:space:]][0-6])*$ ]]; then
+        echo "无效输入，请输入 0 或 1~6 的数字"
+        continue
+    fi
 
-        # 判断是否同时包含 0 和其他数字
-        if [[ "$push_mod" =~ (^0[[:space:]]|[[:space:]]0[[:space:]]|0$) && "$push_mod" != "0" ]]; then
-            echo "无效输入：0 只能单独存在，不能与其他数字一起使用"
-            continue
-        fi
+    # 判断是否同时包含 0 和其他数字
+    if [[ "$push_mod" =~ (^0[[:space:]]|[[:space:]]0[[:space:]]|0$) && "$push_mod" != "0" ]]; then
+        echo "无效输入：0 只能单独存在，不能与其他数字一起使用"
+        continue
+    fi
 
-        # 检查是否有重复项
-        if [[ $(echo "$push_mod" | tr ' ' '\n' | sort | uniq -d | wc -l) -gt 0 ]]; then
-            echo "无效输入：数字不能重复"
-            continue
-        fi
+    # 检查是否有重复项
+    if [[ $(echo "$push_mod" | tr ' ' '\n' | sort | uniq -d | wc -l) -gt 0 ]]; then
+        echo "无效输入：数字不能重复"
+        continue
+    fi
 
-        break
-    done
-    
-    add_blank_line
+    # 将空格替换为逗号
+    push_mod=$(echo "$push_mod" | tr ' ' ',')
+    break
+done
 
-    # 写入解析信息到配置文件
-    echo "# Resolve section" >> "$config_file"
-    echo "add_ddns=($add_ddns), ddns_name=($add_ddns), hostname1=($hostname1), hostname2=($hostname2), v4_num=($ipv4_count), v6_num=($ipv6_count), cf_command=($cf_command), v4_url=($v4_url), v6_url=($v6_url), push_mod=($push_mod)" >> "$config_file"
+#add_blank_line
 
-    echo "解析条目添加成功！"
-    sleep 1
-    push_settings  # 直接进入推送设置
+# 写入解析信息到配置文件
+echo "# Resolve section" >> "$config_file"
+echo "add_ddns=($add_ddns),ddns_name=($ddns_name),hostname1=($hostname1),hostname2=($hostname2),v4_num=($ipv4_count),v6_num=($ipv6_count),cf_command=($cf_command),v4_url=($v4_url),v6_url=($v6_url),push_mod=($push_mod)" >> "$config_file"
+
+echo "解析条目添加成功！"
+sleep 1
+push_settings  # 直接进入推送设置
 }
 
 # 删除解析
@@ -675,8 +713,8 @@ delete_resolve() {
         return
     fi
 
-    # 从配置文件中删除匹配的解析组整行和前一行注释
-    sed -i "/# Resolve section/,+1 {/ddns_name=($delete_ddns),/d}" "$config_file"
+    # 删除匹配的解析组及其前面的空行
+    sed -i "/^# Resolve section/ { :a; N; /ddns_name=($delete_ddns)/!ba; d; }" "$config_file"
 
     echo "解析组 $delete_ddns 已成功删除！"
     sleep 1
@@ -776,10 +814,10 @@ modify_resolve() {
                     read -p "请输入新的推送方式（0-不设置, 1-Telegram, 2-PushPlus, 3-Server酱, 4-PushDeer, 5-企业微信, 6-Synology Chat，以空格分隔）： " new_push_mod
 
                     # 去掉多余的空格
-                    new_push_mod=$(echo "$new_push_mod" | tr -s ' ')
+                   new_push_mod=$(echo "$new_push_mod" | tr -s ' ')
 
-                    # 检查是否有非法字符
-                    if [[ ! "$new_push_mod" =~ ^[0-6]+([[:space:]][0-6]+)*$ ]]; then
+                    # 检查输入是否仅包含0-6之间的数字，并且按空格分隔
+                    if [[ ! "$new_push_mod" =~ ^([0-6])([[:space:]][0-6])*$ ]]; then
                         echo "无效输入，请输入 0 或 1-6 的数字"
                         continue
                     fi
@@ -788,18 +826,22 @@ modify_resolve() {
                     if [[ "$new_push_mod" =~ (^0[[:space:]]|[[:space:]]0[[:space:]]|0$) && "$new_push_mod" != "0" ]]; then
                         echo "无效输入：0 只能单独存在，不能与其他数字一起使用"
                         continue
-                    fi
+                  fi
 
-                    # 检查是否有重复数字
-                    if [[ $(echo "$new_push_mod" | tr ' ' '\n' | sort | uniq -d | wc -l) -gt 0 ]]; then
-                        echo "无效输入：数字不能重复"
-                        continue
-                    fi
+                   # 检查是否有重复数字
+                   if [[ $(echo "$new_push_mod" | tr ' ' '\n' | sort | uniq -d | wc -l) -gt 0 ]]; then
+                      echo "无效输入：数字不能重复"
+                      continue
+                  fi
 
-                    # 更新配置文件
-                    sed -i "s/\(ddns_name=($modify_ddns), \(.*\), push_mod=\)[^)]*/\1($formatted_push_mod)/" "$config_file"
+                   # 将空格替换为逗号
+                   formatted_push_mod=$(echo "$new_push_mod" | tr ' ' ',')
+
+                   # 更新配置文件，替换旧的推送方式
+                   sed -i "s/\(ddns_name=($modify_ddns), \(.*\), push_mod=\)[^)]*/\1($formatted_push_mod)/" "$config_file"
+
                     echo "推送方式已更新"
-                    break
+                   break
                 done
                 ;;
             9)
@@ -999,7 +1041,7 @@ set_telegram_push() {
         return
     fi
 
-    add_blank_line
+    #add_blank_line
     
     # 写入推送信息到配置文件
     {
@@ -1023,7 +1065,7 @@ set_pushplus_push() {
         return
     fi
 
-    add_blank_line
+    #add_blank_line
 
     # 写入推送信息到配置文件
     {
@@ -1047,7 +1089,7 @@ set_server_push() {
         return
     fi
 
-    add_blank_line
+    #add_blank_line
 
     # 写入推送信息到配置文件
     {
@@ -1071,7 +1113,7 @@ set_pushdeer_push() {
         return
     fi
 
-    add_blank_line
+    #add_blank_line
 
     # 写入推送信息到配置文件
     {
@@ -1110,7 +1152,7 @@ set_wechat_push() {
         return
     fi
 
-    add_blank_line
+    #add_blank_line
 
     # 写入推送信息到配置文件
     {
@@ -1134,7 +1176,7 @@ set_synology_chat_push() {
         return
     fi
 
-    add_blank_line
+    #add_blank_line
 
     # 写入推送信息到配置文件
     {
