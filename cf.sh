@@ -223,7 +223,7 @@ look_cfst_rules() {
 #    }
 
 main_menu() {
-    local timeout_sec=60  # 设置超时时间，单位为秒
+    local timeout_sec=300  # 设置超时时间，单位为秒
 
     while true; do
         clear
