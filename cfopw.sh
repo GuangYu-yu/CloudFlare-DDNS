@@ -75,11 +75,9 @@ check_dependency() {
 }
 
 # 检查所有依赖
-check_dependency "bash" "bash"
 check_dependency "jq" "jq"
 check_dependency "yq" "yq"
 check_dependency "wget" "wget"
-check_dependency "curl" "curl"
 check_dependency "tar" "tar"
 check_dependency "sed" "sed"
 check_dependency "awk" "gawk"
