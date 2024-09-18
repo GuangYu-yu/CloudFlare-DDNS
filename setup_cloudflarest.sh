@@ -1,11 +1,5 @@
 #!/bin/bash
 
-# 创建 CloudflareST 文件夹
-mkdir -p CloudflareST
-
-# 进入文件夹
-cd CloudflareST
-
 # 获取当前系统架构
 ARCH=$(uname -m)
 
