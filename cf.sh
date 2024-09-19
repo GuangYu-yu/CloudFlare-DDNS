@@ -1217,7 +1217,7 @@ write_plugin_settings() {
     local plugin_section_found=false
 
     # 定义插件数组
-    plugins=("不使用" "passwall" "passwall2" "shadowsocksr" "openclash" "shellclash" "nekoclash" "bypass")
+    plugins=("不使用" "passwall" "passwall2" "shadowsocksr" "openclash" "shellcrash" "nekoclash" "bypass")
 
     # 用于更新clien的函数，确保只修改现有的clien行
     update_clien() {
@@ -1261,7 +1261,7 @@ write_plugin_settings() {
         echo "2. passwall2"
         echo "3. shadowsocksr"
         echo "4. openclash"
-        echo "5. shellclash"
+        echo "5. shellcrash"
         echo "6. nekoclash"
         echo "7. bypass"
         echo "8. 返回主菜单"
