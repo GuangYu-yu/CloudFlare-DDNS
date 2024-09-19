@@ -10,9 +10,12 @@ RESOLVE_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com
 CFOPW_SCRIPT_LOCAL="cfopw.sh"
 CFOPW_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cfopw.sh"
 
+START_DDNS_LOCAL="start_ddns.sh"
+START_DDNS_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/start_ddns.sh"
+
 # 删除旧文件
 echo "正在删除旧的脚本文件..."
-rm -f "$SETUP_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_LOCAL" "$CFOPW_SCRIPT_LOCAL"
+rm -f "$SETUP_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_LOCAL" "$CFOPW_SCRIPT_LOCAL" "$START_DDNS_LOCAL"
 
 # 定义下载脚本的函数
 download_script() {
@@ -122,6 +125,9 @@ download_script "$CFOPW_SCRIPT_LOCAL" "$CFOPW_SCRIPT_URL" "cfopw.sh"
 
 # 执行 setup_cloudflarest.sh
 execute_script "$SETUP_SCRIPT_LOCAL" "setup_cloudflarest.sh"
+
+# 等待 setup_cloudflarest.sh 执行完毕
+wait
 
 # 执行 cf.sh
 execute_script "$RESOLVE_SCRIPT_LOCAL" "cf.sh"
