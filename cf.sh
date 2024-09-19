@@ -248,7 +248,7 @@ main_menu() {
         clear_input_buffer
         
         # 使用timeout命令设置超时时间
-        read -t $timeout_sec -p "请选择 (1-7): " choice
+        read -t $timeout_sec -p "请选择 (1-8): " choice
 
         # 如果超时，则退出
         if [ $? -ne 0 ]; then
