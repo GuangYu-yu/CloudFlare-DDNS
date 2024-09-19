@@ -1261,7 +1261,7 @@ write_plugin_settings() {
         echo "2. passwall2"
         echo "3. shadowsocksr"
         echo "4. openclash"
-        echo "5. shellclash"
+        echo "5. shellcrash"
         echo "6. nekoclash"
         echo "7. bypass"
         echo "8. 返回主菜单"
