@@ -396,7 +396,7 @@ delete_account() {
     fi
 
     # 使用 sed 删除指定的账户组
-    sed -i "/^# Account section/ { :a; N; /account_group=($delete_group)/!ba; d; }" "$config_file"
+    sed -i "/^# Account section/{N; /account_group=($delete_group)/{d;}}" "$config_file"
 
     echo "账户组 $delete_group 成功删除！"
     
@@ -728,7 +728,7 @@ delete_resolve() {
     fi
 
     # 删除匹配的解析组及其前面的空行
-    sed -i "/^# Resolve section/ { :a; N; /ddns_name=($delete_ddns)/!ba; d; }" "$config_file"
+    sed -i "/^# Resolve section/{N; /ddns_name=($delete_ddns)/{d;}}" "$config_file"
 
     echo "解析组 $delete_ddns 已成功删除！"
     sleep 1
@@ -1202,7 +1202,7 @@ delete_push_section() {
     fi
 
     # 使用sed精确删除对应push_id的配置段，确保只删除该推送的配置
-    sed -i "/^# Push section/{ :a; N; /push_name=($push_id)/!ba; d; }" "$config_file"
+    sed -i "/^# Push section/{N; /push_name=($push_id)/{d;}}" "$config_file"
 
     echo "$push_name 的推送设置已删除。"
 }
