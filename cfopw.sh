@@ -124,10 +124,7 @@ download_script "$RESOLVE_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_URL" "cf.sh"
 download_script "$CFOPW_SCRIPT_LOCAL" "$CFOPW_SCRIPT_URL" "cfopw.sh"
 
 # 执行 setup_cloudflarest.sh
-execute_script "$SETUP_SCRIPT_LOCAL" "setup_cloudflarest.sh"
-
-# 等待 setup_cloudflarest.sh 执行完毕
-wait
+./setup_cloudflarest.sh
 
 # 执行 cf.sh
-execute_script "$RESOLVE_SCRIPT_LOCAL" "cf.sh"
+./cf.sh
