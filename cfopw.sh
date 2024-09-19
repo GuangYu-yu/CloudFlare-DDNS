@@ -123,8 +123,10 @@ download_script "$RESOLVE_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_URL" "cf.sh"
 # 下载 cfopw.sh
 download_script "$CFOPW_SCRIPT_LOCAL" "$CFOPW_SCRIPT_URL" "cfopw.sh"
 
+# 下载 cfopw.sh
+download_script "$START_DDNS_LOCAL" "$START_DDNS_URL" "start_ddns.sh"
+
 # 执行 setup_cloudflarest.sh
 ./setup_cloudflarest.sh
 
-# 执行 cf.sh
-./cf.sh
+echo "输入bash cf.sh进入主菜单"
