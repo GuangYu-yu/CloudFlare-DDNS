@@ -199,7 +199,7 @@ look_ddns_simple() {
 
 # CloudflareST命令
 look_cfst_rules() {
-    echo "    示例：-n 500 -tll 40 -tl 280 -dn 5 -sl 15 -p 5"
+    echo "    示例：-n 500 -tll 40 -tl 280 -sl 15 -tp 2053"
     echo "    HTTP  端口  80  8080 2052 2082 2086 2095 8880"
     echo "    HTTPS 端口  443 8443 2053 2083 2087 2096 "
     echo "    -n 200      延迟测速线程（最大 1000）"
@@ -818,6 +818,7 @@ modify_resolve() {
                     echo "格式不正确，请重新输入"
                 fi ;;
             5)
+                look_cfst_rules
                 read -p "请输入新的CloudflareST命令：" new_cf_command
                 new_cf_command=$(echo "$new_cf_command" | tr ' ' ',')
                 modify_resolve_field "cf_command" "$new_cf_command" "$config_file" "$modify_ddns"
@@ -933,7 +934,7 @@ start() {
     fi
 
     # 运行 start_ddns.sh 并传递所有参数
-    exec ./start_ddns.sh "$x_email" "$zone_id" "$api_key" "$hostname1" "$hostname2" "$v4_num" "$v6_num" "$cf_command" "$v4_url" "$v6_url" "$push_mod" "$clien"
+    source ./start_ddns.sh "$x_email" "$zone_id" "$api_key" "$hostname1" "$hostname2" "$v4_num" "$v6_num" "$cf_command" "$v4_url" "$v6_url" "$push_mod" "$clien"
 }
 
 # 执行解析
