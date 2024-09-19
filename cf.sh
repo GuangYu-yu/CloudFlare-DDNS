@@ -241,7 +241,8 @@ main_menu() {
         echo "4. 执行解析"
         echo "5. 刷新网络"
         echo "6. 计划任务"
-        echo "7. 退出"
+        echo "7. 插件设置"
+        echo "8. 退出"
         echo "================================="
         
         clear_input_buffer
@@ -262,7 +263,8 @@ main_menu() {
             4) execute_resolve ;;
             5) refresh_network_status ;;  # 选择刷新网络状态
             6) view_schedule;;
-            7) exit 0 ;;
+            7) write_plugin_settings;;
+            8) exit 0 ;;
             *) : ;;
         esac
     done
@@ -907,6 +909,7 @@ start() {
     local v4_url=$(echo "$resolve_line" | sed -n 's/.*v4_url=(\([^)]*\)).*/\1/p')
     local v6_url=$(echo "$resolve_line" | sed -n 's/.*v6_url=(\([^)]*\)).*/\1/p')
     local push_mod=$(echo "$resolve_line" | sed -n 's/.*push_mod=(\([^)]*\)).*/\1/p' | tr ',' ' ')  # 替换逗号为空格
+    local client=$(sed -n 's/.*client=(\([0-7]\)).*/\1/p' "$config_file")
 
     # 使用 add_ddns 查找对应的 account_group
     local account_group_line=$(grep "^account_group=(\($add_ddns\))," "$config_file")
@@ -930,7 +933,7 @@ start() {
     fi
 
     # 运行 start_ddns.sh 并传递所有参数
-    exec ./start_ddns.sh "$x_email" "$zone_id" "$api_key" "$hostname1" "$hostname2" "$v4_num" "$v6_num" "$cf_command" "$v4_url" "$v6_url" "$push_mod"
+    exec ./start_ddns.sh "$x_email" "$zone_id" "$api_key" "$hostname1" "$hostname2" "$v4_num" "$v6_num" "$cf_command" "$v4_url" "$v6_url" "$push_mod" "$client"
 }
 
 # 执行解析
@@ -1205,6 +1208,88 @@ delete_push_section() {
     sed -i "/^# Push section/{N; /push_name=($push_id)/{d;}}" "$config_file"
 
     echo "$push_name 的推送设置已删除。"
+}
+
+# 插件设置
+write_plugin_settings() {
+    local config_file="$config_file"
+    local current_plugin=0
+    local plugin_section_found=false
+
+    # 定义插件数组
+    plugins=("不使用" "passwall" "passwall2" "shadowsocksr" "openclash" "shellclash" "nekoclash" "bypass")
+
+    # 用于更新client的函数，确保只修改现有的client行
+    update_client() {
+        local new_value="$1"
+        local config_file="$2"
+
+        # 如果存在client行，更新它；否则添加新的client行
+        if grep -q "client=" "$config_file"; then
+            sed -i -e "s/client=([0-7])/client=($new_value)/" "$config_file"
+        else
+            echo "client=($new_value)" >> "$config_file"
+        fi
+    }
+
+    # 函数用于显示插件设置页面
+    display_plugin_menu() {
+        clear
+        echo "================================="
+        echo "           插件设置"
+        echo "================================="
+        
+        # 检查是否存在 # Plugin section 和 client=() 行
+        if grep -q "# Plugin section" "$config_file" && grep -q "client=" "$config_file"; then
+            # 提取当前的插件设置数字
+            current_plugin=$(grep "client=" "$config_file" | sed 's/[^0-9]//g')
+            plugin_section_found=true
+        else
+            # 如果没有找到 Plugin section 和 client 行，创建它们
+            echo "# Plugin section" >> "$config_file"
+            echo "client=(0)" >> "$config_file"
+            current_plugin=0
+        fi
+
+        # 显示当前插件
+        echo "当前插件：${plugins[$current_plugin]}"
+
+        # 显示插件选项
+        echo "请选择插件："
+        echo "0. 不使用"
+        echo "1. passwall"
+        echo "2. passwall2"
+        echo "3. shadowsocksr"
+        echo "4. openclash"
+        echo "5. shellclash"
+        echo "6. nekoclash"
+        echo "7. bypass"
+        echo "8. 返回主菜单"
+    }
+
+    while true; do
+        # 显示插件设置页面
+        display_plugin_menu
+
+        # 获取用户输入
+        read -p "请输入对应的数字 (0-8): " choice
+
+        # 处理用户选择
+        if [[ "$choice" == "8" ]]; then
+            clear_input_buffer    # 清除输入缓冲区
+            main_menu             # 返回主菜单
+            return 0
+        elif [[ "$choice" =~ ^[0-7]$ ]]; then
+            # 使用 update_client 函数更新 client 设置
+            update_client "$choice" "$config_file"
+            echo "插件已设置为: ${plugins[$choice]}"
+        else
+            echo "无效输入，请输入0-8之间的数字。"
+        fi
+
+        # 刷新显示插件设置页面
+        echo "================================="
+    done
 }
 
 # 主程序入口
