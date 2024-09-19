@@ -933,6 +933,9 @@ start() {
         return 1
     fi
 
+    # 赋予权限
+    chmod +x start_ddns.sh
+    
     # 运行 start_ddns.sh 并传递所有参数
     source ./start_ddns.sh "$x_email" "$zone_id" "$api_key" "$hostname1" "$hostname2" "$v4_num" "$v6_num" "$cf_command" "$v4_url" "$v6_url" "$push_mod" "$clien"
 }
