@@ -1,5 +1,9 @@
 #!/bin/bash
 
+mkdir CF
+
+cd CF
+
 # 定义文件路径和下载 URL
 SETUP_SCRIPT_LOCAL="setup_cloudflarest.sh"
 SETUP_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/setup_cloudflarest.sh"
