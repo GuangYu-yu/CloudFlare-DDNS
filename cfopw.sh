@@ -13,9 +13,15 @@ CFOPW_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/G
 START_DDNS_LOCAL="start_ddns.sh"
 START_DDNS_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/start_ddns.sh"
 
+CF_DDNS_LOCAL="cf_ddns.sh"
+CF_DDNS__URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cf_ddns.sh"
+
+CF_PUSH_LOCAL="cf_push.sh"
+CF_PUSH_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cf_push.sh"
+
 # 删除旧文件
 echo "正在删除旧的脚本文件..."
-rm -f "$SETUP_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_LOCAL" "$CFOPW_SCRIPT_LOCAL" "$START_DDNS_LOCAL"
+rm -f "$SETUP_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_LOCAL" "$CFOPW_SCRIPT_LOCAL" "$START_DDNS_LOCAL" "$CF_DDNS_LOCAL" "$CF_PUSH_LOCAL"
 
 # 定义下载脚本的函数
 download_script() {
@@ -123,8 +129,16 @@ download_script "$RESOLVE_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_URL" "cf.sh"
 # 下载 cfopw.sh
 download_script "$CFOPW_SCRIPT_LOCAL" "$CFOPW_SCRIPT_URL" "cfopw.sh"
 
-# 下载 cfopw.sh
+# 下载 start_ddns.sh
 download_script "$START_DDNS_LOCAL" "$START_DDNS_URL" "start_ddns.sh"
+
+# 下载 cf_ddns.sh
+download_script "$CF_DDNS_LOCAL" "$CF_DDNS_URL" "cf_ddns.sh"
+
+# 下载 cf_push.sh
+download_script "$CF_PUSH_LOCAL" "$CF_PUSH_URL" "cf_push.sh"
+
+chmod +x cf.sh cf_ddns.sh cf_push.sh start_ddns.sh
 
 # 执行 setup_cloudflarest.sh
 ./setup_cloudflarest.sh
