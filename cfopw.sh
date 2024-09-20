@@ -142,8 +142,6 @@ download_script "$CF_DDNS_LOCAL" "$CF_DDNS_URL" "cf_ddns.sh"
 # 下载 cf_push.sh
 download_script "$CF_PUSH_LOCAL" "$CF_PUSH_URL" "cf_push.sh"
 
-chmod +x cf.sh cf_ddns.sh cf_push.sh start_ddns.sh
-
 # 执行 setup_cloudflarest.sh
 ./setup_cloudflarest.sh
 
