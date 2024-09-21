@@ -1,7 +1,9 @@
 #!/bin/bash
 
-mkdir CF
+# 创建 CF 文件夹，如果存在则跳过
+mkdir -p CF
 
+# 进入 CF 文件夹
 cd CF
 
 # 定义文件路径和下载 URL
@@ -18,7 +20,7 @@ START_DDNS_LOCAL="start_ddns.sh"
 START_DDNS_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/start_ddns.sh"
 
 CF_DDNS_LOCAL="cf_ddns.sh"
-CF_DDNS__URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cf_ddns.sh"
+CF_DDNS_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cf_ddns.sh"
 
 CF_PUSH_LOCAL="cf_push.sh"
 CF_PUSH_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cf_push.sh"
@@ -119,30 +121,20 @@ if [ -n "$packages" ]; then
         echo "使用 yum 安装软件包..."
         sudo yum install $packages -y
     else
-        echo "未能检测出你的系统：$(uname)，请自行安装$packages这些软件。"
+        echo "未能检测出你的系统：$(uname)，请自行安装 $packages 这些软件。"
         exit 1
     fi
 fi
 
-# 下载 setup_cloudflarest.sh
+# 下载所有脚本
 download_script "$SETUP_SCRIPT_LOCAL" "$SETUP_SCRIPT_URL" "setup_cloudflarest.sh"
-
-# 下载 cf.sh
 download_script "$RESOLVE_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_URL" "cf.sh"
-
-# 下载 cfopw.sh
 download_script "$CFOPW_SCRIPT_LOCAL" "$CFOPW_SCRIPT_URL" "cfopw.sh"
-
-# 下载 start_ddns.sh
 download_script "$START_DDNS_LOCAL" "$START_DDNS_URL" "start_ddns.sh"
-
-# 下载 cf_ddns.sh
 download_script "$CF_DDNS_LOCAL" "$CF_DDNS_URL" "cf_ddns.sh"
-
-# 下载 cf_push.sh
 download_script "$CF_PUSH_LOCAL" "$CF_PUSH_URL" "cf_push.sh"
 
 # 执行 setup_cloudflarest.sh
 ./setup_cloudflarest.sh
 
-echo "输入bash cf.sh进入主菜单"
+echo "输入 bash cf.sh 进入主菜单"
