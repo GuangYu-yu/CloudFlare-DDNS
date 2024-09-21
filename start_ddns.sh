@@ -331,18 +331,18 @@ update_dns() {
 
   # 添加新记录
   declare -A domain_ip_map
-  ip_index=0
-  for ((i=0; i<domain_count; i++)); do
-      current_domain=${domains[$i]}
-      current_ip=${ip_addresses[$ip_index]}
+  max_count=$(( domain_count > ip_count ? domain_count : ip_count ))
+
+  for ((i=0; i<max_count; i++)); do
+      current_domain=${domains[$((i % domain_count))]}
+      current_ip=${ip_addresses[$((i % ip_count))]}
       
       InsertCF "$current_ip" "$current_domain"
       
-      domain_ip_map["$current_domain"]="$current_ip"
-
-      ip_index=$((ip_index + 1))
-      if [ $ip_index -eq $ip_count ]; then
-          ip_index=0  # 重置为0，开始复用IP
+      if [[ ! ${domain_ip_map[$current_domain]} ]]; then
+          domain_ip_map[$current_domain]="$current_ip"
+      else
+          domain_ip_map[$current_domain]="${domain_ip_map[$current_domain]},$current_ip"
       fi
   done
 
@@ -355,7 +355,6 @@ update_dns() {
   done
 }
 
-# 主处理逻辑
 # 主处理逻辑
 main() {
   local has_update=false
