@@ -25,10 +25,6 @@ CF_DDNS_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangY
 CF_PUSH_LOCAL="cf_push.sh"
 CF_PUSH_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cf_push.sh"
 
-# 删除旧文件
-echo "正在删除旧的脚本文件..."
-rm -f "$SETUP_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_LOCAL" "$CFOPW_SCRIPT_LOCAL" "$START_DDNS_LOCAL" "$CF_DDNS_LOCAL" "$CF_PUSH_LOCAL"
-
 # 定义下载脚本的函数
 download_script() {
     local script_local=$1
