@@ -1,11 +1,5 @@
 #!/bin/bash
 
-# 创建 CF 文件夹，如果存在则跳过
-mkdir -p CF
-
-# 进入 CF 文件夹
-cd CF
-
 # 定义文件路径和下载 URL
 SETUP_SCRIPT_LOCAL="setup_cloudflarest.sh"
 SETUP_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/setup_cloudflarest.sh"
@@ -123,14 +117,22 @@ if [ -n "$packages" ]; then
 fi
 
 # 下载所有脚本
-download_script "$SETUP_SCRIPT_LOCAL" "$SETUP_SCRIPT_URL" "setup_cloudflarest.sh"
+
 download_script "$RESOLVE_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_URL" "cf.sh"
-download_script "$CFOPW_SCRIPT_LOCAL" "$CFOPW_SCRIPT_URL" "cfopw.sh"
-download_script "$START_DDNS_LOCAL" "$START_DDNS_URL" "start_ddns.sh"
-download_script "$CF_DDNS_LOCAL" "$CF_DDNS_URL" "cf_ddns.sh"
-download_script "$CF_PUSH_LOCAL" "$CF_PUSH_URL" "cf_push.sh"
+
+# 创建 CF 文件夹，如果存在则跳过
+mkdir -p CF
+
+# 进入 CF 文件夹
+cd CF
+
+download_script "$SETUP_SCRIPT_LOCAL" "$SETUP_SCRIPT_URL" "setup_cloudflarest.sh"
 
 # 执行 setup_cloudflarest.sh
 ./setup_cloudflarest.sh
+
+download_script "$START_DDNS_LOCAL" "$START_DDNS_URL" "start_ddns.sh"
+download_script "$CF_DDNS_LOCAL" "$CF_DDNS_URL" "cf_ddns.sh"
+download_script "$CF_PUSH_LOCAL" "$CF_PUSH_URL" "cf_push.sh"
 
 echo "输入 bash cf.sh 进入主菜单"
