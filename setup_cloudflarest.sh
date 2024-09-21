@@ -100,4 +100,4 @@ chmod +x CloudflareST
 
 echo "设置完成！"
 
-rm cfopw.sh setup_cloudflarest.sh
+rm setup_cloudflarest.sh
