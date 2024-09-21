@@ -13,9 +13,6 @@ CFOPW_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/G
 START_DDNS_LOCAL="start_ddns.sh"
 START_DDNS_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/start_ddns.sh"
 
-CF_DDNS_LOCAL="cf_ddns.sh"
-CF_DDNS_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cf_ddns.sh"
-
 CF_PUSH_LOCAL="cf_push.sh"
 CF_PUSH_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cf_push.sh"
 
@@ -132,7 +129,6 @@ download_script "$SETUP_SCRIPT_LOCAL" "$SETUP_SCRIPT_URL" "setup_cloudflarest.sh
 ./setup_cloudflarest.sh
 
 download_script "$START_DDNS_LOCAL" "$START_DDNS_URL" "start_ddns.sh"
-download_script "$CF_DDNS_LOCAL" "$CF_DDNS_URL" "cf_ddns.sh"
 download_script "$CF_PUSH_LOCAL" "$CF_PUSH_URL" "cf_push.sh"
 
 echo "通过bash cf.sh进入主菜单"
