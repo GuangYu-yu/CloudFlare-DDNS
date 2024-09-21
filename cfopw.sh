@@ -135,4 +135,4 @@ download_script "$START_DDNS_LOCAL" "$START_DDNS_URL" "start_ddns.sh"
 download_script "$CF_DDNS_LOCAL" "$CF_DDNS_URL" "cf_ddns.sh"
 download_script "$CF_PUSH_LOCAL" "$CF_PUSH_URL" "cf_push.sh"
 
-cd .. && bash cf.sh
+echo "通过bash cf.sh进入主菜单"
