@@ -3,6 +3,7 @@
 push_mod=$1
 config_file=$2
 pushmessage=$3
+hostnames=$4
 
 # 检查配置文件是否存在
 if [ -z "$config_file" ] || [ ! -f "$config_file" ]; then
@@ -19,44 +20,41 @@ read_push_settings() {
 # 检查 informlog 文件并读取内容
 if [ ! -f "./informlog" ]; then
     echo "informlog 文件不存在"
-    exit 1
-fi
-
-if [ ! -s "./informlog" ]; then
+    message_text="错误: informlog 文件不存在，无法获取更新信息"
+elif [ ! -s "./informlog" ]; then
     echo "informlog 文件为空"
-    message_text="没有推送信息"
+    message_text="错误: 没有更新信息"
 else
     message_text=$(cat ./informlog)
 fi
 
 # 读取 result.csv 文件并格式化 IP 信息
 if [ -f "result.csv" ]; then
-    ip_info=$(awk -F',' 'BEGIN {
+    ip_info=$(awk -F',' -v domains="$hostnames" 'BEGIN {
+        split(domains, domain_arr, " ")
         print "IP 地址："
     }
     NR>1 {
         ips[NR-1] = $1
-        loss[NR-1] = $4
         latency[NR-1] = $5
         speed[NR-1] = $6
         count++
     }
     END {
-        for (i=1; i<=count; i++) print i ". " ips[i]
-        print "———————————————————"
-        print "丢包率："
-        for (i=1; i<=count; i++) print i ". " loss[i]
-        print "———————————————————"
+        for (i=1; i<=count; i++) print ips[i]
+        print "━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        print "域名："
+        for (i=1; i<=length(domain_arr); i++) print domain_arr[i]
+        print "━━━━━━━━━━━━━━━━━━━━━━━━━━"
         print "平均延迟："
-        for (i=1; i<=count; i++) print i ". " latency[i] " ms"
-        print "———————————————————"
-        print "下载速度 (MB/s)："
-        for (i=1; i<=count; i++) print i ". " speed[i]
-        print "———————————————————"
-        print "DNS 记录状态："
-        for (i=1; i<=count; i++) print i ". 更新成功"
+        for (i=1; i<=count; i++) print latency[i] " ms"
+        print "━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        print "下载速度："
+        for (i=1; i<=count; i++) print speed[i] " MB/s"
     }' result.csv)
     message_text="${ip_info}"
+else
+    message_text="错误: 没有测速结果 (result.csv 文件不存在)"
 fi
 
 # 设置 Telegram 和微信 API 的基础 URL
