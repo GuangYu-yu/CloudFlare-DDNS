@@ -970,7 +970,7 @@ start() {
     fi
     
     # 运行 start_ddns.sh 并传递所有参数
-    ./start_ddns.sh "$x_email" "$zone_id" "$api_key" "$hostname1" "$hostname2" "$v4_num" "$v6_num" "$cf_command" "$v4_url" "$v6_url" "$push_mod" "$clien" "$config_file"
+    cd CF && ./start_ddns.sh "$x_email" "$zone_id" "$api_key" "$hostname1" "$hostname2" "$v4_num" "$v6_num" "$cf_command" "$v4_url" "$v6_url" "$push_mod" "$clien" "$config_file"
 }
 
 # 执行解析
