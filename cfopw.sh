@@ -7,9 +7,6 @@ SETUP_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/G
 RESOLVE_SCRIPT_LOCAL="cf.sh"
 RESOLVE_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cf.sh"
 
-CFOPW_SCRIPT_LOCAL="cfopw.sh"
-CFOPW_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cfopw.sh"
-
 START_DDNS_LOCAL="start_ddns.sh"
 START_DDNS_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/start_ddns.sh"
 
