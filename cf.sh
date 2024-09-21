@@ -23,6 +23,74 @@ if [ ! -f "$config_file" ]; then
     touch "$config_file"
 fi
 
+# 保留 handle_error 函数
+handle_error() {
+    local error_message="$1"
+    echo -e "${RED}错误: $error_message${NC}"
+    sleep 1
+}
+
+# 启动解析
+start() {
+    local ddns_name=$1
+    
+    # 检查配置文件是否存在
+    if [ ! -f "$config_file" ]; then
+        handle_error "配置文件不存在"
+        return 1
+    fi
+
+    # 检查 ddns_name 是否存在，并从 Resolve Section 查找
+    local resolve_line=$(grep -E "^add_ddns=\([^)]*\),ddns_name=\($ddns_name\)" "$config_file")
+
+    if [ -z "$resolve_line" ]; then
+        handle_error "未找到指定的解析组，请检查输入。"
+        return 1
+    fi
+
+    # 提取 add_ddns 和相关解析信息
+    local add_ddns=$(echo "$resolve_line" | sed -n 's/.*add_ddns=(\([^)]*\)).*/\1/p')
+    local hostname1=$(echo "$resolve_line" | sed -n 's/.*hostname1=(\([^)]*\)).*/\1/p')
+    local hostname2=$(echo "$resolve_line" | sed -n 's/.*hostname2=(\([^)]*\)).*/\1/p' | tr ',' ' ')  # 替换逗号为空格
+    local v4_num=$(echo "$resolve_line" | sed -n 's/.*v4_num=(\([^)]*\)).*/\1/p')
+    local v6_num=$(echo "$resolve_line" | sed -n 's/.*v6_num=(\([^)]*\)).*/\1/p')
+    local cf_command=$(echo "$resolve_line" | sed -n 's/.*cf_command=(\([^)]*\)).*/\1/p' | tr ',' ' ')  # 替换逗号为空格
+    local v4_url=$(echo "$resolve_line" | sed -n 's/.*v4_url=(\([^)]*\)).*/\1/p')
+    local v6_url=$(echo "$resolve_line" | sed -n 's/.*v6_url=(\([^)]*\)).*/\1/p')
+    local push_mod=$(echo "$resolve_line" | sed -n 's/.*push_mod=(\([^)]*\)).*/\1/p' | tr ',' ' ')  # 替换逗号为空格
+    local clien=$(sed -n 's/.*clien=(\([0-7]\)).*/\1/p' "$config_file")
+
+    # 使用 add_ddns 查找对应的 account_group
+    local account_group_line=$(grep "^account_group=(\($add_ddns\))," "$config_file")
+    if [ -z "$account_group_line" ]; then
+        handle_error "未找到对应的账户组，请检查配置。"
+        return 1
+    fi
+
+    # 提取从账户组获取的信息
+    local x_email=$(echo "$account_group_line" | sed -n 's/.*x_email=(\([^)]*\)).*/\1/p')
+    local zone_id=$(echo "$account_group_line" | sed -n 's/.*zone_id=(\([^)]*\)).*/\1/p')
+    local api_key=$(echo "$account_group_line" | sed -n 's/.*api_key=(\([^)]*\)).*/\1/p')
+
+    # 确保所有必要信息都已提取
+    if [ -z "$x_email" ] || [ -z "$zone_id" ] || [ -z "$api_key" ] || \
+       [ -z "$hostname1" ] || [ -z "$hostname2" ] || [ -z "$v4_num" ] || \
+       [ -z "$v6_num" ] || [ -z "$cf_command" ] || [ -z "$v4_url" ] || \
+       [ -z "$v6_url" ] || [ -z "$push_mod" ]; then
+        handle_error "某些必要信息缺失，请检查配置。"
+        return 1
+    fi
+    
+    # 运行 start_ddns.sh 并传递所有参数
+    cd CF && ./start_ddns.sh "$x_email" "$zone_id" "$api_key" "$hostname1" "$hostname2" "$v4_num" "$v6_num" "$cf_command" "$v4_url" "$v6_url" "$push_mod" "$clien" "$config_file"
+}
+
+# 检查命令行参数
+if [ "$1" = "start" ] && [ -n "$2" ]; then
+    start "$2"
+    exit $?
+fi
+
 # 检测单个网络协议
 detect_protocol() {
     local protocol=$1
@@ -253,13 +321,6 @@ look_cfst_rules() {
     echo -e "${CYAN}    -sl 5       下载速度下限（默认 0.00 MB/s）${NC}"
     echo -e "${CYAN}    -dd         禁用下载测速（默认启用）${NC}"
     echo -e "${CYAN}    -allip      测速全部的IP（仅支持 IPv4,默认每个/24段随机测速一个IP）${NC}"
-}
-
-# 保留 handle_error 函数
-handle_error() {
-    local error_message="$1"
-    echo -e "${RED}错误: $error_message${NC}"
-    sleep 1
 }
 
 # 在主菜单中使用 handle_error
@@ -922,55 +983,6 @@ modify_resolve() {
     sleep 1
     clear_input_buffer
     resolve_settings
-}
-
-# 启动解析
-start() {
-    local ddns_name=$1
-
-    # 检查 ddns_name 是否存在，并从 Resolve Section 查找
-    local resolve_line=$(grep -E "^add_ddns=\([^)]*\),ddns_name=\($ddns_name\)" "$config_file")
-
-    if [ -z "$resolve_line" ]; then
-        handle_error "未找到指定的解析组，请检查输入。"
-        return 1
-    fi
-
-    # 提取 add_ddns 和相关解析信息
-    local add_ddns=$(echo "$resolve_line" | sed -n 's/.*add_ddns=(\([^)]*\)).*/\1/p')
-    local hostname1=$(echo "$resolve_line" | sed -n 's/.*hostname1=(\([^)]*\)).*/\1/p')
-    local hostname2=$(echo "$resolve_line" | sed -n 's/.*hostname2=(\([^)]*\)).*/\1/p' | tr ',' ' ')  # 替换逗号为空格
-    local v4_num=$(echo "$resolve_line" | sed -n 's/.*v4_num=(\([^)]*\)).*/\1/p')
-    local v6_num=$(echo "$resolve_line" | sed -n 's/.*v6_num=(\([^)]*\)).*/\1/p')
-    local cf_command=$(echo "$resolve_line" | sed -n 's/.*cf_command=(\([^)]*\)).*/\1/p' | tr ',' ' ')  # 替换逗号为空格
-    local v4_url=$(echo "$resolve_line" | sed -n 's/.*v4_url=(\([^)]*\)).*/\1/p')
-    local v6_url=$(echo "$resolve_line" | sed -n 's/.*v6_url=(\([^)]*\)).*/\1/p')
-    local push_mod=$(echo "$resolve_line" | sed -n 's/.*push_mod=(\([^)]*\)).*/\1/p' | tr ',' ' ')  # 替换逗号为空格
-    local clien=$(sed -n 's/.*clien=(\([0-7]\)).*/\1/p' "$config_file")
-
-    # 使用 add_ddns 查找对应的 account_group
-    local account_group_line=$(grep "^account_group=(\($add_ddns\))," "$config_file")
-    if [ -z "$account_group_line" ]; then
-        handle_error "未找到对应的账户组，请检查配置。"
-        return 1
-    fi
-
-    # 提取从账户组获取的信息
-    local x_email=$(echo "$account_group_line" | sed -n 's/.*x_email=(\([^)]*\)).*/\1/p')
-    local zone_id=$(echo "$account_group_line" | sed -n 's/.*zone_id=(\([^)]*\)).*/\1/p')
-    local api_key=$(echo "$account_group_line" | sed -n 's/.*api_key=(\([^)]*\)).*/\1/p')
-
-    # 确保所有必要信息都已提取
-    if [ -z "$x_email" ] || [ -z "$zone_id" ] || [ -z "$api_key" ] || \
-       [ -z "$hostname1" ] || [ -z "$hostname2" ] || [ -z "$v4_num" ] || \
-       [ -z "$v6_num" ] || [ -z "$cf_command" ] || [ -z "$v4_url" ] || \
-       [ -z "$v6_url" ] || [ -z "$push_mod" ]; then
-        handle_error "某些必要信息缺失，请检查配置。"
-        return 1
-    fi
-    
-    # 运行 start_ddns.sh 并传递所有参数
-    cd CF && ./start_ddns.sh "$x_email" "$zone_id" "$api_key" "$hostname1" "$hostname2" "$v4_num" "$v6_num" "$cf_command" "$v4_url" "$v6_url" "$push_mod" "$clien" "$config_file"
 }
 
 # 执行解析
