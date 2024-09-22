@@ -14,6 +14,15 @@ ipv4_status=""
 # 配置文件路径
 config_file=cf.yaml
 
+# 定义脚本文件名变量
+The_CF_SCRIPT="cf.sh"
+
+# 获取当前脚本路径
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+
+# 组合路径和文件名
+script_path="$script_dir/$The_CF_SCRIPT"
+
 # 网络检测相关参数
 TIMEOUT=3    # 默认超时时间（秒）
 RETRY_LIMIT=10 # 默认最大重试次数
@@ -1008,8 +1017,8 @@ execute_resolve() {
         return
     fi
 
-    # 调用 start 函数获取相关信息并执行
-    start "$selected_ddns"
+    # 调用 start 并传递解析组名称
+    bash "$script_path" start "$selected_ddns"
     
     # 执行完退出
     exit 0
@@ -1040,14 +1049,11 @@ view_schedule() {
         return
     fi
 
-    # 获取当前脚本路径
-    script_dir="$(cd "$(dirname "$0")" && pwd)"
-
     # 显示计划任务成品
     echo -e "${YELLOW}===================================${NC}"
     echo -e "${CYAN}计划任务示例：${NC}"
-    echo -e "${CYAN}示例1：每4小时更新一次: 0 */4 * * * cd $script_dir && bash cf.sh start $selected_ddns${NC}"
-    echo -e "${CYAN}示例2：每天5点更新一次: 0 5 * * * cd $script_dir && bash cf.sh start $selected_ddns${NC}"
+    echo -e "${CYAN}示例1：每4小时更新一次: 0 */4 * * * cd $script_dir && bash $The_CF_SCRIPT start $selected_ddns${NC}"
+    echo -e "${CYAN}示例2：每天5点更新一次: 0 5 * * * cd $script_dir && bash $The_CF_SCRIPT start $selected_ddns${NC}"
     echo -e "${YELLOW}===================================${NC}"
     echo -e "${CYAN}请选择操作：${NC}"
     echo -e "${CYAN}1. 创建计划任务示例1${NC}"
@@ -1061,12 +1067,12 @@ view_schedule() {
 
     case $action_choice in
         1) 
-            new_task="0 */4 * * * cd $script_dir && bash cf.sh start $selected_ddns"
+            new_task="0 */4 * * * cd $script_dir && bash $The_CF_SCRIPT start $selected_ddns"
             (echo "$existing_crontab"; echo "$new_task") | crontab -
             echo -e "${GREEN}计划任务示例1已创建！${NC}" ;;
            
         2) 
-            new_task="0 5 * * * cd $script_dir && bash cf.sh start $selected_ddns"
+            new_task="0 5 * * * cd $script_dir && bash $The_CF_SCRIPT start $selected_ddns"
             (echo "$existing_crontab"; echo "$new_task") | crontab -
             echo -e "${GREEN}计划任务示例2已创建！${NC}" ;;
             
