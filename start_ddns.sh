@@ -25,6 +25,10 @@ push_mod=${11}
 clien=${12:-0}
 config_file="../${13}"
 
+# 限制测速地址最大行数，避免海量地址导致测速时间过长
+max_ipv4_lines=99999
+max_ipv6_lines=99999
+
 # 删除 .csv 文件
 if ! rm -rf *.csv; then
     print_error "无法删除 .csv 文件"
@@ -172,11 +176,11 @@ RealDelDns() {
     # 发出删除请求
     rt=$(curl -s -X DELETE "${delDnsApi}/$record_id" -H "Content-Type: application/json" -H "X-Auth-Email: $x_email" -H "X-Auth-Key: $api_key")
     succ=$(echo $rt | jq -r ".success")
+    echo "从 $domain 删除旧${record_type}记录"
     if [ "$succ" = "true" ]; then
-      echo "从 $domain 删除旧${record_type}记录 删除成功"
+      echo "删除成功"
     else
-      echo "从 $domain 删除旧${record_type}记录 删除失败"
-      exit 1
+      echo "删除失败"
     fi
   done
 }
@@ -223,7 +227,8 @@ process_ipv4() {
   # 删除旧的 result.csv 文件
   rm -f result.csv
   
-  if ! curl -sL "$v4_url" | grep -v ':' > ip.txt; then
+  # 获取 IPv4 地址并随机选择
+  if ! curl -sL "$v4_url" | grep -v ':' | awk 'BEGIN {srand()} {print rand() "\t" $0}' | sort -n | cut -f2- | head -n "$max_ipv4_lines" > ip.txt; then
     print_error "获取 IPv4 地址失败"
     return 1
   fi
@@ -246,7 +251,8 @@ process_ipv6() {
   # 删除旧的 result.csv 文件
   rm -f result.csv
   
-  if ! curl -sL "$v6_url" | grep ':' > ip.txt; then
+  # 获取 IPv6 地址并随机选择
+  if ! curl -sL "$v6_url" | grep ':' | awk 'BEGIN {srand()} {print rand() "\t" $0}' | sort -n | cut -f2- | head -n "$max_ipv6_lines" > ip.txt; then
     print_error "获取 IPv6 地址失败"
     return 1
   fi
@@ -326,16 +332,16 @@ update_dns() {
       echo "从 $domain 删除旧${record_type}记录"
       CheckDelCFDns "$domain" "$record_type"
       RealDelDns
-      echo "删除成功"
   done
 
   # 添加新记录
   declare -A domain_ip_map
-  max_count=$(( domain_count > ip_count ? domain_count : ip_count ))
+  ip_index=0
+  domain_index=0
 
-  for ((i=0; i<max_count; i++)); do
-      current_domain=${domains[$((i % domain_count))]}
-      current_ip=${ip_addresses[$((i % ip_count))]}
+  while [ $ip_index -lt $ip_count ]; do
+      current_domain=${domains[$domain_index]}
+      current_ip=${ip_addresses[$ip_index]}
       
       InsertCF "$current_ip" "$current_domain"
       
@@ -343,6 +349,14 @@ update_dns() {
           domain_ip_map[$current_domain]="$current_ip"
       else
           domain_ip_map[$current_domain]="${domain_ip_map[$current_domain]},$current_ip"
+      fi
+
+      ip_index=$((ip_index + 1))
+      domain_index=$((domain_index + 1))
+      
+      # 如果所有域名都分配了IP，重新开始分配
+      if [ $domain_index -eq $domain_count ]; then
+          domain_index=0
       fi
   done
 
