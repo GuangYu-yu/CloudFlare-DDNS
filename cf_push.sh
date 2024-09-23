@@ -42,13 +42,13 @@ if [ -f "result.csv" ]; then
     }
     END {
         for (i=1; i<=count; i++) print ips[i]
-        print "━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        print "━━━━━━━━━━━━━━━━━━━"
         print "域名："
         for (i=1; i<=length(domain_arr); i++) print domain_arr[i]
-        print "━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        print "━━━━━━━━━━━━━━━━━━━"
         print "平均延迟："
         for (i=1; i<=count; i++) print latency[i] " ms"
-        print "━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        print "━━━━━━━━━━━━━━━━━━━"
         print "下载速度："
         for (i=1; i<=count; i++) print speed[i] " MB/s"
     }' result.csv)
