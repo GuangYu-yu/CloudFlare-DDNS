@@ -32,11 +32,17 @@ if [ ! -f "$config_file" ]; then
     touch "$config_file"
 fi
 
-# 保留 handle_error 函数
+# 读取并丢弃所有在缓冲区中的输入
+clear_input_buffer() {
+    while read -r -t 0.1; do : ; done
+}
+
+# handle_error 函数
 handle_error() {
     local error_message="$1"
     echo -e "${RED}错误: $error_message${NC}"
     sleep 1
+    clear_input_buffer
 }
 
 # 启动解析
@@ -223,11 +229,6 @@ refresh_network_status() {
 
 # 运行检测
 detect_ip_addresses
-
-# 读取并丢弃所有在缓冲区中的输入
-clear_input_buffer() {
-    while read -r -t 0.1; do : ; done
-}
 
 # 输出已存在的账户信息
 look_account_group() {
