@@ -223,16 +223,31 @@ InsertCF() {
 # 处理 IPv4
 process_ipv4() {
   stop_plugin $CLIEN
-  
+
   # 删除旧的 result.csv 文件
   rm -f result.csv
   
+  # 重试机制参数
+  local max_retries=3
+  local retry_delay=2
+  local attempt=1
+  
   # 获取 IPv4 地址并随机选择
-  if ! curl -sL "$v4_url" | grep -v ':' | awk 'BEGIN {srand()} {print rand() "\t" $0}' | sort -n | cut -f2- | head -n "$max_ipv4_lines" > ip.txt; then
-    print_error "获取 IPv4 地址失败"
+  while (( attempt <= max_retries )); do
+    if curl -sL "$v4_url" | grep -v ':' | awk 'BEGIN {srand()} {print rand() "\t" $0}' | sort -n | cut -f2- | head -n "$max_ipv4_lines" > ip.txt; then
+      break  # 成功则跳出循环
+    else
+      print_error "获取 IPv4 地址失败，重试 $attempt 次..."
+      ((attempt++))
+      sleep $retry_delay
+    fi
+  done
+
+  if (( attempt > max_retries )); then
+    print_error "获取 IPv4 地址失败，已达到最大重试次数"
     return 1
   fi
-  
+
   if ! ./CloudflareST $cf_command -dn $v4_num -p $v4_num; then
     print_error "CloudflareST 执行失败"
     return 1
@@ -247,16 +262,31 @@ process_ipv4() {
 # 处理 IPv6
 process_ipv6() {
   stop_plugin $CLIEN
-  
+
   # 删除旧的 result.csv 文件
   rm -f result.csv
   
+  # 重试机制参数
+  local max_retries=3
+  local retry_delay=2
+  local attempt=1
+  
   # 获取 IPv6 地址并随机选择
-  if ! curl -sL "$v6_url" | grep ':' | awk 'BEGIN {srand()} {print rand() "\t" $0}' | sort -n | cut -f2- | head -n "$max_ipv6_lines" > ip.txt; then
-    print_error "获取 IPv6 地址失败"
+  while (( attempt <= max_retries )); do
+    if curl -sL "$v6_url" | grep ':' | awk 'BEGIN {srand()} {print rand() "\t" $0}' | sort -n | cut -f2- | head -n "$max_ipv6_lines" > ip.txt; then
+      break  # 成功则跳出循环
+    else
+      print_error "获取 IPv6 地址失败，重试 $attempt 次..."
+      ((attempt++))
+      sleep $retry_delay
+    fi
+  done
+
+  if (( attempt > max_retries )); then
+    print_error "获取 IPv6 地址失败，已达到最大重试次数"
     return 1
   fi
-  
+
   if ! ./CloudflareST $cf_command -dn $v6_num -p $v6_num; then
     print_error "CloudflareST 执行失败"
     return 1
