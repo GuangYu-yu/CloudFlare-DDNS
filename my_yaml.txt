@@ -1,7 +1,7 @@
 # Account section
 account_group=(mine),x_email=(),zone_id=(),api_key=()
 # Resolve section
-add_ddns=(mine),ddns_name=(www),hostname1=(),hostname2=(www),v4_num=(5),v6_num=(5),cf_command=(-n,500,-tll,40,-tl,280,-sl,12,-tp,2053),v4_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/About-Cloudflare/refs/heads/main/output_folder/CloudflareCIDR%E5%90%88%E5%B9%B6%E5%9C%B0%E5%9D%80.txt),v6_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/About-Cloudflare/refs/heads/main/output_folder/CloudflareCIDR%E5%90%88%E5%B9%B6%E5%9C%B0%E5%9D%80.txt),push_mod=(2)
+add_ddns=(mine),ddns_name=(www),hostname1=(),hostname2=(www),v4_num=(5),v6_num=(5),cf_command=(-n,500,-tll,40,-tl,280,-sl,12,-tp,2053),v4_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/About-Cloudflare/refs/heads/main/%E5%85%B3%E9%94%AECIDR.txt),v6_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/About-Cloudflare/refs/heads/main/%E5%85%B3%E9%94%AECIDR.txt),push_mod=(2)
 # Push section
 push_name=(2),pushplus_token=()
 # Resolve section
