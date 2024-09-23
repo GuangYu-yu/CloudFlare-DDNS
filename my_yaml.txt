@@ -1,0 +1,35 @@
+# Account section
+account_group=(mine),x_email=(),zone_id=(),api_key=()
+# Resolve section
+add_ddns=(mine),ddns_name=(4),hostname1=(),hostname2=(v4,v4v),v4_num=(10),v6_num=(0),cf_command=(-n,500,-tll,40,-tl,280,-sl,12,-tp,2053),v4_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/About-Cloudflare/refs/heads/main/output_folder/CloudflareCIDR%E5%90%88%E5%B9%B6%E5%9C%B0%E5%9D%80.txt),v6_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/About-Cloudflare/refs/heads/main/output_folder/CloudflareCIDR%E5%90%88%E5%B9%B6%E5%9C%B0%E5%9D%80.txt),push_mod=(2)
+# Push section
+push_name=(2),pushplus_token=()
+# Resolve section
+add_ddns=(mine),ddns_name=(6),hostname1=(),hostname2=(v6,v6v),v4_num=(0),v6_num=(10),cf_command=(-n,500,-tll,40,-tl,280,-sl,12,-tp,2053),v4_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/About-Cloudflare/refs/heads/main/output_folder/CloudflareCIDR%E5%90%88%E5%B9%B6%E5%9C%B0%E5%9D%80.txt),v6_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/About-Cloudflare/refs/heads/main/output_folder/CloudflareCIDR%E5%90%88%E5%B9%B6%E5%9C%B0%E5%9D%80.txt),push_mod=(2)
+# Resolve section
+add_ddns=(mine),ddns_name=(hk4),hostname1=(),hostname2=(hk4),v4_num=(5),v6_num=(0),cf_command=(-n,500,-tll,40,-tl,280,-sl,12,-tp,2053,-allip),v4_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/ACL4SSR/refs/heads/main/Cloudflare-Hong%20Kong.txt),v6_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/ACL4SSR/refs/heads/main/Cloudflare-Hong%20Kong.txt),push_mod=(2)
+# Resolve section
+add_ddns=(mine),ddns_name=(sg4),hostname1=(),hostname2=(sg4),v4_num=(5),v6_num=(0),cf_command=(-n,500,-tll,40,-tl,280,-sl,12,-tp,2053,-allip),v4_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/ACL4SSR/refs/heads/main/Cloudflare-Singapore.txt),v6_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/ACL4SSR/refs/heads/main/Cloudflare-Singapore.txt),push_mod=(2)
+# Resolve section
+add_ddns=(mine),ddns_name=(jp4),hostname1=(),hostname2=(jp4),v4_num=(5),v6_num=(0),cf_command=(-n,500,-tll,40,-tl,280,-sl,12,-tp,2053,-allip),v4_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/ACL4SSR/refs/heads/main/Cloudflare-Japan.txt),v6_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/ACL4SSR/refs/heads/main/Cloudflare-Japan.txt),push_mod=(2)
+# Resolve section
+add_ddns=(mine),ddns_name=(de4),hostname1=(),hostname2=(de4),v4_num=(5),v6_num=(0),cf_command=(-n,500,-tll,40,-tl,280,-sl,12,-tp,2053,-allip),v4_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/ACL4SSR/refs/heads/main/Cloudflare-Germany.txt),v6_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/ACL4SSR/refs/heads/main/Cloudflare-Germany.txt),push_mod=(2)
+# Resolve section
+add_ddns=(mine),ddns_name=(ca4),hostname1=(),hostname2=(ca4),v4_num=(5),v6_num=(0),cf_command=(-n,500,-tll,40,-tl,280,-sl,12,-tp,2053,-allip),v4_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/ACL4SSR/refs/heads/main/Cloudflare-Canada.txt),v6_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/ACL4SSR/refs/heads/main/Cloudflare-Canada.txt),push_mod=(2)
+# Resolve section
+add_ddns=(mine),ddns_name=(fr4),hostname1=(),hostname2=(fr4),v4_num=(5),v6_num=(0),cf_command=(-n,500,-tll,40,-tl,280,-sl,12,-tp,2053,-allip),v4_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/ACL4SSR/refs/heads/main/Cloudflare-France.txt),v6_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/ACL4SSR/refs/heads/main/Cloudflare-France.txt),push_mod=(2)
+# Resolve section
+add_ddns=(mine),ddns_name=(gb4),hostname1=(),hostname2=(gb4),v4_num=(5),v6_num=(0),cf_command=(-n,500,-tll,40,-tl,280,-sl,12,-tp,2053,-allip),v4_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/ACL4SSR/refs/heads/main/Cloudflare-United%20Kingdom.txt),v6_url=(https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/ACL4SSR/refs/heads/main/Cloudflare-United%20Kingdom.txt),push_mod=(2)
+
+
+
+
+0 2 * * * cd /root && bash cf.sh start 4
+0 3 * * * cd /root && bash cf.sh start 6
+0 4 * * * cd /root && bash cf.sh start hk4
+0 5 * * * cd /root && bash cf.sh start sg4
+0 6 * * * cd /root && bash cf.sh start jp4
+0 7 * * * cd /root && bash cf.sh start de4
+0 8 * * * cd /root && bash cf.sh start ca4
+0 9 * * * cd /root && bash cf.sh start fr4
+0 10 * * * cd /root && bash cf.sh start gb4
