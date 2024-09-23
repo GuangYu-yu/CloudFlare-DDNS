@@ -904,9 +904,13 @@ modify_resolve() {
                 fi ;;
             2)
                 read -p "请输入新的二级域名（以空格分开）：" new_hostname2
-                new_hostname2=$(echo "$new_hostname2" | tr ' ' ',')
-                modify_resolve_field "hostname2" "$new_hostname2" "$config_file" "$modify_ddns"
-                echo -e "${GREEN}二级域名已更新${NC}" ;;
+                if [[ -z "$new_hostname2" ]]; then
+                    handle_error "格式不正确，请重新输入"
+                else
+                    new_hostname2=$(echo "$new_hostname2" | tr ' ' ',')
+                    modify_resolve_field "hostname2" "$new_hostname2" "$config_file" "$modify_ddns"
+                    echo -e "${GREEN}二级域名已更新${NC}"
+                fi ;;
             3)
                 read -p "请输入新的IPv4解析数量：" new_ipv4_count
                 if [[ "$new_ipv4_count" =~ ^[0-9]+$ ]]; then
@@ -926,9 +930,13 @@ modify_resolve() {
             5)
                 look_cfst_rules
                 read -p "请输入新的CloudflareST命令：" new_cf_command
-                new_cf_command=$(echo "$new_cf_command" | tr ' ' ',')
-                modify_resolve_field "cf_command" "$new_cf_command" "$config_file" "$modify_ddns"
-                echo -e "${GREEN}CloudflareST命令已更新${NC}" ;;
+                if [[ -z "$new_cf_command" ]]; then
+                    handle_error "格式不正确，请重新输入"
+                else
+                    new_cf_command=$(echo "$new_cf_command" | tr ' ' ',')
+                    modify_resolve_field "cf_command" "$new_cf_command" "$config_file" "$modify_ddns"
+                    echo -e "${GREEN}CloudflareST命令已更新${NC}"
+                fi ;;
             6)
                 read -p "请输入新的IPv4地址URL：" new_v4_url
                 if [[ -n "$new_v4_url" && "$new_v4_url" =~ ^https?://.* ]]; then
