@@ -35,9 +35,9 @@ login_retry_delay=1 # 重试延迟时间
 max_single_login_time=10 # 单次登录最大等待时间（秒）
 
 # 处理Ipv4和Ipv6的URL重试参数
-max_retries=10 # 最大重试次数
+max_retries=5 # 最大重试次数
 retry_delay=1 # 重试延迟时间
-single_attempt_timeout=3  # 单次尝试的超时时间（秒）
+single_attempt_timeout=10  # 单次尝试的超时时间（秒）
 
 # 定义 csvfile 变量
 csvfile="result.csv"
