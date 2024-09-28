@@ -254,12 +254,14 @@ process_ip() {
     fi
 
     while (( attempt <= max_retries )); do
-        if timeout $single_attempt_timeout curl -sL "$url" | "${grep_command[@]}" | awk 'BEGIN {srand()} {print rand() "\t" $0}' | sort -n | cut -f2- | head -n "$max_lines" > ip.txt; then
+        response=$(timeout $single_attempt_timeout curl -sL "$url")
+        if [ $? -eq 0 ]; then
+            echo "$response" | "${grep_command[@]}" | awk 'BEGIN {srand()} {print rand() "\t" $0}' | sort -n | cut -f2- | head -n "$max_lines" > ip.txt
             break  # 成功则跳出循环
-    else
-        print_error "获取 ${ip_type} 地址失败，重试 $attempt 次..."
-        ((attempt++))
-        sleep $retry_delay
+        else
+            print_error "获取 ${ip_type} 地址失败，重试 $attempt 次..."
+            ((attempt++))
+            sleep $retry_delay
         fi
     done
 
