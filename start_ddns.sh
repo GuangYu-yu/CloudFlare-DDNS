@@ -29,9 +29,23 @@ config_file="../${13}"
 max_ipv4_lines=99999
 max_ipv6_lines=99999
 
+# 登录重试设置
+max_retries=10 # 最大重试次数
+retry_delay=3 # 重试延迟时间
+max_single_login_time=30 # 单次登录最大等待时间（秒）
+
+# 处理Ipv4和Ipv6重试参数
+max_retries=3 # 最大重试次数
+retry_delay=2 # 重试延迟时间
+single_attempt_timeout=10  # 单次尝试的超时时间（秒）
+
+# 定义 csvfile 变量
+csvfile="result.csv"
+
+
 # 删除 .csv 文件
-if ! rm -rf *.csv; then
-    print_error "无法删除 .csv 文件"
+if ! rm -rf $csvfile; then
+    print_error "无法删除 $csvfile 文件"
 fi
 
 # 组合主机名
@@ -111,10 +125,6 @@ proxy="false"
 chkDnsArr=()    # 存储 Cloudflare 上 DNS 记录的数组
 delDnsArr=()    # 存储待删除 DNS 记录的数组
 excludeIp=()    # 存储需要排除的 IP 地址数组
-
-# 登录重试设置
-max_retries=10 # 最大重试次数
-retry_delay=3 # 重试延迟时间
 
 # 函数：检查 Cloudflare 上的 DNS 记录，并准备删除的记录列表
 CheckDelCFDns() {
@@ -220,121 +230,118 @@ InsertCF() {
   fi
 }
 
+# 函数：处理 IP 地址
+process_ip() {
+    local ip_type="$1"
+    local url="$2"
+    local max_lines="$3"
+    local dns_type="$4"
+    local cf_num="$5"
+
+    stop_plugin $CLIEN
+
+    # 删除旧的 $csvfile 文件
+    rm -f $csvfile
+    
+    # 获取 IP 地址并随机选择
+    local attempt=1
+    local grep_command
+
+    if [ "$ip_type" = "IPv4" ]; then
+        grep_command=(grep -v ':')
+    else
+        grep_command=(grep ':')
+    fi
+
+    while (( attempt <= max_retries )); do
+        if timeout $single_attempt_timeout curl -sL "$url" | "${grep_command[@]}" | awk 'BEGIN {srand()} {print rand() "\t" $0}' | sort -n | cut -f2- | head -n "$max_lines" > ip.txt; then
+            break  # 成功则跳出循环
+    else
+        print_error "获取 ${ip_type} 地址失败，重试 $attempt 次..."
+        ((attempt++))
+        sleep $retry_delay
+        fi
+    done
+
+    if (( attempt > max_retries )); then
+        print_error "获取 ${ip_type} 地址失败，已达到最大重试次数"
+        return 1
+    fi
+
+    if ! ./CloudflareST $cf_command -dn $cf_num -p $cf_num; then
+        print_error "CloudflareST 执行失败"
+        return 1
+    fi
+    print_info "./CloudflareST $cf_command -dn $cf_num -p $cf_num"
+
+    restart_plugin $CLIEN
+    update_dns "$dns_type" "$cf_num"
+    return 0
+}
+
 # 处理 IPv4
 process_ipv4() {
-  stop_plugin $CLIEN
-
-  # 删除旧的 result.csv 文件
-  rm -f result.csv
-  
-  # 重试机制参数
-  local max_retries=3
-  local retry_delay=2
-  local attempt=1
-  
-  # 获取 IPv4 地址并随机选择
-  while (( attempt <= max_retries )); do
-    if curl -sL "$v4_url" | grep -v ':' | awk 'BEGIN {srand()} {print rand() "\t" $0}' | sort -n | cut -f2- | head -n "$max_ipv4_lines" > ip.txt; then
-      break  # 成功则跳出循环
-    else
-      print_error "获取 IPv4 地址失败，重试 $attempt 次..."
-      ((attempt++))
-      sleep $retry_delay
-    fi
-  done
-
-  if (( attempt > max_retries )); then
-    print_error "获取 IPv4 地址失败，已达到最大重试次数"
-    return 1
-  fi
-
-  if ! ./CloudflareST $cf_command -dn $v4_num -p $v4_num; then
-    print_error "CloudflareST 执行失败"
-    return 1
-  fi
-  print_info "./CloudflareST $cf_command -dn $v4_num -p $v4_num"
-
-  restart_plugin $CLIEN
-  update_dns "A"
-  return 0
+    process_ip "IPv4" "$v4_url" "$max_ipv4_lines" "A" "$v4_num"
 }
 
 # 处理 IPv6
 process_ipv6() {
-  stop_plugin $CLIEN
-
-  # 删除旧的 result.csv 文件
-  rm -f result.csv
-  
-  # 重试机制参数
-  local max_retries=3
-  local retry_delay=2
-  local attempt=1
-  
-  # 获取 IPv6 地址并随机选择
-  while (( attempt <= max_retries )); do
-    if curl -sL "$v6_url" | grep ':' | awk 'BEGIN {srand()} {print rand() "\t" $0}' | sort -n | cut -f2- | head -n "$max_ipv6_lines" > ip.txt; then
-      break  # 成功则跳出循环
-    else
-      print_error "获取 IPv6 地址失败，重试 $attempt 次..."
-      ((attempt++))
-      sleep $retry_delay
-    fi
-  done
-
-  if (( attempt > max_retries )); then
-    print_error "获取 IPv6 地址失败，已达到最大重试次数"
-    return 1
-  fi
-
-  if ! ./CloudflareST $cf_command -dn $v6_num -p $v6_num; then
-    print_error "CloudflareST 执行失败"
-    return 1
-  fi
-  print_info "./CloudflareST $cf_command -dn $v6_num -p $v6_num"
-
-  restart_plugin $CLIEN
-  update_dns "AAAA"
-  return 0
+    process_ip "IPv6" "$v6_url" "$max_ipv6_lines" "AAAA" "$v6_num"
 }
 
 # 更新DNS记录
 update_dns() {
-  local record_type="$1"
-  # 验证 Cloudflare 账号信息是否正确
-  echo "开始验证 Cloudflare 账号..."
+    local record_type="$1"
+    local num_records="$2" # 指定要添加的记录数量
+    echo "开始验证 Cloudflare 账号..."
 
-  for ((attempt=1; attempt<=max_retries; attempt++)); do
-      echo "正在进行第 $attempt 次登录尝试..."
-      res=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${zone_id}" \
-          -H "X-Auth-Email:$x_email" \
-          -H "X-Auth-Key:$api_key" \
-          -H "Content-Type:application/json")
+    for ((attempt=1; attempt<=max_login_retries; attempt++)); do
+        echo "正在进行第 $attempt 次登录尝试..."
+        
+        # 使用timeout命令来限制单次登录时间
+        res=$(timeout $max_single_login_time curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${zone_id}" \
+            -H "X-Auth-Email:$x_email" \
+            -H "X-Auth-Key:$api_key" \
+            -H "Content-Type:application/json")
 
-      echo "收到 Cloudflare 响应"
+        # 检查curl是否因超时而失败
+        if [ $? -eq 124 ]; then
+            echo "登录尝试超时，已达到单次最大等待时间 ${max_single_login_time} 秒"
+            if [[ $attempt -lt $max_login_retries ]]; then
+                echo "等待 ${login_retry_delay} 秒后重试..."
+                sleep $login_retry_delay
+                continue
+            else
+                echo "已达到最大重试次数 $max_login_retries"
+                return 1
+            fi
+        fi
 
-      resSuccess=$(echo "$res" | jq -r ".success")
-      if [[ $resSuccess == "true" ]]; then
-          echo "Cloudflare 账号验证成功"
-          break
-      else
-          error_message=$(echo "$res" | jq -r '.errors[0].message')
-          echo "第 $attempt / $max_retries 次登陆失败"
-          echo "错误信息: ${error_message:-未知错误}"
-          if [[ $attempt -lt $max_retries ]]; then
-              sleep $retry_delay
-          else
-              echo "登录失败，已达到最大重试次数 $max_retries"
-              echo "完整错误响应: $res"
-              exit 1
-          fi
-      fi
-  done
+        echo "收到 Cloudflare 响应"
+
+        resSuccess=$(echo "$res" | jq -r ".success")
+        if [[ $resSuccess == "true" ]]; then
+            echo "Cloudflare 账号验证成功"
+            break
+        else
+            error_message=$(echo "$res" | jq -r '.errors[0].message')
+            echo "第 $attempt / $max_login_retries 次登录失败"
+            echo "错误信息: ${error_message:-未知错误}"
+            
+            if [[ $attempt -lt $max_login_retries ]]; then
+                echo "等待 ${login_retry_delay} 秒后重试..."
+                sleep $login_retry_delay
+            else
+                echo "登录失败，已达到最大重试次数 $max_login_retries"
+                echo "完整错误响应: $res"
+                return 1
+            fi
+        fi
+    done
 
   # 开始更新域名
   echo "正在更新域名，请稍后..."
   x=0
-  csvfile="result.csv"
 
   # 检查 result.csv 文件是否存在且不为空
   if [ ! -f "$csvfile" ] || [ ! -s "$csvfile" ]; then
@@ -344,8 +351,8 @@ update_dns() {
   fi
 
   # 读取 IP 地址到数组
-  mapfile -t ip_addresses < <(tail -n +2 "$csvfile" | cut -d',' -f1)
-  ip_count=${#ip_addresses[@]}
+    mapfile -t ip_addresses < <(tail -n +2 "$csvfile" | head -n "$num_records" | cut -d',' -f1)
+    ip_count=${#ip_addresses[@]}
 
   # 如果没有 IP 地址，则不进行任何操作
   if [ $ip_count -eq 0 ]; then
@@ -399,46 +406,42 @@ update_dns() {
   done
 }
 
+# 用于处理 IP 更新和消息推送
+process_ip_and_push() {
+    local ip_type="$1"
+    local process_func="$2"
+    local num="$3"
+
+    if [ "$num" -ne 0 ]; then
+        if $process_func; then
+            has_update=true
+            # 处理消息推送
+            if [ ! -z "$push_mod" ]; then
+                if [ -f informlog ]; then
+                    pushmessage=$(cat informlog)
+                    if ! ./cf_push.sh "$push_mod" "$config_file" "$pushmessage" "$hostnames"; then
+                        print_error "${ip_type} 推送消息失败"
+                    fi
+                else
+                    print_error "informlog 文件不存在，无法推送 ${ip_type} 消息"
+                fi
+            fi
+        fi
+    fi
+}
+
 # 主处理逻辑
 main() {
-  local has_update=false
+    local has_update=false
 
-  if [ "$v4_num" -ne 0 ]; then
-    if process_ipv4; then
-      has_update=true
-      # 在这里添加 IPv4 推送
-      if [ ! -z "$push_mod" ]; then
-        if [ -f informlog ]; then
-          pushmessage=$(cat informlog)
-          if ! ./cf_push.sh "$push_mod" "$config_file" "$pushmessage" "$hostnames"; then
-            print_error "IPv4 推送消息失败"
-          fi
-        else
-          print_error "informlog 文件不存在，无法推送 IPv4 消息"
-        fi
-      fi
-    fi
-  fi
+    # 处理 IPv4
+    process_ip_and_push "IPv4" process_ipv4 "$v4_num"
 
-  if [ "$v6_num" -ne 0 ]; then
-    if process_ipv6; then
-      has_update=true
-      # 在这里添加 IPv6 推送
-      if [ ! -z "$push_mod" ]; then
-        if [ -f informlog ]; then
-          pushmessage=$(cat informlog)
-          if ! ./cf_push.sh "$push_mod" "$config_file" "$pushmessage" "$hostnames"; then
-            print_error "IPv6 推送消息失败"
-          fi
-        else
-          print_error "informlog 文件不存在，无法推送 IPv6 消息"
-        fi
-      fi
-    fi
-  fi
+    # 处理 IPv6
+    process_ip_and_push "IPv6" process_ipv6 "$v6_num"
 
-  # 删除 informlog 文件和 result.csv 文件（无论是否有更新）
-  rm -f informlog result.csv
+    # 删除 informlog 文件和 $csvfile 文件（无论是否有更新）
+    rm -f informlog $csvfile
 }
 
 # 执行主处理逻辑
