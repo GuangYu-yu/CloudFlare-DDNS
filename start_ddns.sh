@@ -30,14 +30,14 @@ max_ipv4_lines=99999
 max_ipv6_lines=99999
 
 # 登录重试设置
-max_retries=10 # 最大重试次数
-retry_delay=3 # 重试延迟时间
-max_single_login_time=30 # 单次登录最大等待时间（秒）
+max_login_retries=10 # 最大重试次数
+login_retry_delay=1 # 重试延迟时间
+max_single_login_time=10 # 单次登录最大等待时间（秒）
 
-# 处理Ipv4和Ipv6重试参数
-max_retries=3 # 最大重试次数
-retry_delay=2 # 重试延迟时间
-single_attempt_timeout=10  # 单次尝试的超时时间（秒）
+# 处理Ipv4和Ipv6的URL重试参数
+max_retries=10 # 最大重试次数
+retry_delay=1 # 重试延迟时间
+single_attempt_timeout=3  # 单次尝试的超时时间（秒）
 
 # 定义 csvfile 变量
 csvfile="result.csv"
