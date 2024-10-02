@@ -5,11 +5,14 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
-NC='\033[0m'  # No Color
+NC='\033[0m'
 
-# 全局变量：用于存储网络状态
-ipv6_status=""
-ipv4_status=""
+# 用于存储网络状态
+ipv6_status="?"
+ipv4_status="?"
+
+# 网络检测相关参数
+TIMEOUT=2    # 默认超时时间（秒）
 
 # 配置文件路径
 config_file=cf.yaml
@@ -22,10 +25,6 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 
 # 组合路径和文件名
 script_path="$script_dir/$The_CF_SCRIPT"
-
-# 网络检测相关参数
-TIMEOUT=3    # 默认超时时间（秒）
-RETRY_LIMIT=10 # 默认最大重试次数
 
 # 检测并创建配置文件（如果不存在）
 if [ ! -f "$config_file" ]; then
@@ -106,71 +105,42 @@ if [ "$1" = "start" ] && [ -n "$2" ]; then
     exit $?
 fi
 
-# 检测单个网络协议
+# 检测协议
 detect_protocol() {
     local protocol=$1
     local urls=("${!2}")
-    local timeout=$3
-    local retry=$4
-    local pids=()
-    local attempt=0
+    local temp_file="temp_ipv${protocol}_status.txt"
 
-    # 开始重试逻辑
-    while [ $attempt -lt $retry ]; do
-        echo -e "${CYAN}尝试第 $((attempt + 1)) 次检测 (协议: IPv$protocol)${NC}"
-        pids=()
+    # 清空临时文件
+    > "$temp_file"
 
-        # 并发检测 URL
-        for url in "${urls[@]}"; do
-            curl -s"$protocol" --connect-timeout $timeout "https://$url" > /dev/null &
-            pids+=($!)
-        done
+    for url in "${urls[@]}"; do
+        if [ "$protocol" -eq 6 ]; then
+            ping_cmd="ping6"
+        else
+            ping_cmd="ping"
+        fi
 
-        # 等待任意一个请求成功
-        for pid in "${pids[@]}"; do
-            if wait $pid; then
-                return 0  # 成功
-            fi
-        done
-
-        # 增加尝试次数
-        attempt=$((attempt + 1))
+        if $ping_cmd -c 1 -W $TIMEOUT $url > /dev/null 2>&1; then
+            echo "√" > "$temp_file"
+            break
+        else
+            echo "×" > "$temp_file"
+        fi
     done
-
-    return 1  # 全部尝试失败
-}
-
-# 通用检测函数
-check_network_status() {
-    local protocol=$1
-    local status_file=$2
-    local urls=("${!3}")
-    local timeout=$4
-    local retry=$5
-
-    if detect_protocol $protocol urls[@] $timeout $retry; then
-        echo "√" > "$status_file"
-    else
-        echo "×" > "$status_file"
-    fi
 }
 
 # 检测 IPv6 和 IPv4 状态
 detect_ip_addresses() {
-    echo -e "${YELLOW}正在检测网络...${NC}"
-    
-    # 定义检测的 URL 列表（各个URL必须同时支持IPv4和IPv6）
+    echo -n "正在检测网络... "
+
     urls=("ifconfig.co" "whatismyipaddress.info" "cdnjs.cloudflare.com" "whatismyipaddress.com" "iplocation.io" "whatismyip.com" "ipaddress.my" "iplocation.net" "ipqualityscore.com" "ip.sb")
 
-    # 临时文件来存储检测结果
-    temp_ipv6_status=$(mktemp)
-    temp_ipv4_status=$(mktemp)
-
-    # 并发检测 IPv6 和 IPv4
-    (check_network_status 6 "$temp_ipv6_status" urls[@] $TIMEOUT $RETRY_LIMIT > /dev/null 2>&1) &
+    # 并行检测 IPv6 和 IPv4
+    detect_protocol 6 urls[@] &
     pid_ipv6=$!
 
-    (check_network_status 4 "$temp_ipv4_status" urls[@] $TIMEOUT $RETRY_LIMIT > /dev/null 2>&1) &
+    detect_protocol 4 urls[@] &
     pid_ipv4=$!
 
     # 显示进度
@@ -178,8 +148,8 @@ detect_ip_addresses() {
     ipv6_done=false
     ipv4_done=false
     while kill -0 $pid_ipv6 2>/dev/null || kill -0 $pid_ipv4 2>/dev/null; do
-        ipv6_status_current=$(cat "$temp_ipv6_status" 2>/dev/null)
-        ipv4_status_current=$(cat "$temp_ipv4_status" 2>/dev/null)
+        ipv6_status_current=$(cat "temp_ipv6_status.txt" 2>/dev/null)
+        ipv4_status_current=$(cat "temp_ipv4_status.txt" 2>/dev/null)
         
         ipv6_display="${seconds}s"
         ipv4_display="${seconds}s"
@@ -194,29 +164,22 @@ detect_ip_addresses() {
         fi
         
         echo -ne "\r正在检测IPv6 ${ipv6_display} IPv4 ${ipv4_display}     "
-        sleep 1
-        ((seconds++))
         
-        if $ipv6_done && $ipv4_done; then
-            break
-        fi
+        ((seconds++))
+        sleep 1
     done
-    echo ""
 
-    # 确保所有进程都已结束
-    wait $pid_ipv6 2>/dev/null
-    wait $pid_ipv4 2>/dev/null
+    # 最终结果
+    ipv6_status=$(cat "temp_ipv6_status.txt")
+    ipv4_status=$(cat "temp_ipv4_status.txt")
 
-    ipv6_status=$(cat "$temp_ipv6_status")
-    ipv4_status=$(cat "$temp_ipv4_status")
-
-    rm "$temp_ipv6_status" "$temp_ipv4_status"
+    # 删除临时文件
+    rm -f temp_ipv6_status.txt temp_ipv4_status.txt
 }
 
 # 显示网络状态
 display_network_status() {
-    # 使用 \r 清除上一行内容，保持输出行刷新
-    echo -e "\r${CYAN}IPv6 状态: $ipv6_status         IPv4 状态: $ipv4_status${NC}"
+    echo -e "${CYAN}IPv6 状态: $ipv6_status         IPv4 状态: $ipv4_status${NC}"
 }
 
 # 刷新网络状态
@@ -333,11 +296,8 @@ look_cfst_rules() {
     echo -e "${CYAN}    -allip      测速全部的IP（仅支持 IPv4,默认每个/24段随机测速一个IP）${NC}"
 }
 
-# 在主菜单中使用 handle_error
+# 主菜单
 main_menu() {
-    clear_input_buffer
-    local timeout_sec=300
-
     while true; do
         clear
         echo -e "${YELLOW}===================================${NC}"
@@ -359,10 +319,7 @@ main_menu() {
         
         clear_input_buffer
         
-        if ! read -t $timeout_sec -p "请选择 (1-8): " choice; then
-            handle_error "操作超时，已退出。"
-            exit 1
-        fi
+        read -p "请选择 (1-8): " choice
 
         case $choice in
             1) account_settings ;;
@@ -370,15 +327,15 @@ main_menu() {
             3) push_settings ;;
             4) execute_resolve ;;
             5) refresh_network_status ;;
-            6) view_schedule;;
-            7) write_plugin_settings;;
+            6) view_schedule ;;
+            7) write_plugin_settings ;;
             8) exit 0 ;;
-            *) handle_error "无效的选项，请重试。" ;;
+            *) handle_error "无效的选项" ;;
         esac
     done
 }
 
-# 在其他菜单函数中也使用 handle_error
+# 账户设置
 account_settings() {
     clear_input_buffer
     while true; do
@@ -405,8 +362,8 @@ account_settings() {
             1) add_account ;;
             2) delete_account ;;
             3) modify_account ;;
-            4) return ;;  # 直接返回，而不是调用 main_menu
-            *) handle_error "无效的选项，请重试。" ;;
+            4) return ;;
+            *) handle_error "无效的选项" ;;
         esac
     done
 }
@@ -495,7 +452,7 @@ delete_account() {
     # 确认删除
     read -p "确认删除账户组 $delete_group 吗？(y/n): " confirm_delete
     if [ "$confirm_delete" != "y" ]; then
-        echo -e "${YELLOW}取消删除操作。${NC}"
+        echo -e "${YELLOW}取消删除操作${NC}"
         sleep 1
         return
     fi
@@ -544,7 +501,7 @@ modify_account() {
     
     # 检查账户组名称是否存在
     if ! grep -q "account_group=($modify_account_group)" "$config_file"; then
-        handle_error "账户组不存在，请重新输入。"
+        handle_error "账户组不存在"
         sleep 1
         modify_account
         return
@@ -563,33 +520,33 @@ modify_account() {
             1)  read -p "请输入新的账户登陆邮箱：" new_email
                 # 验证邮箱格式
                 if [[ -z "$new_email" ]]; then
-                    handle_error "输入不能为空，请重新输入"
+                    handle_error "输入不能为空"
                 elif ! [[ "$new_email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
-                    handle_error "邮箱格式不正确，请重新输入"
+                    handle_error "邮箱格式不正确"
                 else
                     update_field "x_email" "$new_email" "$config_file" "$modify_account_group"
                     echo -e "${GREEN}邮箱已更新${NC}"
                 fi ;;
             2)  read -p "请输入新的区域ID：" new_region_id
                 if [[ -z "$new_region_id" ]]; then
-                    handle_error "输入不能为空，请重新输入"
+                    handle_error "输入不能为空"
                 else
                     update_field "zone_id" "$new_region_id" "$config_file" "$modify_account_group"
                     echo -e "${GREEN}区域ID已更新${NC}"
                 fi ;;
             3)  read -p "请输入新的API Key：" new_api_key
                 if [[ -z "$new_api_key" ]]; then
-                    handle_error "输入不能为空，请重新输入"
+                    handle_error "输入不能为空"
                 else
                     update_field "api_key" "$new_api_key" "$config_file" "$modify_account_group"
                     echo -e "${GREEN}API Key已更新${NC}"
                 fi ;;
             4)  break ;;
-            *)  handle_error "无效的选项，请重试。" ;;
+            *)  handle_error "无效的选项" ;;
         esac
     done
 
-    echo -e "${GREEN}账户信息修改完毕。${NC}"
+    echo -e "${GREEN}账户信息修改完毕${NC}"
     sleep 1
     clear_input_buffer
     account_settings
@@ -623,7 +580,7 @@ resolve_settings() {
             3) delete_resolve ;;
             4) modify_resolve ;;
             5) return ;;
-            *) handle_error "无效的选项，请重试。" ;;
+            *) handle_error "无效的选项" ;;
         esac
     done
 }
@@ -659,7 +616,7 @@ add_resolve() {
         fi
         
         if ! grep -q "account_group=($add_ddns)" "$config_file"; then
-            handle_error "账户组不存在，请重新输入。"
+            handle_error "账户组不存在"
         else
             break
         fi
@@ -688,7 +645,7 @@ add_resolve() {
         if [[ "$hostname1" =~ ^[a-zA-Z0-9\u4e00-\u9fa5.-]+$ ]]; then
             break
         else
-            handle_error "格式不正确，请重新输入!"
+            handle_error "格式不正确"
         fi
     done
 
@@ -709,7 +666,7 @@ add_resolve() {
             hostname2=$(echo "$subdomains" | tr ' ' ',')
             break
         else
-            handle_error "格式不正确，请重新输入!"
+            handle_error "格式不正确"
         fi
     done
 
@@ -720,7 +677,7 @@ add_resolve() {
         elif [[ "$ipv4_count" =~ ^[0-9]+$ ]]; then
             break
         else
-            handle_error "格式不正确，请重新输入!"
+            handle_error "格式不正确"
         fi
     done
     
@@ -731,7 +688,7 @@ add_resolve() {
         elif [[ "$ipv6_count" =~ ^[0-9]+$ ]]; then
             break
         else
-            handle_error "格式不正确，请重新输入!"
+            handle_error "格式不正确"
         fi
     done
 
@@ -750,7 +707,7 @@ add_resolve() {
      while true; do
         read -p "从URL链接获取IPv4地址：" v4_url
         if [ -n "$v4_url" ] && ! [[ "$v4_url" =~ ^https?://.* ]]; then
-            handle_error "无效的IPv4 URL，请重新输入！"
+            handle_error "无效的IPv4 URL"
         else
             break
         fi
@@ -759,7 +716,7 @@ add_resolve() {
     while true; do
         read -p "从URL链接获取IPv6地址：" v6_url
         if [ -n "$v6_url" ] && ! [[ "$v6_url" =~ ^https?://.* ]]; then
-            handle_error "无效的IPv6 URL，请重新输入！"
+            handle_error "无效的IPv6 URL"
         else
             break
         fi
@@ -773,19 +730,19 @@ add_resolve() {
 
     # 验证输入是否仅包含0~6之间的数字，并且按空格分隔
     if [[ ! "$push_mod" =~ ^([0-6])([[:space:]][0-6])*$ ]]; then
-        handle_error "无效输入，请输入 0 或 1~6 的数字"
+        handle_error "请输入 0~6 的数字"
         continue
     fi
 
     # 判断是否同时包含 0 和其他数字
     if [[ "$push_mod" =~ (^0[[:space:]]|[[:space:]]0[[:space:]]|0$) && "$push_mod" != "0" ]]; then
-        handle_error "无效输入：0 只能单独存在，不能与其他数字一起使用"
+        handle_error "0 不能与其他数字一起输入"
         continue
     fi
 
     # 检查是否有重复项
     if [[ $(echo "$push_mod" | tr ' ' '\n' | sort | uniq -d | wc -l) -gt 0 ]]; then
-        handle_error "无效输入：数字不能重复"
+        handle_error "数字不能重复"
         continue
     fi
 
@@ -874,7 +831,7 @@ modify_resolve() {
 
     # 检查解析组名称是否存在
     if ! grep -q "ddns_name=($modify_ddns)" "$config_file"; then
-        handle_error "解析组不存在，请重新输入。"
+        handle_error "解析组不存在"
         sleep 1
         modify_resolve
         return
@@ -901,12 +858,12 @@ modify_resolve() {
                     modify_resolve_field "hostname1" "$new_hostname1" "$config_file" "$modify_ddns"
                     echo -e "${GREEN}一级域名已更新${NC}"
                 else
-                    handle_error "格式不正确，请重新输入"
+                    handle_error "格式不正确"
                 fi ;;
             2)
                 read -p "请输入新的二级域名（以空格分开）：" new_hostname2
                 if [[ -z "$new_hostname2" ]]; then
-                    handle_error "格式不正确，请重新输入"
+                    handle_error "格式不正确"
                 else
                     new_hostname2=$(echo "$new_hostname2" | tr ' ' ',')
                     modify_resolve_field "hostname2" "$new_hostname2" "$config_file" "$modify_ddns"
@@ -918,7 +875,7 @@ modify_resolve() {
                     modify_resolve_field "v4_num" "$new_ipv4_count" "$config_file" "$modify_ddns"
                     echo -e "${GREEN}IPv4解析数量已更新${NC}"
                 else
-                    handle_error "格式不正确，请重新输入"
+                    handle_error "格式不正确"
                 fi ;;
             4)
                 read -p "请输入新的IPv6解析数量：" new_ipv6_count
@@ -926,13 +883,13 @@ modify_resolve() {
                     modify_resolve_field "v6_num" "$new_ipv6_count" "$config_file" "$modify_ddns"
                     echo -e "${GREEN}IPv6解析数量已更新${NC}"
                 else
-                    handle_error "格式不正确，请重新输入"
+                    handle_error "格式不正确"
                 fi ;;
             5)
                 look_cfst_rules
                 read -p "请输入新的CloudflareST命令：" new_cf_command
                 if [[ -z "$new_cf_command" ]]; then
-                    handle_error "格式不正确，请重新输入"
+                    handle_error "格式不正确"
                 else
                     new_cf_command=$(echo "$new_cf_command" | tr ' ' ',')
                     modify_resolve_field "cf_command" "$new_cf_command" "$config_file" "$modify_ddns"
@@ -944,7 +901,7 @@ modify_resolve() {
                     modify_resolve_field "v4_url" "$new_v4_url" "$config_file" "$modify_ddns"
                     echo -e "${GREEN}IPv4地址URL已更新${NC}"
                 else
-                    handle_error "URL格式不正确，请重新输入"
+                    handle_error "URL格式不正确"
                 fi ;;
             7)
                 read -p "请输入新的IPv6地址URL：" new_v6_url
@@ -952,7 +909,7 @@ modify_resolve() {
                     modify_resolve_field "v6_url" "$new_v6_url" "$config_file" "$modify_ddns"
                     echo -e "${GREEN}IPv6地址URL已更新${NC}"
                 else
-                    handle_error "URL格式不正确，请重新输入"
+                    handle_error "URL格式不正确"
                 fi ;;
             8)
                 while true; do
@@ -961,21 +918,21 @@ modify_resolve() {
                     # 去掉多余的空格
                     new_push_mod=$(echo "$new_push_mod" | tr -s ' ')
 
-                    # 检查输入是否仅包含0-6之间的数字，并且按空格分隔
+                    # 检查输入是否仅包含0~6之间的数字，并且按空格分隔
                     if [[ ! "$new_push_mod" =~ ^([0-6])([[:space:]][0-6])*$ ]]; then
-                        handle_error "无效输入，请输入 0 或 1-6 的数字"
+                        handle_error "请输入 0~6 的数字"
                         continue
                     fi
 
                     # 检查是否同时包含0和其他数字
                     if [[ "$new_push_mod" =~ (^0[[:space:]]|[[:space:]]0[[:space:]]|0$) && "$new_push_mod" != "0" ]]; then
-                        handle_error "无效输入：0 只能单独存在，不能与其他数字一起使用"
+                        handle_error "0 不能与其他数字一起输入"
                         continue
                     fi
 
                     # 检查是否有重复数字
                     if [[ $(echo "$new_push_mod" | tr ' ' '\n' | sort | uniq -d | wc -l) -gt 0 ]]; then
-                        handle_error "无效输入：数字不能重复"
+                        handle_error "数字不能重复"
                         continue
                     fi
 
@@ -992,7 +949,7 @@ modify_resolve() {
                 break
                 ;;
             *)
-                handle_error "无效的选项，请重试。"
+                handle_error "无效的选项"
                 ;;
         esac
     done
@@ -1020,7 +977,7 @@ execute_resolve() {
     
     # 验证解析组是否存在
     if ! grep -q "ddns_name=($selected_ddns)" "$config_file"; then
-        handle_error "解析组不存在，请重新输入。"
+        handle_error "解析组不存在"
         sleep 1
         execute_resolve
         return
@@ -1035,66 +992,66 @@ execute_resolve() {
 
 # 查看计划任务
 view_schedule() {
-    clear_input_buffer
-    clear
-    echo -e "${YELLOW}===================================${NC}"
-    echo -e "${YELLOW}|           查看计划任务          |${NC}"
-    echo -e "${YELLOW}===================================${NC}"
+    while true; do
+        clear
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${YELLOW}|           查看计划任务          |${NC}"
+        echo -e "${YELLOW}===================================${NC}"
 
-    look_ddns  # 查看现有解析组
+        look_ddns  # 查看现有解析组
 
-    echo -e "${YELLOW}===================================${NC}"
-    # 提示用户输入解析组名称
-    read -p "请输入要查看计划任务的解析组名称（留空则返回上级）：" selected_ddns
-    if [ -z "$selected_ddns" ]; then
-        return
-    fi
+        echo -e "${YELLOW}===================================${NC}"
+        # 提示用户输入解析组名称
+        read -p "请输入要查看计划任务的解析组名称（留空则返回上级）：" selected_ddns
+        if [ -z "$selected_ddns" ]; then
+            return
+        fi
 
-    # 验证解析组是否存在
-    if ! grep -q "ddns_name=($selected_ddns)" "$config_file"; then
-        handle_error "解析组不存在，请重新输入。"
-        sleep 1
-        view_schedule
-        return
-    fi
+        # 验证解析组是否存在
+        if ! grep -q "ddns_name=($selected_ddns)" "$config_file"; then
+            handle_error "解析组不存在"
+            continue
+        fi
 
-    # 显示计划任务成品
-    echo -e "${YELLOW}===================================${NC}"
-    echo -e "${CYAN}计划任务示例：${NC}"
-    echo -e "${CYAN}示例1：每4小时更新一次: 0 */4 * * * cd $script_dir && bash $The_CF_SCRIPT start $selected_ddns${NC}"
-    echo -e "${CYAN}示例2：每天5点更新一次: 0 5 * * * cd $script_dir && bash $The_CF_SCRIPT start $selected_ddns${NC}"
-    echo -e "${YELLOW}===================================${NC}"
-    echo -e "${CYAN}请选择操作：${NC}"
-    echo -e "${CYAN}1. 创建计划任务示例1${NC}"
-    echo -e "${CYAN}2. 创建计划任务示例2${NC}"
-    echo -e "${CYAN}3. 返回上级${NC}"
-    echo -e "${YELLOW}===================================${NC}"
-    read -p "请选择操作 (1-3): " action_choice
+        # 显示计划任务成品
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${CYAN}计划任务示例：${NC}"
+        echo -e "${CYAN}示例1：每4小时更新一次: 0 */4 * * * cd $script_dir && bash $The_CF_SCRIPT start $selected_ddns${NC}"
+        echo -e "${CYAN}示例2：每天5点更新一次: 0 5 * * * cd $script_dir && bash $The_CF_SCRIPT start $selected_ddns${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${CYAN}请选择操作：${NC}"
+        echo -e "${CYAN}1. 创建计划任务示例1${NC}"
+        echo -e "${CYAN}2. 创建计划任务示例2${NC}"
+        echo -e "${CYAN}3. 返回上级${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+        read -p "请选择操作 (1-3): " action_choice
 
-    # 读取现有的计划任务
-    existing_crontab=$(crontab -l 2>/dev/null)
+        # 读取现有的计划任务
+        existing_crontab=$(crontab -l 2>/dev/null)
 
-    case $action_choice in
-        1) 
-            new_task="0 */4 * * * cd $script_dir && bash $The_CF_SCRIPT start $selected_ddns"
-            (echo "$existing_crontab"; echo "$new_task") | crontab -
-            echo -e "${GREEN}计划任务示例1已创建！${NC}" ;;
-           
-        2) 
-            new_task="0 5 * * * cd $script_dir && bash $The_CF_SCRIPT start $selected_ddns"
-            (echo "$existing_crontab"; echo "$new_task") | crontab -
-            echo -e "${GREEN}计划任务示例2已创建！${NC}" ;;
-            
-        3) 
-            return ;;
-        *) 
-            handle_error "无效的选项，请重试。" ;;
-            
-    esac
+        case $action_choice in
+            1) 
+                new_task="0 */4 * * * cd $script_dir && bash $The_CF_SCRIPT start $selected_ddns"
+                (echo "$existing_crontab"; echo "$new_task") | crontab -
+                echo -e "${GREEN}计划任务示例1已创建！${NC}" ;;
+                
+            2) 
+                new_task="0 5 * * * cd $script_dir && bash $The_CF_SCRIPT start $selected_ddns"
+                (echo "$existing_crontab"; echo "$new_task") | crontab -
+                echo -e "${GREEN}计划任务示例2已创建！${NC}" ;;
+                
+            3) 
+                break
+                ;;
+            *) 
+                handle_error "无效的选项" ;;
+                
+        esac
 
-    echo -e "${YELLOW}===================================${NC}"
-    read -p "按任意键返回上级菜单..." -n1 -s
-    clear_input_buffer
+        echo -e "${YELLOW}===================================${NC}"
+        read -p "按任意键返回上级菜单..." -n1 -s
+        clear_input_buffer
+    done
 }
 
 # 推送设置菜单
@@ -1123,7 +1080,7 @@ push_settings() {
             5) manage_push "企业微信" "wechat_corpid" "wechat_secret" "wechat_agentid" "wechat_userid" "5" ;;
             6) manage_push "Synology Chat" "synology_chat_url" "" "" "" "6" ;;
             7) return ;;
-            *) handle_error "无效的选项，请重试。" ;;
+            *) handle_error "无效的选项" ;;
         esac
     done
 }
@@ -1153,7 +1110,7 @@ manage_push() {
         case $push_choice in
             1)  # 设置参数
                 if grep -q "push_name=($push_id)" "$config_file"; then
-                    echo -e "${YELLOW}$push_name 已经设置。${NC}"
+                    echo -e "${YELLOW}$push_name 已经设置${NC}"
                     sleep 1  # 自动返回上一级
                 else
                     configure_push "set" "$push_name" "$token_name" "$app_id_name" "$app_id2_name" "$app_id3_name" "$push_id"
@@ -1161,7 +1118,7 @@ manage_push() {
                 ;;
             2)  # 修改参数
                 if ! grep -q "push_name=($push_id)" "$config_file"; then
-                    handle_error "$push_name 未设置，无法修改。"
+                    handle_error "$push_name 未设置"
                     sleep 1  # 自动返回上一级
                 else
                     configure_push "modify" "$push_name" "$token_name" "$app_id_name" "$app_id2_name" "$app_id3_name" "$push_id"
@@ -1171,7 +1128,7 @@ manage_push() {
                 if grep -q "push_name=($push_id)" "$config_file"; then
                     delete_push_section "$push_name" "$push_id"
                 else
-                    echo -e "${YELLOW}$push_name 未设置。${NC}"
+                    echo -e "${YELLOW}$push_name 未设置${NC}"
                 fi
                 sleep 1  # 自动返回上一级
                 ;;
@@ -1179,7 +1136,7 @@ manage_push() {
                 return
                 ;;
             *)
-                handle_error "无效的选项，请重试。"
+                handle_error "无效的选项"
                 ;;
         esac
     done
@@ -1207,7 +1164,7 @@ configure_push() {
     while true; do
         read -p "请输入 $token_name：" token_value
         if [ -z "$token_value" ]; then
-            handle_error "$token_name 不能为空，请重新输入。"
+            handle_error "$token_name 不能为空"
         else
             break
         fi
@@ -1217,7 +1174,7 @@ configure_push() {
         while true; do
             read -p "请输入 $app_id_name：" app_id_value
             if [ -z "$app_id_value" ]; then
-                handle_error "$app_id_name 不能为空，请重新输入。"
+                handle_error "$app_id_name 不能为空"
             else
                 break
             fi
@@ -1228,7 +1185,7 @@ configure_push() {
         while true; do
             read -p "请输入 $app_id2_name：" app_id2_value
             if [ -z "$app_id2_value" ]; then
-                handle_error "$app_id2_name 不能为空，请重新输入。"
+                handle_error "$app_id2_name 不能为空"
             else
                 break
             fi
@@ -1239,7 +1196,7 @@ configure_push() {
         while true; do
             read -p "请输入 $app_id3_name：" app_id3_value
             if [ -z "$app_id3_value" ]; then
-                handle_error "$app_id3_name 不能为空，请重新输入。"
+                handle_error "$app_id3_name 不能为空"
             else
                 break
             fi
@@ -1279,14 +1236,14 @@ delete_push_section() {
     # 提示用户确认删除操作
     read -p "确认删除 $push_name 的推送设置吗？(y/n): " confirm
     if [[ "$confirm" != "y" ]]; then
-        echo -e "${YELLOW}取消删除操作。${NC}"
+        echo -e "${YELLOW}取消删除操作${NC}"
         return
     fi
 
     # 使用sed精确删除对应push_id的配置段，确保只删除该推送的配置
     sed -i "/^# Push section/{N; /push_name=($push_id)/{d;}}" "$config_file"
 
-    echo -e "${GREEN}$push_name 的推送设置已删除。${NC}"
+    echo -e "${GREEN}$push_name 的推送设置已删除${NC}"
 }
 
 # 插件设置
@@ -1297,7 +1254,7 @@ write_plugin_settings() {
     local plugin_section_found=false
 
     # 定义插件数组
-    plugins=("不使用" "passwall" "passwall2" "shadowsocksr" "openclash" "shellcrash" "nekoclash" "bypass")
+    plugins=("不使用" "passwall" "passwall2" "shadowsocksr" "openclash" "shellcrash" "nekoclash" "bypass" "homeproxy" "mihomo")
 
     # 用于更新clien的函数，确保只修改现有的clien行
     update_clien() {
@@ -1345,7 +1302,9 @@ write_plugin_settings() {
         echo -e "${CYAN}5. shellcrash${NC}"
         echo -e "${CYAN}6. nekoclash${NC}"
         echo -e "${CYAN}7. bypass${NC}"
-        echo -e "${CYAN}8. 返回主菜单${NC}"
+        echo -e "${CYAN}8. homeproxy${NC}"
+        echo -e "${CYAN}9. mihomo${NC}"
+        echo -e "${CYAN}e. 返回主菜单${NC}"
     }
 
     while true; do
@@ -1353,18 +1312,18 @@ write_plugin_settings() {
         display_plugin_menu
 
         # 获取用户输入
-        read -p "请输入对应的数字 (0-8): " choice
+        read -p "请输入对应的数字 (0-9) 或 用'e'返回主菜单: " choice
 
         # 处理用户选择
-        if [[ "$choice" == "8" ]]; then
+        if [[ "$choice" == "e" ]]; then
             clear_input_buffer    # 清除输入缓冲区
             return 0
-        elif [[ "$choice" =~ ^[0-7]$ ]]; then
+        elif [[ "$choice" =~ ^[0-9]$ ]]; then
             # 使用 update_clien 函数更新 clien 设置
             update_clien "$choice" "$config_file"
             echo -e "${GREEN}插件已设置为: ${plugins[$choice]}${NC}"
         else
-            handle_error "无效输入，请输入0-8之间的数字。"
+            handle_error "无效输入"
         fi
 
         # 刷新显示插件设置页面
