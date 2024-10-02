@@ -25,19 +25,19 @@ push_mod=${11}
 clien=${12:-0}
 config_file="../${13}"
 
-# 限制测速地址最大行数，避免海量地址导致测速时间过长
+# 限制测速地址最大行数
 max_ipv4_lines=99999
 max_ipv6_lines=99999
 
 # 登录重试设置
 max_login_retries=10 # 最大重试次数
 login_retry_delay=1 # 重试延迟时间
-max_single_login_time=10 # 单次登录最大等待时间（秒）
+max_single_login_time=5 # 单次登录最大等待时间（秒）
 
 # 处理Ipv4和Ipv6的URL重试参数
 max_retries=5 # 最大重试次数
 retry_delay=1 # 重试延迟时间
-single_attempt_timeout=10  # 单次尝试的超时时间（秒）
+single_attempt_timeout=3  # 单次尝试的超时时间（秒）
 
 # 定义 csvfile 变量
 csvfile="result.csv"
@@ -65,6 +65,8 @@ GetProxName() {
     5) CLIEN=shellcrash ;;
     6) CLIEN=neko ;;
     7) CLIEN=bypass ;;
+    8) CLIEN=homeproxy ;;
+    9) CLIEN=mihomo ;;
     *) print_error "未知的插件类型: $clien"; exit 1 ;;
   esac
 }
@@ -421,7 +423,7 @@ process_ip_and_push() {
             if [ ! -z "$push_mod" ]; then
                 if [ -f informlog ]; then
                     pushmessage=$(cat informlog)
-                    if ! ./cf_push.sh "$push_mod" "$config_file" "$pushmessage" "$hostnames"; then
+                    if ! ./cf_push.sh "$push_mod" "$config_file" "$pushmessage" "$hostnames" "$v4_num" "$v6_num" "$ip_type" "$csvfile"; then
                         print_error "${ip_type} 推送消息失败"
                     fi
                 else
