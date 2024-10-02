@@ -4,6 +4,10 @@ push_mod=$1
 config_file=$2
 pushmessage=$3
 hostnames=$4
+v4_num=$5
+v6_num=$6
+ip_type=$7
+csvfile=$8
 
 # 检查配置文件是否存在
 if [ -z "$config_file" ] || [ ! -f "$config_file" ]; then
@@ -28,17 +32,20 @@ else
     message_text=$(cat ./informlog)
 fi
 
-# 读取 result.csv 文件并格式化 IP 信息
-if [ -f "result.csv" ]; then
-    ip_info=$(awk -F',' -v domains="$hostnames" 'BEGIN {
+# 读取 $csvfile 文件的部分
+if [ -f "$csvfile" ]; then
+    ip_count=$(($ip_type == "IPv4" ? $v4_num : $v6_num))
+    ip_info=$(awk -F',' -v domains="$hostnames" -v ip_count="$ip_count" -v ip_type="$ip_type" 'BEGIN {
         split(domains, domain_arr, " ")
-        print "IP 地址："
+        print ip_type " 地址："
     }
     NR>1 {
-        ips[NR-1] = $1
-        latency[NR-1] = $5
-        speed[NR-1] = $6
-        count++
+        if (NR-2 < ip_count) {  # 只处理实际解析的IP数量
+            ips[NR-1] = $1
+            latency[NR-1] = $5
+            speed[NR-1] = $6
+            count++
+        }
     }
     END {
         for (i=1; i<=count; i++) print ips[i]
@@ -51,10 +58,10 @@ if [ -f "result.csv" ]; then
         print "━━━━━━━━━━━━━━━━━━━"
         print "下载速度："
         for (i=1; i<=count; i++) print speed[i] " MB/s"
-    }' result.csv)
+    }' "$csvfile")
     message_text="${ip_info}"
 else
-    message_text="错误: 没有测速结果 (result.csv 文件不存在)"
+    message_text="错误: 没有测速结果 ($csvfile 文件不存在)"
 fi
 
 # 设置 Telegram 和微信 API 的基础 URL
@@ -88,7 +95,7 @@ for mode in "${push_modes[@]}"; do
             echo "正在进行 PushPlus 推送..."
             res=$(curl -s -X POST "http://www.pushplus.plus/send" \
                  -H "Content-Type: application/json" \
-                 -d "{\"token\":\"${pushplus_token}\",\"title\":\"cf优选ip推送\",\"content\":\"${message_text}\",\"template\":\"html\"}")
+                 -d "{\"token\":\"${pushplus_token}\",\"title\":\"Cloudflare优选IP推送\",\"content\":\"${message_text}\",\"template\":\"html\"}")
             if [[ $(echo "$res" | jq -r ".code") == 200 ]]; then
                 echo "PushPlus推送成功"
             else
@@ -98,7 +105,7 @@ for mode in "${push_modes[@]}"; do
             ;;
         3)  # Server 酱推送
             server_sendkey=${push_params[0]}
-            res=$(curl -s -X POST "https://sctapi.ftqq.com/${server_sendkey}.send" -d "title=cf优选ip推送" -d "desp=${message_text}")
+            res=$(curl -s -X POST "https://sctapi.ftqq.com/${server_sendkey}.send" -d "title=Cloudflare优选IP推送" -d "desp=${message_text}")
             if [[ $(echo "$res" | jq -r ".code") == 0 ]]; then
                 echo "Server 酱推送成功"
             else
@@ -107,7 +114,7 @@ for mode in "${push_modes[@]}"; do
             ;;
         4)  # PushDeer 推送
             pushdeer_pushkey=${push_params[0]}
-            res=$(curl -s -X POST "https://api2.pushdeer.com/message/push" -d "pushkey=${pushdeer_pushkey}" -d "text=cf优选ip推送" -d "desp=${message_text}")
+            res=$(curl -s -X POST "https://api2.pushdeer.com/message/push" -d "pushkey=${pushdeer_pushkey}" -d "text=Cloudflare优选IP推送" -d "desp=${message_text}")
             if [[ $(echo "$res" | jq -r ".code") == 0 ]]; then
                 echo "PushDeer推送成功"
             else
