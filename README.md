@@ -15,10 +15,6 @@
 
 ## 安装说明
 
-### 初次安装
-
-运行以下命令进行初次安装:
-
 安装依赖
 
 `bash` `curl`
@@ -40,10 +36,15 @@
 - `setup_cloudflarest.sh`: 获取 CloudflareST
 - `start_ddns.sh`: 解析到 Cloudflare
 
-### 特别功能
+## 特别功能
 
 - 支持多个测速配置和多个 Cloudflare 账户
 - 更加详细的推送消息
 - 从 URL 获取最新 CIDR
 - 支持同时设置 IPv4 和 IPv6 数量
 - 假设解析组名称为`www`，那么可以通过`bash cf.sh start www`立即进行测速和解析
+
+## 截图
+
+![image](https://ghp.ci/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/refs/heads/main/b18dd128-f5be-43a0-9575-a21a3572f670.png)
+![image](https://ghp.ci/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/refs/heads/main/ec3024bc-bcc6-4afb-a642-fb8dab314c89.png))
