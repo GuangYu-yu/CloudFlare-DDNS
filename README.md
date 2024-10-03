@@ -46,5 +46,6 @@
 
 ## 截图
 
+![image](https://ghp.ci/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/refs/heads/main/ec3024bc-bcc6-4afb-a642-fb8dab314c89.png)
+
 ![image](https://ghp.ci/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/refs/heads/main/b18dd128-f5be-43a0-9575-a21a3572f670.png)
-![image](https://ghp.ci/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/refs/heads/main/ec3024bc-bcc6-4afb-a642-fb8dab314c89.png))
