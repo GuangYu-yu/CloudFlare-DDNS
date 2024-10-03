@@ -8,10 +8,10 @@
 
 ## 脚本功能
 
-- 自动扫描并测试 Cloudflare IP
-- 选择最优 IP 地址
+- 自动扫描并测速 Cloudflare IP
 - 自动更新 Cloudflare DNS 记录
-- 支持定期运行以保持最佳性能
+- 自动推送测速和解析的结果
+- 支持定期运行随时获得最新优选 IP
 
 ## 安装说明
 
@@ -37,13 +37,13 @@
 - `cf_push.sh`: 推送消息服务
 - `cfopw.sh`: 初始安装脚本
 - `cf.yaml`: 配置文件
-- `setup_cloudflarest.sh`: 获取CloudflareST
-- `start_ddns.sh`: 解析到Cloudflare
+- `setup_cloudflarest.sh`: 获取 CloudflareST
+- `start_ddns.sh`: 解析到 Cloudflare
 
 ### 特别功能
 
-- 支持多个测速配置和多个Cloudflare账户
+- 支持多个测速配置和多个 Cloudflare 账户
 - 更加详细的推送消息
-- 从URL获取最新CIDR
-- 支持同时设置IPv4和IPv6数量
+- 从 URL 获取最新 CIDR
+- 支持同时设置 IPv4 和 IPv6 数量
 - 假设解析组名称为`www`，那么可以通过`bash cf.sh start www`立即进行测速和解析
