@@ -2,16 +2,16 @@
 
 # 定义文件路径和下载 URL
 SETUP_SCRIPT_LOCAL="setup_cloudflarest.sh"
-SETUP_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/setup_cloudflarest.sh"
+SETUP_SCRIPT_URL="https://ghp.ci/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/setup_cloudflarest.sh"
 
 RESOLVE_SCRIPT_LOCAL="cf"
-RESOLVE_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cf"
+RESOLVE_SCRIPT_URL="https://ghp.ci/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cf"
 
 START_DDNS_LOCAL="start_ddns.sh"
-START_DDNS_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/start_ddns.sh"
+START_DDNS_URL="https://ghp.ci/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/start_ddns.sh"
 
 CF_PUSH_LOCAL="cf_push.sh"
-CF_PUSH_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cf_push.sh"
+CF_PUSH_URL="https://ghp.ci/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cf_push.sh"
 
 # 定义下载脚本的函数
 download_script() {
