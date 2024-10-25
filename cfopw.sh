@@ -104,7 +104,7 @@ if [ -n "$packages" ]; then
     elif grep -qi "centos\|red hat\|fedora" /etc/os-release; then
         echo "使用 yum 安装软件包..."
         sudo yum install $packages -y
-    elif grep -qi "termux" /data/data/com.termux/files/usr/etc/os-release; then
+    elif [ "$(uname)" = "Linux" ] && [ -d "/data/data/com.termux/files/usr" ]; then
         echo "使用 pkg 安装软件包..."
         pkg update
         for package in $packages; do
