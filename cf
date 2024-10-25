@@ -12,13 +12,13 @@ ipv6_status="?"
 ipv4_status="?"
 
 # 网络检测相关参数
-TIMEOUT=2    # 默认超时时间（秒）
+TIMEOUT=1    # 默认超时时间（秒）
 
 # 配置文件路径
 config_file=cf.yaml
 
 # 定义脚本文件名变量
-The_CF_SCRIPT="cf"
+The_CF_SCRIPT="cf.sh"
 
 # 获取当前脚本路径
 script_dir="$(cd "$(dirname "$0")" && pwd)"
@@ -109,12 +109,12 @@ detect_protocol() {
 
     for url in "${urls[@]}"; do
         if [ "$protocol" -eq 6 ]; then
-            ping_cmd="ping6"
+            curl_cmd="curl -6 -s --max-time $TIMEOUT"
         else
-            ping_cmd="ping"
+            curl_cmd="curl -4 -s --max-time $TIMEOUT"
         fi
 
-        if $ping_cmd -c 1 -W $TIMEOUT $url > /dev/null 2>&1; then
+        if $curl_cmd "$url" > /dev/null 2>&1; then
             echo "√" > "$temp_file"
             break
         else
@@ -125,7 +125,7 @@ detect_protocol() {
 
 # 检测 IPv6 和 IPv4 状态
 detect_ip_addresses() {
-    urls=("ifconfig.co" "cdnjs.cloudflare.com" "whatismyipaddress.com" "iplocation.io" "whatismyip.com" "ipaddress.my" "ipqualityscore.com" "ip.sb")
+    urls=("ifconfig.co" "whatismyipaddress.info" "cdnjs.cloudflare.com" "whatismyipaddress.com" "iplocation.io" "whatismyip.com" "ipaddress.my" "iplocation.net" "ipqualityscore.com" "ip.sb")
 
     # 并行检测 IPv6 和 IPv4
     detect_protocol 6 urls[@] &
