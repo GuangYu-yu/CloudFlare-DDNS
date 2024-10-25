@@ -104,12 +104,6 @@ if [ -n "$packages" ]; then
     elif grep -qi "centos\|red hat\|fedora" /etc/os-release; then
         echo "使用 yum 安装软件包..."
         sudo yum install $packages -y
-    elif [ "$(uname)" = "Linux" ] && [ -d "/data/data/com.termux/files/usr" ]; then
-        echo "使用 pkg 安装软件包..."
-        pkg update
-        for package in $packages; do
-            pkg install -y "$package"
-        done
     else
         echo "未能检测出你的系统：$(uname)，请自行安装 $packages 这些软件。"
         exit 1
