@@ -43,9 +43,3 @@
 - 从 URL 获取最新 CIDR
 - 支持同时设置 IPv4 和 IPv6 数量
 - 假设解析组名称为`www`，那么可以通过`bash cf start www`立即进行测速和解析
-
-## 截图
-
-![image](https://ghp.ci/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/refs/heads/main/ec3024bc-bcc6-4afb-a642-fb8dab314c89.png)
-
-![image](https://ghp.ci/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/refs/heads/main/b18dd128-f5be-43a0-9575-a21a3572f670.png)
