@@ -4,8 +4,8 @@
 SETUP_SCRIPT_LOCAL="setup_cloudflarest.sh"
 SETUP_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/setup_cloudflarest.sh"
 
-RESOLVE_SCRIPT_LOCAL="cf"
-RESOLVE_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cf"
+RESOLVE_SCRIPT_LOCAL="cf.sh"
+RESOLVE_SCRIPT_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cf.sh"
 
 START_DDNS_LOCAL="start_ddns.sh"
 START_DDNS_URL="https://mirror.ghproxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/start_ddns.sh"
@@ -112,7 +112,7 @@ fi
 
 # 下载所有脚本
 
-download_script "$RESOLVE_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_URL" "cf"
+download_script "$RESOLVE_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_URL" "cf.sh"
 
 # 创建 CF 文件夹，如果存在则跳过
 mkdir -p CF
@@ -128,4 +128,4 @@ download_script "$SETUP_SCRIPT_LOCAL" "$SETUP_SCRIPT_URL" "setup_cloudflarest.sh
 download_script "$START_DDNS_LOCAL" "$START_DDNS_URL" "start_ddns.sh"
 download_script "$CF_PUSH_LOCAL" "$CF_PUSH_URL" "cf_push.sh"
 
-echo "通过命令bash cf进入主菜单"
+echo "通过命令bash cf.sh进入主菜单"
