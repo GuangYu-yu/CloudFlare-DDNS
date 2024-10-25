@@ -18,7 +18,7 @@ TIMEOUT=2    # 默认超时时间（秒）
 config_file=cf.yaml
 
 # 定义脚本文件名变量
-The_CF_SCRIPT="cf"
+The_CF_SCRIPT="cf.sh"
 
 # 获取当前脚本路径
 script_dir="$(cd "$(dirname "$0")" && pwd)"
