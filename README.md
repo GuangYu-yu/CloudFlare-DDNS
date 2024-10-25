@@ -4,7 +4,7 @@
 
 ## 简介
 
-通过 OpenWrt 路由器优选 Cloudflare 的 IP 地址,并将其自动更新到 Cloudflare DNS 记录中。不止OpenWrt，大部分功能在Linux上都适用。
+通过 OpenWrt 路由器优选 Cloudflare 的 IP 地址,并将其自动更新到 Cloudflare DNS 记录中
 
 ## 脚本功能
 
@@ -25,11 +25,11 @@
 
 后续运行
 
-`bash cf`
+`bash cf.sh`
 
 ## 文件说明
 
-- `cf`: 主菜单脚本
+- `cf.sh`: 主菜单脚本
 - `cf_push.sh`: 推送消息服务
 - `cfopw.sh`: 初始安装脚本
 - `cf.yaml`: 配置文件
@@ -42,4 +42,4 @@
 - 更加详细的推送消息
 - 从 URL 获取最新 CIDR
 - 支持同时设置 IPv4 和 IPv6 数量
-- 假设解析组名称为`www`，那么可以通过`bash cf start www`立即进行测速和解析
+- 假设解析组名称为`www`，那么可以通过`bash cf.sh start www`立即进行测速和解析
