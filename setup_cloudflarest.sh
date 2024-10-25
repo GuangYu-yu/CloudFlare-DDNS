@@ -39,6 +39,15 @@ fi
 # 定义下载源列表
 SOURCES=(
     "https://ghp.ci/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://ghproxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://cdn.jsdelivr.net/gh/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://fastly.jsdelivr.net/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://testingcf.jsdelivr.net/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://gcore.jsdelivr.net/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://originfastly.jsdelivr.net/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://quantil.jsdelivr.net/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://raw.staticdn.net/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
+    "https://raw.gitmirror.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
     "https://download.scholar.rr.nu/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
     "https://ghproxy.cc/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
     "https://ghproxy.net/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
