@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# 传入参数
 push_mod=$1
 config_file=$2
 pushmessage=$3
@@ -18,7 +19,7 @@ fi
 # 从配置文件读取推送设置
 read_push_settings() {
     local push_id=$1
-    grep "push_name=($push_id)" "$config_file" | sed 's/^[^,]*,//; s/,[^,]*$//' | tr ',' '\n' | sed 's/^[^=]*=(\([^)]*\)).*/\1/'
+    yq e ".push[] | select(.push_name == \"$push_mod\")" "$config_file"
 }
 
 # 检查 informlog 文件并读取内容
@@ -71,18 +72,14 @@ wxapi=${Proxy_WX:-"https://qyapi.weixin.qq.com"}
 # 处理多个推送模式
 IFS=' ' read -ra push_modes <<< "$push_mod"
 for mode in "${push_modes[@]}"; do
-    push_params=($(read_push_settings $mode))
-    
-    if [ ${#push_params[@]} -eq 0 ]; then
-        echo "无法读取推送模式 $mode 的参数"
-        continue
-    fi
-
     case $mode in
-        1)  # Telegram 推送
-            telegram_bot_token=${push_params[0]}
-            telegram_user_id=${push_params[1]}
-            TGURL="$tgapi/bot${telegram_bot_token}/sendMessage"
+        "不设置")
+            echo "未设置推送模式"
+            ;;
+        "Telegram")  # Telegram 推送
+            telegram_bot_token=$(yq e ".push[] | select(.push_name == \"Telegram\") | .telegram_bot_token" "$config_file")
+            telegram_user_id=$(yq e ".push[] | select(.push_name == \"Telegram\") | .telegram_user_id" "$config_file")
+            TGURL="https://api.telegram.org/bot${telegram_bot_token}/sendMessage"
             res=$(curl -s -X POST $TGURL -H "Content-type:application/json" -d "{\"chat_id\":\"$telegram_user_id\", \"parse_mode\":\"HTML\", \"text\":\"$message_text\"}")
             if [[ $(echo "$res" | jq -r ".ok") == "true" ]]; then
                 echo "TG推送成功"
@@ -90,8 +87,8 @@ for mode in "${push_modes[@]}"; do
                 echo "TG推送失败，请检查网络或TG机器人token和ID"
             fi
             ;;
-        2)  # PushPlus 推送
-            pushplus_token=${push_params[0]}
+        "PushPlus")  # PushPlus 推送
+            pushplus_token=$(yq e ".push[] | select(.push_name == \"PushPlus\") | .pushplus_token" "$config_file")
             echo "正在进行 PushPlus 推送..."
             res=$(curl -s -X POST "http://www.pushplus.plus/send" \
                  -H "Content-Type: application/json" \
@@ -103,8 +100,8 @@ for mode in "${push_modes[@]}"; do
                 echo "请检查pushplus_token是否填写正确"
             fi
             ;;
-        3)  # Server 酱推送
-            server_sendkey=${push_params[0]}
+        "Server酱")  # Server酱 推送
+            server_sendkey=$(yq e ".push[] | select(.push_name == \"Server酱\") | .server_sendkey" "$config_file")
             res=$(curl -s -X POST "https://sctapi.ftqq.com/${server_sendkey}.send" -d "title=Cloudflare优选IP推送" -d "desp=${message_text}")
             if [[ $(echo "$res" | jq -r ".code") == 0 ]]; then
                 echo "Server 酱推送成功"
@@ -112,8 +109,8 @@ for mode in "${push_modes[@]}"; do
                 echo "Server 酱推送失败，请检查Server 酱server_sendkey是否配置正确"
             fi
             ;;
-        4)  # PushDeer 推送
-            pushdeer_pushkey=${push_params[0]}
+        "PushDeer")  # PushDeer 推送
+            pushdeer_pushkey=$(yq e ".push[] | select(.push_name == \"PushDeer\") | .pushdeer_pushkey" "$config_file")
             res=$(curl -s -X POST "https://api2.pushdeer.com/message/push" -d "pushkey=${pushdeer_pushkey}" -d "text=Cloudflare优选IP推送" -d "desp=${message_text}")
             if [[ $(echo "$res" | jq -r ".code") == 0 ]]; then
                 echo "PushDeer推送成功"
@@ -121,11 +118,11 @@ for mode in "${push_modes[@]}"; do
                 echo "PushDeer推送失败，请检查pushdeer_pushkey是否填写正确"
             fi
             ;;
-        5)  # 企业微信推送
-            wechat_corpid=${push_params[0]}
-            wechat_secret=${push_params[1]}
-            wechat_agentid=${push_params[2]}
-            wechat_userid=${push_params[3]}
+        "企业微信")  # 企业微信 推送
+            wechat_corpid=$(yq e ".push[] | select(.push_name == \"企业微信\") | .wechat_corpid" "$config_file")
+            wechat_secret=$(yq e ".push[] | select(.push_name == \"企业微信\") | .wechat_secret" "$config_file")
+            wechat_agentid=$(yq e ".push[] | select(.push_name == \"企业微信\") | .wechat_agentid" "$config_file")
+            wechat_userid=$(yq e ".push[] | select(.push_name == \"企业微信\") | .wechat_userid" "$config_file")
             access_token=$(curl -s -G "https://qyapi.weixin.qq.com/cgi-bin/gettoken" -d "corpid=$wechat_corpid" -d "corpsecret=$wechat_secret" | jq -r .access_token)
             res=$(curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token=$access_token" -H "Content-Type: application/json" -d "{\"touser\":\"$wechat_userid\",\"msgtype\":\"text\",\"agentid\":$wechat_agentid,\"text\":{\"content\":\"$message_text\"}}")
             if [[ $(echo "$res" | jq -r ".errcode") == "0" ]]; then
@@ -134,13 +131,13 @@ for mode in "${push_modes[@]}"; do
                 echo "企业微信推送失败，请检查企业微信参数是否填写正确"
             fi
             ;;
-        6)  # Synology Chat 推送
-            synology_chat_url=${push_params[0]}
+        "Synology-Chat")  # Synology-Chat 推送
+            synology_chat_url=$(yq e ".push[] | select(.push_name == \"Synology-Chat\") | .synology_chat_url" "$config_file")
             res=$(curl -X POST "$synology_chat_url" -H "Content-Type: application/json" -d "{\"text\":\"$message_text\"}")
             if [[ $(echo "$res" | jq -r ".success") == "true" ]]; then
-                echo "Synology_Chat推送成功"
+                echo "Synology-Chat推送成功"
             else
-                echo "Synology_Chat推送失败，请检查synology_chat_url是否填写正确"
+                echo "Synology-Chat推送失败，请检查synology_chat_url是否填写正确"
             fi
             ;;
         *)

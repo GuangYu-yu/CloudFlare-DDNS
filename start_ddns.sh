@@ -35,13 +35,12 @@ login_retry_delay=1 # 重试延迟时间
 max_single_login_time=5 # 单次登录最大等待时间（秒）
 
 # 处理Ipv4和Ipv6的URL重试参数
-max_retries=5 # 最大重试次数
+max_retries=10 # 最大重试次数
 retry_delay=1 # 重试延迟时间
 single_attempt_timeout=3  # 单次尝试的超时时间（秒）
 
 # 定义 csvfile 变量
 csvfile="result.csv"
-
 
 # 删除 .csv 文件
 if ! rm -rf $csvfile; then
@@ -55,20 +54,16 @@ if [ -z "$hostnames" ]; then
     exit 1
 fi
 
+# 将 hostnames 分割成数组
+IFS=' ' read -ra domains <<< "$hostnames"
+domain_count=${#domains[@]}
+
 GetProxName() {
-  case "$clien" in
-    0) CLIEN="" ;;
-    1) CLIEN=passwall ;;
-    2) CLIEN=passwall2 ;;
-    3) CLIEN=shadowsocksr ;;
-    4) CLIEN=openclash ;;
-    5) CLIEN=shellcrash ;;
-    6) CLIEN=neko ;;
-    7) CLIEN=bypass ;;
-    8) CLIEN=homeproxy ;;
-    9) CLIEN=mihomo ;;
-    *) print_error "未知的插件类型: $clien"; exit 1 ;;
-  esac
+    if [ "$clien" == "不使用" ]; then
+        CLIEN=""
+    else
+        CLIEN="$clien"
+    fi
 }
 
 # 函数：停止插件
@@ -80,6 +75,7 @@ stop_plugin() {
         print_error "停止 $CLIEN 失败"
     else
         print_info "停止 $CLIEN"
+        plugin_status="stopped"
     fi
   fi
 }
@@ -87,22 +83,23 @@ stop_plugin() {
 # 函数：重启插件
 restart_plugin() {
   if [ -z "$CLIEN" ]; then
-    print_info "根据配置，插件不会重启。"
-    sleep 3s
+    print_info "根据配置，插件不会重启"
+    sleep 2
   else
     if ! /etc/init.d/$CLIEN restart; then
         print_error "重启 $CLIEN 失败"
     else
         print_info "已重启 $CLIEN"
-        print_info "为了确保 Cloudflare API 连接正常，DNS 记录更新将在 3 秒后开始。"
-        sleep 3s
+        print_info "为了确保 Cloudflare API 连接正常，DNS 记录更新将在 10 秒后开始"
+        plugin_status="running"
+        sleep 10
     fi
   fi
 }
 
 # 函数：处理脚本退出时的操作
 handle_err() {
-  if [ -n "$CLIEN" ]; then
+  if [ -n "$CLIEN" ] && [ "$plugin_status" = "stopped" ]; then
     print_info "恢复后台进程"
     if ! /etc/init.d/$CLIEN start; then
         print_error "启动 $CLIEN 失败"
@@ -347,7 +344,7 @@ update_dns() {
   echo "正在更新域名，请稍后..."
   x=0
 
-  # 检查 result.csv 文件是否存在且不为空
+  # 检查 $csvfile 文件是否存在且不为空
   if [ ! -f "$csvfile" ] || [ ! -s "$csvfile" ]; then
       echo "错误: $csvfile 文件不存在或为空，可能没有测速结果"
       echo "没有测速结果" > informlog
@@ -363,10 +360,6 @@ update_dns() {
       echo "没有测速结果" > informlog
       return 1
   fi
-
-  # 将 hostnames 分割成数组
-  IFS=' ' read -ra domains <<< "$hostnames"
-  domain_count=${#domains[@]}
 
   # 只有在有测速结果时才删除旧记录
   for domain in "${domains[@]}"; do
@@ -431,6 +424,8 @@ process_ip_and_push() {
                 fi
             fi
         fi
+    else
+        echo "根据设置，跳过 ${ip_type} 测速"
     fi
 }
 
