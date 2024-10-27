@@ -1062,11 +1062,11 @@ view_schedule() {
         # 提示用户输入解析组名称
         read -p "请输入要查看计划任务的解析组名称（留空则返回上级）：" selected_ddns
         if [ -z "$selected_ddns" ]; then
-            return
+        return
         fi
 
-        # 验证解析组是否存在
-        if ! grep -q "ddns_name=($selected_ddns)" "$config_file"; then
+        # 检查解析组名称是否存在
+        if ! yq e ".resolve[] | select(.ddns_name == \"$selected_ddns\")" "$config_file" | grep -q .; then
             handle_error "解析组不存在"
             continue
         fi
