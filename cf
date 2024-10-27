@@ -1062,7 +1062,7 @@ view_schedule() {
         # 提示用户输入解析组名称
         read -p "请输入要查看计划任务的解析组名称（留空则返回上级）：" selected_ddns
         if [ -z "$selected_ddns" ]; then
-        return
+            return
         fi
 
         # 检查解析组名称是否存在
@@ -1373,6 +1373,7 @@ write_plugin_settings() {
         elif [[ "$choice" =~ ^[a-zA-Z0-9._-]+$ ]]; then
             yq e -i ".plugin.clien = \"$choice\"" "$config_file"  # 保存为插件名称
             echo -e "${GREEN}插件已设置为: $choice${NC}"
+            sleep 1
         else
             handle_error "请输入有效的插件名称"
         fi
