@@ -1360,7 +1360,7 @@ write_plugin_settings() {
         echo -e "${CYAN}插件位于/etc/init.d/目录下，例如：passwall passwall2 shadowsocksr openclash shellcrash bypass homeproxy mihomo${NC}"
 
         # 获取用户输入
-        read -p "请输入插件名称，输入'0'不使用插件，输入'e'返回主菜单: " choice
+        read -p "请输入插件名称(输入'0'不使用插件，输入'e'返回主菜单): " choice
 
         # 处理用户选择
         if [[ "$choice" == "e" ]]; then
