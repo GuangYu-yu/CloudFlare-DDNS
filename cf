@@ -235,7 +235,7 @@ look_ddns() {
     if [ -z "$resolves" ] || [ "$resolves" = "null" ]; then
         echo "当前没有设置任何解析组"
     else
-        yq e '.resolve[] | "账户组：\(.add_ddns)\n解析组：\(.ddns_name)\n一级域名：\(.hostname1)\n二级域名：\(.hostname2)\nIPv4数量：\(.v4_num)\nIPv6数量：\(.v6_num)\nCloudflareST命令：\(.cf_command)\nIPv4地址URL：\(.v4_url)\nIPv6地址URL：\(.v6_url)\n推送方式：\(.push_mod)"' "$config_file"
+        yq e '.resolve[] | "账户组：\(.add_ddns)\n解析组：\(.ddns_name)\n一级域名：\(.hostname1)\n二级域名：\(.hostname2)\nIPv4数量：\(.v4_num)\nIPv6数量：\(.v6_num)\nCloudflareST命令：\(.cf_command)\nIPv4地址URL：\(.v4_url)\nIPv6地址URL：\(.v6_url)\n推送方式：\(.push_mod)\n"' "$config_file"
     fi
 }
 
