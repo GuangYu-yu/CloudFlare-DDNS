@@ -268,12 +268,13 @@ process_ip() {
         print_error "获取 ${ip_type} 地址失败，已达到最大重试次数"
         return 1
     fi
+    
+    print_info "./CloudflareST $cf_command -dn $cf_num -p $cf_num"
 
     if ! ./CloudflareST $cf_command -dn $cf_num -p $cf_num; then
         print_error "CloudflareST 执行失败"
         return 1
     fi
-    print_info "./CloudflareST $cf_command -dn $cf_num -p $cf_num"
 
     restart_plugin $CLIEN
     update_dns "$dns_type" "$cf_num"
