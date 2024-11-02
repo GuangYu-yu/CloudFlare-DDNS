@@ -11,19 +11,20 @@ print_info() {
 }
 
 # 传入变量
-x_email=$1
-zone_id=$2
-api_key=$3
-hostname1=$4
-hostname2=$5
-v4_num=$6
-v6_num=$7
-cf_command=$8
-v4_url=$9
-v6_url=${10}
-push_mod=${11}
-clien=${12:-0}
-config_file="../${13}"
+add_ddns=$1
+x_email=$2
+zone_id=$3
+api_key=$4
+hostname1=$5
+hostname2=$6
+v4_num=$7
+v6_num=$8
+cf_command=$9
+v4_url=${10}
+v6_url=${11}
+push_mod=${12}
+clien=${13:-0}
+config_file="../${14}"
 
 # 限制测速地址最大行数
 max_ipv4_lines=99999
@@ -47,16 +48,18 @@ if ! rm -rf $csvfile; then
     print_error "无法删除 $csvfile 文件"
 fi
 
-# 组合主机名
-hostnames=$(echo $hostname2 | tr ' ' '\n' | sed "s/$/.${hostname1}/" | tr '\n' ' ' | sed 's/ $//')
-if [ -z "$hostnames" ]; then
-    print_error "主机名组合失败"
-    exit 1
-fi
+# 只在非"未指定"模式下组合主机名
+if [ "$add_ddns" != "未指定" ]; then
+    hostnames=$(echo $hostname2 | tr ' ' '\n' | sed "s/$/.${hostname1}/" | tr '\n' ' ' | sed 's/ $//')
+    if [ -z "$hostnames" ]; then
+        print_error "主机名组合失败"
+        exit 1
+    fi
 
-# 将 hostnames 分割成数组
-IFS=' ' read -ra domains <<< "$hostnames"
-domain_count=${#domains[@]}
+    # 将 hostnames 分割成数组
+    IFS=' ' read -ra domains <<< "$hostnames"
+    domain_count=${#domains[@]}
+fi
 
 GetProxName() {
     if [ "$clien" == "不使用" ]; then
@@ -82,19 +85,22 @@ stop_plugin() {
 
 # 函数：重启插件
 restart_plugin() {
-  if [ -z "$CLIEN" ]; then
-    print_info "根据配置，插件不会重启"
-    sleep 2
-  else
-    if ! /etc/init.d/$CLIEN restart; then
-        print_error "重启 $CLIEN 失败"
-    else
-        print_info "已重启 $CLIEN"
-        print_info "为了确保 Cloudflare API 连接正常，DNS 记录更新将在 10 秒后开始"
-        plugin_status="running"
-        sleep 10
+    # 只在非"未指定"模式且有设置插件时执行
+    if [ "$add_ddns" != "未指定" ] && [ -n "$CLIEN" ]; then
+        if [ -z "$CLIEN" ]; then
+            print_info "根据配置，插件不会重启"
+            sleep 2
+        else
+            if ! /etc/init.d/$CLIEN restart; then
+                print_error "重启 $CLIEN 失败"
+            else
+                print_info "已重启 $CLIEN"
+                print_info "为了确保 Cloudflare API 连接正常，DNS 记录更新将在 10 秒后开始"
+                plugin_status="running"
+                sleep 10
+            fi
+        fi
     fi
-  fi
 }
 
 # 函数：处理脚本退出时的操作
@@ -294,114 +300,128 @@ process_ipv6() {
 # 更新DNS记录
 update_dns() {
     local record_type="$1"
-    local num_records="$2" # 指定要添加的记录数量
-    echo "开始验证 Cloudflare 账号..."
+    local num_records="$2"
 
-    for ((attempt=1; attempt<=max_login_retries; attempt++)); do
-        echo "正在进行第 $attempt 次登录尝试..."
-        
-        # 使用timeout命令来限制单次登录时间
-        res=$(timeout $max_single_login_time curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${zone_id}" \
-            -H "X-Auth-Email:$x_email" \
-            -H "X-Auth-Key:$api_key" \
-            -H "Content-Type:application/json")
+    # 只在非"未指定"模式下执行 Cloudflare 验证和更新
+    if [ "$add_ddns" != "未指定" ]; then
+        echo "开始验证 Cloudflare 账号..."
 
-        # 检查curl是否因超时而失败
-        if [ $? -eq 124 ]; then
-            echo "登录尝试超时，已达到单次最大等待时间 ${max_single_login_time} 秒"
-            if [[ $attempt -lt $max_login_retries ]]; then
-                echo "等待 ${login_retry_delay} 秒后重试..."
-                sleep $login_retry_delay
-                continue
-            else
-                echo "已达到最大重试次数 $max_login_retries"
-                return 1
-            fi
-        fi
-
-        echo "收到 Cloudflare 响应"
-
-        resSuccess=$(echo "$res" | jq -r ".success")
-        if [[ $resSuccess == "true" ]]; then
-            echo "Cloudflare 账号验证成功"
-            break
-        else
-            error_message=$(echo "$res" | jq -r '.errors[0].message')
-            echo "第 $attempt / $max_login_retries 次登录失败"
-            echo "错误信息: ${error_message:-未知错误}"
+        for ((attempt=1; attempt<=max_login_retries; attempt++)); do
+            echo "正在进行第 $attempt 次登录尝试..."
             
-            if [[ $attempt -lt $max_login_retries ]]; then
-                echo "等待 ${login_retry_delay} 秒后重试..."
-                sleep $login_retry_delay
-            else
-                echo "登录失败，已达到最大重试次数 $max_login_retries"
-                echo "完整错误响应: $res"
-                return 1
+            res=$(timeout $max_single_login_time curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${zone_id}" \
+                -H "X-Auth-Email:$x_email" \
+                -H "X-Auth-Key:$api_key" \
+                -H "Content-Type:application/json")
+
+            # 检查curl是否因超时而失败
+            if [ $? -eq 124 ]; then
+                echo "登录尝试超时，已达到单次最大等待时间 ${max_single_login_time} 秒"
+                if [[ $attempt -lt $max_login_retries ]]; then
+                    echo "等待 ${login_retry_delay} 秒后重试..."
+                    sleep $login_retry_delay
+                    continue
+                else
+                    echo "已达到最大重试次数 $max_login_retries"
+                    return 1
+                fi
             fi
-        fi
-    done
 
-  # 开始更新域名
-  echo "正在更新域名，请稍后..."
-  x=0
+            echo "收到 Cloudflare 响应"
 
-  # 检查 $csvfile 文件是否存在且不为空
-  if [ ! -f "$csvfile" ] || [ ! -s "$csvfile" ]; then
-      echo "错误: $csvfile 文件不存在或为空，可能没有测速结果"
-      echo "没有测速结果" > informlog
-      return 1
-  fi
+            resSuccess=$(echo "$res" | jq -r ".success")
+            if [[ $resSuccess == "true" ]]; then
+                echo "Cloudflare 账号验证成功"
+                break
+            else
+                error_message=$(echo "$res" | jq -r '.errors[0].message')
+                echo "第 $attempt / $max_login_retries 次登录失败"
+                echo "错误信息: ${error_message:-未知错误}"
+                
+                if [[ $attempt -lt $max_login_retries ]]; then
+                    echo "等待 ${login_retry_delay} 秒后重试..."
+                    sleep $login_retry_delay
+                else
+                    echo "登录失败，已达到最大重试次数 $max_login_retries"
+                    echo "完整错误响应: $res"
+                    return 1
+                fi
+            fi
+        done
 
-  # 读取 IP 地址到数组
+        # 开始更新域名
+        echo "正在更新域名，请稍后..."
+    fi
+
+    x=0
+
+    # 检查 $csvfile 文件是否存在且不为空
+    if [ ! -f "$csvfile" ] || [ ! -s "$csvfile" ]; then
+        echo "错误: $csvfile 文件不存在或为空，可能没有测速结果"
+        echo "没有测速结果" > informlog
+        return 1
+    fi
+
+    # 读取 IP 地址到数组
     mapfile -t ip_addresses < <(tail -n +2 "$csvfile" | head -n "$num_records" | cut -d',' -f1)
     ip_count=${#ip_addresses[@]}
 
-  # 如果没有 IP 地址，则不进行任何操作
-  if [ $ip_count -eq 0 ]; then
-      echo "没有测速结果" > informlog
-      return 1
-  fi
+    # 如果没有 IP 地址，则不进行任何操作
+    if [ $ip_count -eq 0 ]; then
+        echo "没有测速结果" > informlog
+        return 1
+    fi
 
-  # 只有在有测速结果时才删除旧记录
-  for domain in "${domains[@]}"; do
-      echo "从 $domain 删除旧${record_type}记录"
-      CheckDelCFDns "$domain" "$record_type"
-      RealDelDns
-  done
+    # 只在非"未指定"模式下执行 DNS 记录更新
+    if [ "$add_ddns" != "未指定" ]; then
+        # 删除旧记录
+        for domain in "${domains[@]}"; do
+            echo "从 $domain 删除旧${record_type}记录"
+            CheckDelCFDns "$domain" "$record_type"
+            RealDelDns
+        done
 
-  # 添加新记录
-  declare -A domain_ip_map
-  ip_index=0
-  domain_index=0
+        # 添加新记录
+        declare -A domain_ip_map
+        ip_index=0
+        domain_index=0
 
-  while [ $ip_index -lt $ip_count ]; do
-      current_domain=${domains[$domain_index]}
-      current_ip=${ip_addresses[$ip_index]}
-      
-      InsertCF "$current_ip" "$current_domain"
-      
-      if [[ ! ${domain_ip_map[$current_domain]} ]]; then
-          domain_ip_map[$current_domain]="$current_ip"
-      else
-          domain_ip_map[$current_domain]="${domain_ip_map[$current_domain]},$current_ip"
-      fi
+        while [ $ip_index -lt $ip_count ]; do
+            current_domain=${domains[$domain_index]}
+            current_ip=${ip_addresses[$ip_index]}
+            
+            InsertCF "$current_ip" "$current_domain"
+            
+            if [[ ! ${domain_ip_map[$current_domain]} ]]; then
+                domain_ip_map[$current_domain]="$current_ip"
+            else
+                domain_ip_map[$current_domain]="${domain_ip_map[$current_domain]},$current_ip"
+            fi
 
-      ip_index=$((ip_index + 1))
-      domain_index=$((domain_index + 1))
-      
-      # 如果所有域名都分配了IP，重新开始分配
-      if [ $domain_index -eq $domain_count ]; then
-          domain_index=0
-      fi
-  done
+            ip_index=$((ip_index + 1))
+            domain_index=$((domain_index + 1))
+            
+            if [ $domain_index -eq $domain_count ]; then
+                domain_index=0
+            fi
+        done
+    fi
 
-  echo "完成 IP 更新!"
+    echo "完成 IP 更新!"
 
-  # 创建 informlog 文件，包含域名和 IP 的对应关系
-  > informlog  # 清空 informlog 文件
-  for domain in "${!domain_ip_map[@]}"; do
-      echo "$domain: ${domain_ip_map[$domain]}" >> informlog
-  done
+    # 创建 informlog 文件，包含测速结果
+    > informlog
+    if [ "$add_ddns" != "未指定" ]; then
+        # 如果不是未指定模式，添加域名和 IP 的对应关系
+        for domain in "${!domain_ip_map[@]}"; do
+            echo "$domain: ${domain_ip_map[$domain]}" >> informlog
+        done
+    else
+        # 如果是未指定模式，只记录测速结果
+        for ip in "${ip_addresses[@]}"; do
+            echo "$ip" >> informlog
+        done
+    fi
 }
 
 # 用于处理 IP 更新和消息推送
