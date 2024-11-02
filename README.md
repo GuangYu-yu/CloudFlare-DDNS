@@ -23,6 +23,10 @@
 
 ```curl -ksSL https://ghp.ci/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cfopw.sh | bash```
 
+或者
+
+```curl -ksSL https://gitlab.com/GuangYu-yu/opw-cloudflare/-/raw/main/cfopw.sh | bash```
+
 后续运行
 
 `bash cf`
