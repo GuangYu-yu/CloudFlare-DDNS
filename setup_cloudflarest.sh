@@ -63,13 +63,13 @@ for DOMAIN in "${!DOMAINS[@]}"; do
     for i in {1..3}; do
         LATENCY=$(curl -o /dev/null -s -w "%{time_total}\n" "${DOMAINS[$DOMAIN]}" 2>/dev/null)
         if [ $? -eq 0 ]; then
-            TOTAL=$(echo "$TOTAL + $LATENCY" | bc)
+            TOTAL=$(awk "BEGIN {print $TOTAL + $LATENCY}")
             SUCCESS=$((SUCCESS + 1))
         fi
     done
     
     if [ $SUCCESS -gt 0 ]; then
-        AVG=$(echo "scale=3; $TOTAL / $SUCCESS" | bc)
+        AVG=$(awk "BEGIN {printf \"%.3f\", $TOTAL / $SUCCESS}")
         LATENCIES[$DOMAIN]=$AVG
         echo "$DOMAIN 平均延迟: ${AVG}s"
     else
