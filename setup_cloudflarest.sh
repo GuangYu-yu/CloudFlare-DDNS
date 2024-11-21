@@ -36,7 +36,37 @@ if [ -f "$FILENAME" ]; then
     rm -f "$FILENAME"
 fi
 
-# 定义下载源列表（仅域名部分）
+# 创建临时文件存储延迟测试结果
+TEMP_DIR=$(mktemp -d)
+RESULTS_FILE="$TEMP_DIR/results"
+
+# 测试单个域名的延迟的函数
+test_domain_latency() {
+    local DOMAIN=$1
+    local URL=$2
+    local OUTPUT_FILE=$3
+    
+    TOTAL=0
+    SUCCESS=0
+    for i in {1..3}; do
+        LATENCY=$(curl -o /dev/null -s -w "%{time_total}\n" "$URL" 2>/dev/null)
+        if [ $? -eq 0 ]; then
+            TOTAL=$(awk "BEGIN {print $TOTAL + $LATENCY}")
+            SUCCESS=$((SUCCESS + 1))
+        fi
+    done
+    
+    if [ $SUCCESS -gt 0 ]; then
+        AVG=$(awk "BEGIN {printf \"%.3f\", $TOTAL / $SUCCESS}")
+        echo "$AVG $DOMAIN" >> "$OUTPUT_FILE"
+        echo "$DOMAIN 平均延迟: ${AVG}s"
+    else
+        echo "999999 $DOMAIN" >> "$OUTPUT_FILE"
+        echo "$DOMAIN 无法连接"
+    fi
+}
+
+# 定义下载源列表
 declare -A DOMAINS=(
     ["quantil.jsdelivr.net"]="https://quantil.jsdelivr.net"
     ["fastly.jsdelivr.net"]="https://fastly.jsdelivr.net"
@@ -53,52 +83,33 @@ declare -A DOMAINS=(
     ["raw.gitmirror.com"]="https://raw.gitmirror.com"
 )
 
-# 测试域名延迟并排序
-echo "测试下载源延迟中..."
-declare -A LATENCIES
+# 并发测试所有域名的延迟
+echo "并发测试下载源延迟中..."
 for DOMAIN in "${!DOMAINS[@]}"; do
-    # 使用 curl 测试延迟（3次尝试取平均值）
-    TOTAL=0
-    SUCCESS=0
-    for i in {1..3}; do
-        LATENCY=$(curl -o /dev/null -s -w "%{time_total}\n" "${DOMAINS[$DOMAIN]}" 2>/dev/null)
-        if [ $? -eq 0 ]; then
-            TOTAL=$(awk "BEGIN {print $TOTAL + $LATENCY}")
-            SUCCESS=$((SUCCESS + 1))
-        fi
-    done
-    
-    if [ $SUCCESS -gt 0 ]; then
-        AVG=$(awk "BEGIN {printf \"%.3f\", $TOTAL / $SUCCESS}")
-        LATENCIES[$DOMAIN]=$AVG
-        echo "$DOMAIN 平均延迟: ${AVG}s"
-    else
-        LATENCIES[$DOMAIN]=999999
-        echo "$DOMAIN 无法连接"
-    fi
+    test_domain_latency "$DOMAIN" "${DOMAINS[$DOMAIN]}" "$RESULTS_FILE" &
 done
 
-# 构建完整的下载URL列表（按延迟排序）
+# 等待所有测试完成
+wait
+
+# 读取并排序结果
+SORTED_DOMAINS=($(sort -n "$RESULTS_FILE" | cut -d' ' -f2))
+
+# 构建下载URL列表
 declare -a SOURCES
-for DOMAIN in "${!LATENCIES[@]}"; do
+for DOMAIN in "${SORTED_DOMAINS[@]}"; do
     if [ "$DOMAIN" = "github.com" ]; then
-        SOURCES+=("${LATENCIES[$DOMAIN]} https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME")
+        SOURCES+=("https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME")
     else
-        SOURCES+=("${LATENCIES[$DOMAIN]} ${DOMAINS[$DOMAIN]}/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME")
+        SOURCES+=("${DOMAINS[$DOMAIN]}/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME")
     fi
 done
-
-# 排序下载源（按延迟）
-IFS=$'\n' SORTED_SOURCES=($(sort -n <<<"${SOURCES[*]}"))
-unset IFS
 
 # 定义重试次数
 MAX_RETRIES=3
 
-# 遍历排序后的下载源列表，尝试下载
-for SOURCE in "${SORTED_SOURCES[@]}"; do
-    # 提取URL（移除延迟值）
-    URL=$(echo "$SOURCE" | cut -d' ' -f2-)
+# 尝试从排序后的源下载
+for URL in "${SOURCES[@]}"; do
     echo "尝试从延迟最低的源下载: $URL"
     RETRY_COUNT=0
     while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
@@ -114,6 +125,9 @@ for SOURCE in "${SORTED_SOURCES[@]}"; do
         echo "从 $URL 下载失败，尝试下一个下载源..."
     fi
 done
+
+# 清理临时文件
+rm -rf "$TEMP_DIR"
 
 # 如果所有下载源均失败，退出
 if [ ! -f "$FILENAME" ]; then
@@ -132,4 +146,6 @@ chmod +x CloudflareST
 
 echo "设置完成！"
 
-rm setup_cloudflarest.sh
+echo "使用bash cf进入主菜单"
+
+rm setup_cloudflarest.sh cfopw.sh
