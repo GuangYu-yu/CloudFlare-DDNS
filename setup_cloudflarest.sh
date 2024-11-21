@@ -20,15 +20,26 @@ case "$ARCH" in
         exit 1 ;;
 esac
 
-# 获取最新版本号
-LATEST_VERSION=$(curl -s https://api.github.com/repos/XIU2/CloudflareSpeedTest/releases/latest | grep 'tag_name' | cut -d '"' -f 4)
+# 获取最新版本信息
+RELEASE_API="https://api.github.com/repos/XIU2/CloudflareSpeedTest/releases/latest"
+release_info=$(curl -s "$RELEASE_API")
+LATEST_VERSION=$(echo "$release_info" | jq -r '.tag_name')
+
 if [ -z "$LATEST_VERSION" ]; then
-    echo "无法从 GitHub 获取最新版本信息"
+    echo "无法从 GitHub API 获取版本信息"
     exit 1
 fi
 
-# 下载的压缩包文件名
+# 设置下载文件名
 FILENAME="CloudflareST_linux_${FILE_SUFFIX}.tar.gz"
+
+# 获取资源ID
+asset_id=$(echo "$release_info" | jq -r ".assets[] | select(.name == \"$FILENAME\") | .id")
+
+if [ -z "$asset_id" ]; then
+    echo "无法获取资源ID"
+    exit 1
+fi
 
 # 如果文件存在，则删除
 if [ -f "$FILENAME" ]; then
@@ -36,67 +47,28 @@ if [ -f "$FILENAME" ]; then
     rm -f "$FILENAME"
 fi
 
-# 定义下载源列表
-SOURCES=(
-    "https://ghp.ci/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    "https://ghproxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    "https://cdn.jsdelivr.net/gh/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    "https://fastly.jsdelivr.net/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    "https://testingcf.jsdelivr.net/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    "https://gcore.jsdelivr.net/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    "https://originfastly.jsdelivr.net/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    "https://quantil.jsdelivr.net/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    "https://raw.staticdn.net/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    "https://raw.gitmirror.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    "https://download.scholar.rr.nu/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    "https://ghproxy.cc/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    "https://ghproxy.net/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-    "https://gh-proxy.com/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-)
-
-# 官方下载源
-OFFICIAL_SOURCE="https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME"
-
-# 定义重试次数
+# 下载文件
+echo "正在下载 $FILENAME..."
 MAX_RETRIES=3
+RETRY_COUNT=0
 
-# 遍历下载源列表，尝试下载
-for SOURCE in "${SOURCES[@]}"; do
-    echo "尝试从 $SOURCE 下载..."
-    RETRY_COUNT=0
-    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-        if wget --timeout=10 -N "$SOURCE"; then
-            echo "下载成功！"
-            break 2
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if curl -L -H "Accept: application/octet-stream" \
+        "https://api.github.com/repos/XIU2/CloudflareSpeedTest/releases/assets/$asset_id" \
+        --output "$FILENAME"; then
+        echo "下载成功！"
+        break
+    else
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+            echo "下载失败，第 $RETRY_COUNT 次重试..."
+            sleep 5
         else
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            echo "下载失败，重试第 $RETRY_COUNT 次..."
+            echo "下载失败，已达到最大重试次数"
+            exit 1
         fi
-    done
-    if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-        echo "从 $SOURCE 下载失败，尝试下一个下载源..."
     fi
 done
-
-# 如果所有其他下载源均失败，则使用官方下载源
-if [ ! -f "$FILENAME" ]; then
-    echo "所有其他下载源均不可用，尝试官方下载源: $OFFICIAL_SOURCE"
-    RETRY_COUNT=0
-    while [ $RETRY_COUNT -lt 2 ]; do
-        echo "从 $OFFICIAL_SOURCE 下载..."
-        if wget --timeout=30 -N "$OFFICIAL_SOURCE"; then
-            echo "下载成功！"
-            break
-        else
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            echo "下载失败，重试第 $RETRY_COUNT 次..."
-        fi
-    done
-    if [ $RETRY_COUNT -eq 2 ]; then
-        echo "从官方下载源下载失败，下载终止。"
-        exit 1
-    fi
-fi
 
 # 只解压出名为 CloudflareST 的文件
 tar -zxf "$FILENAME" --wildcards 'CloudflareST'
@@ -108,5 +80,3 @@ rm -f "$FILENAME"
 chmod +x CloudflareST
 
 echo "设置完成！"
-
-rm setup_cloudflarest.sh

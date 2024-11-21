@@ -1,22 +1,22 @@
 #!/bin/bash
 
-# 定义文件路径和下载 URL
+# 定义文件路径和API URL
 SETUP_SCRIPT_LOCAL="setup_cloudflarest.sh"
-SETUP_SCRIPT_URL="https://ghp.ci/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/setup_cloudflarest.sh"
+SETUP_SCRIPT_API="https://api.github.com/repos/GuangYu-yu/opw-cloudflare/contents/setup_cloudflarest.sh"
 
 RESOLVE_SCRIPT_LOCAL="cf"
-RESOLVE_SCRIPT_URL="https://ghp.ci/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cf"
+RESOLVE_SCRIPT_API="https://api.github.com/repos/GuangYu-yu/opw-cloudflare/contents/cf"
 
 START_DDNS_LOCAL="start_ddns.sh"
-START_DDNS_URL="https://ghp.ci/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/start_ddns.sh"
+START_DDNS_API="https://api.github.com/repos/GuangYu-yu/opw-cloudflare/contents/start_ddns.sh"
 
 CF_PUSH_LOCAL="cf_push.sh"
-CF_PUSH_URL="https://ghp.ci/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cf_push.sh"
+CF_PUSH_API="https://api.github.com/repos/GuangYu-yu/opw-cloudflare/contents/cf_push.sh"
 
 # 定义下载脚本的函数
 download_script() {
     local script_local=$1
-    local script_url=$2
+    local script_api=$2
     local script_name=$3
 
     MAX_RETRIES=3
@@ -25,7 +25,8 @@ download_script() {
 
     while [ $retry_count -lt $MAX_RETRIES ]; do
         echo "获取 $script_name..."
-        if curl -ksSL -o "$script_local" "$script_url"; then
+        if content=$(curl -sL "$script_api" | jq -r '.content' | base64 -d); then
+            echo "$content" > "$script_local"
             echo "$script_name 已更新。"
             chmod +x "$script_local"
             break
@@ -111,8 +112,7 @@ if [ -n "$packages" ]; then
 fi
 
 # 下载所有脚本
-
-download_script "$RESOLVE_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_URL" "cf"
+download_script "$RESOLVE_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_API" "cf"
 
 # 创建 CF 文件夹，如果存在则跳过
 mkdir -p CF
@@ -120,12 +120,12 @@ mkdir -p CF
 # 进入 CF 文件夹
 cd CF
 
-download_script "$SETUP_SCRIPT_LOCAL" "$SETUP_SCRIPT_URL" "setup_cloudflarest.sh"
+download_script "$SETUP_SCRIPT_LOCAL" "$SETUP_SCRIPT_API" "setup_cloudflarest.sh"
 
 # 执行 setup_cloudflarest.sh
 ./setup_cloudflarest.sh
 
-download_script "$START_DDNS_LOCAL" "$START_DDNS_URL" "start_ddns.sh"
-download_script "$CF_PUSH_LOCAL" "$CF_PUSH_URL" "cf_push.sh"
+download_script "$START_DDNS_LOCAL" "$START_DDNS_API" "start_ddns.sh"
+download_script "$CF_PUSH_LOCAL" "$CF_PUSH_API" "cf_push.sh"
 
 echo "通过命令bash cf进入主菜单"
