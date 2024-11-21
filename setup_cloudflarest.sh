@@ -148,4 +148,4 @@ echo "设置完成！"
 
 echo "使用bash cf进入主菜单"
 
-rm setup_cloudflarest.sh cfopw.sh
+rm setup_cloudflarest.sh
