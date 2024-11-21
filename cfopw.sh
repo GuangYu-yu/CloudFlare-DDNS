@@ -27,17 +27,17 @@ download_script() {
         echo "获取 $script_name..."
         if content=$(curl -sL "$script_api" | jq -r '.content' | base64 -d); then
             echo "$content" > "$script_local"
-            echo "$script_name 已更新。"
+            echo "$script_name 已更新"
             chmod +x "$script_local"
             break
         else
-            echo "下载 $script_name 失败。"
+            echo "下载 $script_name 失败"
             retry_count=$((retry_count + 1))
             if [ $retry_count -lt $MAX_RETRIES ]; then
                 echo "将在 $RETRY_DELAY 秒后重试..."
                 sleep $RETRY_DELAY
             else
-                echo "重试次数已达上限，退出。"
+                echo "重试次数已达上限，退出"
                 exit 1
             fi
         fi
@@ -51,9 +51,9 @@ execute_script() {
 
     echo "正在执行 $script_name..."
     if ./"$script_local"; then
-        echo "$script_name 执行完成。"
+        echo "$script_name 执行完成"
     else
-        echo "执行 $script_name 失败。"
+        echo "执行 $script_name 失败"
         exit 1
     fi
 }
@@ -67,10 +67,10 @@ check_dependency() {
     local package_name=$2
 
     if ! command -v "$dependency" &> /dev/null; then
-        echo "$dependency 未找到。将其添加到所需软件包列表中。"
+        echo "$dependency 未找到，将其添加到所需软件包列表中"
         packages="$packages $package_name"
     else
-        echo "$dependency 已安装。"
+        echo "$dependency 已安装"
     fi
 }
 
@@ -106,7 +106,7 @@ if [ -n "$packages" ]; then
         echo "使用 yum 安装软件包..."
         sudo yum install $packages
     else
-        echo "未能检测出你的系统：$(uname)，请自行安装 $packages 这些软件。"
+        echo "未能检测出你的系统：$(uname)，请自行安装 $packages 这些软件"
         exit 1
     fi
 fi
@@ -121,11 +121,8 @@ mkdir -p CF
 cd CF
 
 download_script "$SETUP_SCRIPT_LOCAL" "$SETUP_SCRIPT_API" "setup_cloudflarest.sh"
-
-# 执行 setup_cloudflarest.sh
-./setup_cloudflarest.sh
-
 download_script "$START_DDNS_LOCAL" "$START_DDNS_API" "start_ddns.sh"
 download_script "$CF_PUSH_LOCAL" "$CF_PUSH_API" "cf_push.sh"
 
-echo "通过命令bash cf进入主菜单"
+# 执行 setup_cloudflarest.sh
+./setup_cloudflarest.sh
