@@ -12,19 +12,20 @@ print_info() {
 
 # 传入变量
 add_ddns=$1
-x_email=$2
-zone_id=$3
-api_key=$4
-hostname1=$5
-hostname2=$6
-v4_num=$7
-v6_num=$8
-cf_command=$9
-v4_url=${10}
-v6_url=${11}
-push_mod=${12}
-clien=${13:-0}
-config_file="../${14}"
+ddns_name=$2
+x_email=$3
+zone_id=$4
+api_key=$5
+hostname1=$6
+hostname2=$7
+v4_num=$8
+v6_num=$9
+cf_command=${10}
+v4_url=${11}
+v6_url=${12}
+push_mod=${13}
+clien=${14:-0}
+config_file="../${15}"
 
 # 限制测速地址最大行数
 max_ipv4_lines=99999
@@ -42,11 +43,6 @@ single_attempt_timeout=3  # 单次尝试的超时时间（秒）
 
 # 定义 csvfile 变量
 csvfile="result.csv"
-
-# 删除 .csv 文件
-if ! rm -rf $csvfile; then
-    print_error "无法删除 $csvfile 文件"
-fi
 
 # 只在非"未指定"模式下组合主机名
 if [ "$add_ddns" != "未指定" ]; then
@@ -119,7 +115,6 @@ trap handle_err HUP INT TERM EXIT
 # 获取CLIEN的值
 GetProxName
 
-# 以下是cf_ddns.sh的内容
 # IPv4 地址的正则表达式，用于匹配合法的IPv4地址
 ipv4Regex="((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])"
 
@@ -191,11 +186,10 @@ RealDelDns() {
     # 发出删除请求
     rt=$(curl -s -X DELETE "${delDnsApi}/$record_id" -H "Content-Type: application/json" -H "X-Auth-Email: $x_email" -H "X-Auth-Key: $api_key")
     succ=$(echo $rt | jq -r ".success")
-    echo "从 $domain 删除旧${record_type}记录"
     if [ "$succ" = "true" ]; then
-      echo "删除成功"
+      echo "成功从 $domain 删除旧 $record_type 记录"
     else
-      echo "删除失败"
+      echo "从 $domain 删除旧 $record_type 记录失败"
     fi
   done
 }
@@ -210,13 +204,12 @@ InsertCF() {
     recordType="AAAA"  # 如果是 IPv6 地址，则记录类型为 AAAA
   fi
 
-  echo "添加 $ipAddr 到 $domain"
   createDnsApi="https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records"
   res=$(curl -s -X POST "$createDnsApi" -H "X-Auth-Email:$x_email" -H "X-Auth-Key:$api_key" -H "Content-Type:application/json" --data "{\"type\":\"$recordType\",\"name\":\"$domain\",\"content\":\"$ipAddr\",\"proxied\":$proxy}")
   resSuccess=$(echo "$res" | jq -r ".success")
 
   if [[ "$resSuccess" = "true" ]]; then
-    echo "添加成功"
+    echo "成功添加 $ipAddr 到 $domain"
     return 0
   else
     code=$(echo "$res" | jq -r ".errors[0].code")
@@ -227,7 +220,7 @@ InsertCF() {
       echo "已有 [$ipAddr] IP 记录，不做更新"
       return 0
     else
-      echo "添加失败"
+      echo "添加 $ipAddr 到 $domain失败"
       echo "错误代码: $code"
       echo "错误信息: $error_message"
       return 1
@@ -245,17 +238,14 @@ process_ip() {
 
     stop_plugin $CLIEN
 
-    # 删除旧的 $csvfile 文件
-    rm -f $csvfile
-    
     # 获取 IP 地址并随机选择
     local attempt=1
     local grep_command
 
     if [ "$ip_type" = "IPv4" ]; then
-        grep_command=(grep -v ':')
+        grep_command=(grep ".*\..*")
     else
-        grep_command=(grep ':')
+        grep_command=(grep -v ".*\..*")
     fi
 
     while (( attempt <= max_retries )); do
@@ -376,7 +366,6 @@ update_dns() {
     if [ "$add_ddns" != "未指定" ]; then
         # 删除旧记录
         for domain in "${domains[@]}"; do
-            echo "从 $domain 删除旧${record_type}记录"
             CheckDelCFDns "$domain" "$record_type"
             RealDelDns
         done
@@ -414,13 +403,16 @@ update_dns() {
     if [ "$add_ddns" != "未指定" ]; then
         # 如果不是未指定模式，添加域名和 IP 的对应关系
         for domain in "${!domain_ip_map[@]}"; do
-            echo "$domain: ${domain_ip_map[$domain]}" >> informlog
+            echo "$domain=${domain_ip_map[$domain]}" >> informlog
         done
     else
-        # 如果是未指定模式，只记录测速结果
-        for ip in "${ip_addresses[@]}"; do
-            echo "$ip" >> informlog
+        # 如果是未指定模式，将所有 IP 写入一行
+        echo -n "未指定=" >> informlog
+        printf "%s" "${ip_addresses[0]}" >> informlog
+        for ((i=1; i<${#ip_addresses[@]}; i++)); do
+            printf ",%s" "${ip_addresses[$i]}" >> informlog
         done
+        echo "" >> informlog
     fi
 }
 
@@ -436,8 +428,7 @@ process_ip_and_push() {
             # 处理消息推送
             if [ ! -z "$push_mod" ]; then
                 if [ -f informlog ]; then
-                    pushmessage=$(cat informlog)
-                    if ! ./cf_push.sh "$push_mod" "$config_file" "$pushmessage" "$hostnames" "$v4_num" "$v6_num" "$ip_type" "$csvfile"; then
+                    if ! ./cf_push.sh "$push_mod" "$config_file" "$hostnames" "$v4_num" "$v6_num" "$ip_type" "$csvfile" "$ddns_name"; then
                         print_error "${ip_type} 推送消息失败"
                     fi
                 else
@@ -460,8 +451,6 @@ main() {
     # 处理 IPv6
     process_ip_and_push "IPv6" process_ipv6 "$v6_num"
 
-    # 删除 informlog 文件和 $csvfile 文件（无论是否有更新）
-    rm -f informlog $csvfile
 }
 
 # 执行主处理逻辑

@@ -3,12 +3,12 @@
 # 传入参数
 push_mod=$1
 config_file=$2
-pushmessage=$3
-hostnames=$4
-v4_num=$5
-v6_num=$6
-ip_type=$7
-csvfile=$8
+hostnames=$3
+v4_num=$4
+v6_num=$5
+ip_type=$6
+csvfile=$7
+ddns_name=$8
 
 # 设置超时时间
 TIMEOUT=20
@@ -18,12 +18,6 @@ if [ -z "$config_file" ] || [ ! -f "$config_file" ]; then
     echo "错误：配置文件不存在或未指定"
     exit 1
 fi
-
-# 从配置文件读取推送设置
-read_push_settings() {
-    local push_id=$1
-    yq e ".push[] | select(.push_name == \"$push_mod\")" "$config_file"
-}
 
 # 检查 informlog 文件并读取内容
 if [ ! -f "./informlog" ]; then
@@ -38,7 +32,14 @@ fi
 
 # 读取 $csvfile 文件的部分
 if [ -f "$csvfile" ]; then
-    ip_count=$(($ip_type == "IPv4" ? $v4_num : $v6_num))
+    if [ "$ip_type" = "IPv4" ]; then
+        ip_count=$v4_num
+    elif [ "$ip_type" = "IPv6" ]; then
+        ip_count=$v6_num
+    else
+        ip_count=0  # 默认值，避免意外情况
+    fi
+    
     ip_info=$(awk -F',' -v domains="$hostnames" -v ip_count="$ip_count" -v ip_type="$ip_type" 'BEGIN {
         split(domains, domain_arr, " ")
         print ip_type " 地址："
@@ -236,10 +237,11 @@ for mode in "${push_modes[@]}"; do
             fi
             ;;
         "Github")  # Github 推送
-            # 获取 Github 配置
-            file_url=$(yq e ".push[] | select(.push_name == \"Github\") | .file_url" "$config_file")
-            port=$(yq e ".push[] | select(.push_name == \"Github\") | .port" "$config_file")
-            remark=$(yq e ".push[] | select(.push_name == \"Github\") | .remark" "$config_file")
+            # 获取匹配当前解析组的 Github 配置
+            file_url=$(yq e ".push[] | select(.push_name == \"Github\" and .ddns_push == \"$ddns_name\") | .file_url" "$config_file")
+            port=$(yq e ".push[] | select(.push_name == \"Github\" and .ddns_push == \"$ddns_name\") | .port" "$config_file")
+            remark=$(yq e ".push[] | select(.push_name == \"Github\" and .ddns_push == \"$ddns_name\") | .remark" "$config_file")
+            remark6=$(yq e ".push[] | select(.push_name == \"Github\" and .ddns_push == \"$ddns_name\") | .remark6" "$config_file")
 
             # 解析 Github URL
             if [[ "$file_url" =~ ^https://raw\.githubusercontent\.com/([^/]+)/([^/]+)/refs/heads/([^/]+)/(.+)\?token=(.+)$ ]]; then
@@ -252,18 +254,30 @@ for mode in "${push_modes[@]}"; do
                 continue
             fi
 
-            # 处理当前的 IP 地址
+            # 从 informlog 中提取 IP 地址部分
             processed_ips=""
-            while IFS= read -r ip; do
-                if [[ "$ip" =~ .*:.* ]]; then
-                    # IPv6 地址
-                    processed_ip="[${ip}]:${port}#${remark}"
-                else
+            while IFS='=' read -r _ ips; do
+                # 处理每个 IP
+                IFS=',' read -ra ip_array <<< "$ips"
+                for ip in "${ip_array[@]}"; do
+                if [[ "$ip" =~ .*\..* ]]; then
                     # IPv4 地址
-                    processed_ip="${ip}:${port}#${remark}"
+                    processed_ip="$ip"
+                else
+                    # IPv6 地址
+                    processed_ip="[$ip]"
                 fi
+
+                # 备注设置不为空，则添加备注
+                if [[ "$ip" =~ .*\..* ]] && [ -n "$remark" ]; then
+                    processed_ip="${processed_ip}:${port}#${remark}"
+                elif [ -n "$remark6" ]; then
+                    processed_ip="${processed_ip}:${port}#${remark6}"
+                fi
+
                 processed_ips="${processed_ips}${processed_ip}\n"
-            done < <(cat informlog)
+                done
+            done < informlog
 
             # 去除空行和重复行
             final_content=$(echo -e "$processed_ips" | sed '/^$/d' | sort -u)
@@ -289,8 +303,12 @@ for mode in "${push_modes[@]}"; do
                 # 获取现有内容并合并
                 current_content=$(echo "$CHECK_RESPONSE" | jq -r '.content' | base64 -d)
                 if [ -n "$current_content" ]; then
-                    # 从现有内容中删除相同 port 和 remark 的行
-                    filtered_content=$(echo -e "$current_content" | grep -v ":${port}#${remark}$")
+                    # 从现有内容中删除旧记录
+                    if [[ "$ip" =~ .*\..* ]] && [ -n "$remark" ]; then
+                        filtered_content=$(echo -e "$current_content" | grep -v ":${port}#${remark}$")
+                    elif [ -n "$remark6" ]; then
+                        filtered_content=$(echo -e "$current_content" | grep -v ":${port}#${remark6}$")
+                    fi
                     # 合并内容
                     new_content="${filtered_content}\n${processed_ips}"
                     # 去除空行和重复行

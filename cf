@@ -86,7 +86,7 @@ start() {
     local clien=$(yq e '.plugin.clien' "$config_file")
 
     # 运行 start_ddns.sh 并传递所有参数
-    cd CF && ./start_ddns.sh "$add_ddns" "$x_email" "$zone_id" "$api_key" "$hostname1" "$hostname2" "$v4_num" "$v6_num" "$cf_command" "$v4_url" "$v6_url" "$push_mod" "$clien" "$config_file"
+    cd CF && ./start_ddns.sh "$add_ddns" "$ddns_name" "$x_email" "$zone_id" "$api_key" "$hostname1" "$hostname2" "$v4_num" "$v6_num" "$cf_command" "$v4_url" "$v6_url" "$push_mod" "$clien" "$config_file"
 }
 
 # 检查命令行参数
@@ -1156,7 +1156,7 @@ push_settings() {
             4) manage_push "PushDeer" "pushdeer_pushkey" "" "" "" ;;
             5) manage_push "企业微信" "wechat_corpid" "wechat_secret" "wechat_agentid" "wechat_userid" ;;
             6) manage_push "Synology-Chat" "synology_chat_url" "" "" "" ;;
-            7) manage_push "Github" "file_url" "port" "remark" "" ;;
+            7) github_push_menu ;;
             8) clear_input_buffer
                main_menu ;;
             *) handle_error "无效的选项" ;;
@@ -1204,11 +1204,6 @@ manage_push() {
                     ;;
                 "Synology-Chat")
                     echo -e "Webhook URL：$(yq e ".push[] | select(.push_name == \"$push_name\") | .synology_chat_url" "$config_file")"
-                    ;;
-                "Github")
-                    echo -e "文件URL：$(yq e ".push[] | select(.push_name == \"$push_name\") | .file_url" "$config_file")"
-                    echo -e "端口：$(yq e ".push[] | select(.push_name == \"$push_name\") | .port" "$config_file")"
-                    echo -e "备注：$(yq e ".push[] | select(.push_name == \"$push_name\") | .remark" "$config_file")"
                     ;;
             esac
         else
@@ -1422,6 +1417,142 @@ delete_push_section() {
                 handle_error "无效输入"
                 ;;
         esac
+    done
+}
+
+# 添加 Github 推送菜单
+github_push_menu() {
+    while true; do
+        clear
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${YELLOW}|         Github 推送设置         |${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+        
+        # 显示当前的 Github 推送配置
+        echo -e "${CYAN}当前配置：${NC}"
+        yq e '.push[] | select(.push_name == "Github") | "解析组：\(.ddns_push)\n文件URL：\(.file_url)\n端口：\(.port)\nIPv4备注：\(.remark)\nIPv6备注：\(.remark6)\n"' "$config_file" || echo "暂无配置"
+        
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${CYAN}1. 添加条目${NC}"
+        echo -e "${CYAN}2. 删除条目${NC}"
+        echo -e "${CYAN}3. 返回上级${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+
+        read -p "请选择 (1-3): " choice
+
+        case $choice in
+            1) add_github_push ;;
+            2) delete_github_push ;;
+            3) clear_input_buffer
+               push_settings ;;
+            *) handle_error "无效的选项" ;;
+        esac
+    done
+}
+
+# 添加 Github 推送配置
+add_github_push() {
+    clear
+    echo -e "${YELLOW}===================================${NC}"
+    echo -e "${YELLOW}|       添加 Github 推送          |${NC}"
+    echo -e "${YELLOW}===================================${NC}"
+    
+    while true; do
+        read -p "请输入解析组名称（留空则返回上级）：" ddns_push
+        if [ -z "$ddns_push" ]; then
+            return
+        fi
+
+        # 验证解析组是否存在
+        if ! yq e ".resolve[] | select(.ddns_name == \"$ddns_push\") | .ddns_name" "$config_file" | grep -q .; then
+            handle_error "解析组不存在"
+            continue
+        fi
+        break
+    done
+
+    while true; do
+        read -p "请输入文件URL：" file_url
+        if [ -z "$file_url" ]; then
+            handle_error "URL 不能为空"
+            continue
+        fi
+        break
+    done
+
+    while true; do
+        read -p "请输入端口：" port
+        if ! [[ "$port" =~ ^[0-9]+$ ]]; then
+            handle_error "端口必须是数字"
+            continue
+        fi
+        if [ -z "$file_url" ]; then
+            handle_error "端口不能为空"
+            continue
+        fi
+        break
+    done
+
+    while true; do
+        read -p "请输入IPv4备注（留空则不设置）：" remark
+        break
+    done
+    
+    while true; do
+        read -p "请输入IPv6备注（留空则不设置）：" remark6
+        break
+    done
+
+    # 添加配置
+    yq e -i ".push = (.push // []) + [{\"push_name\": \"Github\", \"ddns_push\": \"$ddns_push\", \"file_url\": \"$file_url\", \"port\": \"$port\", \"remark\": \"$remark\", \"remark6\": \"$remark6\"}]" "$config_file"
+    echo -e "${GREEN}Github 推送配置已添加！${NC}"
+    sleep 1
+}
+
+# 删除 Github 推送配置
+delete_github_push() {
+    echo -e "${YELLOW}===================================${NC}"
+    echo -e "${YELLOW}|       删除 Github 推送          |${NC}"
+    echo -e "${YELLOW}===================================${NC}"
+
+    # 显示现有的 Github 推送配置
+    echo -e "${CYAN}现有的 Github 推送配置：${NC}"
+    yq e '.push[] | select(.push_name == "Github") | "解析组：\(.ddns_push) IPv4备注：\(.remark) IPv6备注：\(.remark6)"' "$config_file"
+    echo -e "${YELLOW}===================================${NC}"
+
+    while true; do
+        read -p "请输入要删除的推送条目备注（留空则返回上级）：" del_remark
+        if [ -z "$del_remark" ]; then
+            return
+        fi
+    
+        # 验证该备注的 Github 推送是否存在
+        if ! yq e ".push[] | select(.push_name == \"Github\" and (.remark == \"$del_remark\" or .remark6 == \"$del_remark\"))" "$config_file" | grep -q .; then
+            handle_error "未找到该备注的 Github 推送配置"
+            continue
+        fi
+    
+        # 确认删除
+        while true; do
+            read -p "确认删除该推送配置？(y/n): " confirm
+            case $confirm in
+                [yY]) 
+                    yq e -i "del(.push[] | select(.push_name == \"Github\" and (.remark == \"$del_remark\" or .remark6 == \"$del_remark\")))" "$config_file"
+                    echo -e "${GREEN}Github 推送配置已删除！${NC}"
+                    sleep 1
+                    break
+                    ;;
+                [nN])
+                    echo -e "${YELLOW}取消删除操作${NC}"
+                    sleep 1
+                    break
+                    ;;
+                *)
+                    handle_error "无效输入"
+                    ;;
+            esac
+        done
+        break
     done
 }
 
