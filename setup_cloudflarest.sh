@@ -49,7 +49,7 @@ test_domain_latency() {
     TOTAL=0
     SUCCESS=0
     for i in {1..3}; do
-        LATENCY=$(curl -o /dev/null -s -w "%{time_total}\n" "$URL" 2>/dev/null)
+        LATENCY=$(curl --max-time 5 -o /dev/null -s -w "%{time_total}\n" "$URL" 2>/dev/null)
         if [ $? -eq 0 ]; then
             TOTAL=$(awk "BEGIN {print $TOTAL + $LATENCY}")
             SUCCESS=$((SUCCESS + 1))
