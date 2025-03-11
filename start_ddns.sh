@@ -28,17 +28,17 @@ clien=${14:-0}
 config_file="../${15}"
 
 # 限制测速地址最大行数
-max_ipv4_lines=99999
-max_ipv6_lines=99999
+max_ipv4_lines=1000000
+max_ipv6_lines=1000000
 
 # 登录重试设置
 max_login_retries=10 # 最大重试次数
-login_retry_delay=1 # 重试延迟时间
+login_retry_delay=2 # 重试延迟时间
 max_single_login_time=5 # 单次登录最大等待时间（秒）
 
 # 处理Ipv4和Ipv6的URL重试参数
-max_retries=10 # 最大重试次数
-retry_delay=1 # 重试延迟时间
+max_retries=5 # 最大重试次数
+retry_delay=2 # 重试延迟时间
 single_attempt_timeout=3  # 单次尝试的超时时间（秒）
 
 # 定义 csvfile 变量
