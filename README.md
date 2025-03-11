@@ -24,15 +24,13 @@
 使用 GitLab 地址（推荐）
 ```curl -ksSL https://gitlab.com/GuangYu-yu/opw-cloudflare/-/raw/main/cfopw.sh | bash```
 
-使用 Github api 地址（需要jq依赖）
+使用 Github api 地址（需要安装 `jq` ）
 ```curl -s "https://api.github.com/repos/GuangYu-yu/opw-cloudflare/contents/cfopw.sh" | jq -r '.content' | base64 -d | bash```
 
 使用 GitHub raw 地址（可能需要代理）
 ```curl -ksSL https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cfopw.sh | bash```
 
 使用 GitHub 镜像地址（推荐）
-
-```curl -ksSL https://ghp.ci/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cfopw.sh | bash```
 
 ```curl -ksSL https://gh-proxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cfopw.sh | bash```
 
