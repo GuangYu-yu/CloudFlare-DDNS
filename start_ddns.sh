@@ -238,31 +238,36 @@ process_ip() {
 
     stop_plugin $CLIEN
 
-    # 获取 IP 地址并随机选择
-    local attempt=1
-    local grep_command
-
-    if [ "$ip_type" = "IPv4" ]; then
-        grep_command=(grep ".*\..*")
+    # 检查URL是否为空
+    if [ -z "$url" ]; then
+        print_info "URL为空，跳过${ip_type}地址下载，直接运行CloudflareST"
     else
-        grep_command=(grep -v ".*\..*")
-    fi
+        # 获取 IP 地址并随机选择
+        local attempt=1
+        local grep_command
 
-    while (( attempt <= max_retries )); do
-        response=$(timeout $single_attempt_timeout curl -sL "$url")
-        if [ $? -eq 0 ]; then
-            echo "$response" | "${grep_command[@]}" | awk 'BEGIN {srand()} {print rand() "\t" $0}' | sort -n | cut -f2- | head -n "$max_lines" > ip.txt
-            break  # 成功则跳出循环
+        if [ "$ip_type" = "IPv4" ]; then
+            grep_command=(grep ".*\..*")
         else
-            print_error "获取 ${ip_type} 地址失败，重试 $attempt 次..."
-            ((attempt++))
-            sleep $retry_delay
+            grep_command=(grep -v ".*\..*")
         fi
-    done
 
-    if (( attempt > max_retries )); then
-        print_error "获取 ${ip_type} 地址失败，已达到最大重试次数"
-        return 1
+        while (( attempt <= max_retries )); do
+            response=$(timeout $single_attempt_timeout curl -sL "$url")
+            if [ $? -eq 0 ]; then
+                echo "$response" | "${grep_command[@]}" | awk 'BEGIN {srand()} {print rand() "\t" $0}' | sort -n | cut -f2- | head -n "$max_lines" > ip.txt
+                break  # 成功则跳出循环
+            else
+                print_error "获取 ${ip_type} 地址失败，重试 $attempt 次..."
+                ((attempt++))
+                sleep $retry_delay
+            fi
+        done
+
+        if (( attempt > max_retries )); then
+            print_error "获取 ${ip_type} 地址失败，已达到最大重试次数"
+            return 1
+        fi
     fi
     
     print_info "./CloudflareST $cf_command -dn $cf_num -p $cf_num"
