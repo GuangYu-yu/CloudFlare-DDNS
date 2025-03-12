@@ -21,9 +21,6 @@
 
 选择其中一条来首次运行
 
-使用 GitLab 地址（推荐）
-```curl -ksSL https://gitlab.com/GuangYu-yu/opw-cloudflare/-/raw/main/cfopw.sh | bash```
-
 使用 Github api 地址（需要安装 `jq` ）
 ```curl -s "https://api.github.com/repos/GuangYu-yu/opw-cloudflare/contents/cfopw.sh" | jq -r '.content' | base64 -d | bash```
 
