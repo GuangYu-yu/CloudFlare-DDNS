@@ -238,24 +238,37 @@ process_ip() {
 
     stop_plugin $CLIEN
 
+    # 设置 grep 命令，用于筛选 IP 类型
+    local grep_command
+    if [ "$ip_type" = "IPv4" ]; then
+        grep_command=(grep ".*\..*")
+    else
+        grep_command=(grep -v ".*\..*")
+    fi
+
+    # 定义随机选择 IP 的函数
+    random_select_ip() {
+        local input="$1"
+        local output="$2"
+        local max="$3"
+        echo "$input" | "${grep_command[@]}" | awk 'BEGIN {srand()} {print rand() "\t" $0}' | sort -n | cut -f2- | head -n "$max" > "$output"
+    }
+
     # 检查URL是否为空
     if [ -z "$url" ]; then
         print_info "URL为空，跳过${ip_type}地址下载，直接运行CloudflareST"
+        # 如果 ip.txt 存在且不为空，对其进行随机选择
+        if [ -f ip.txt ] && [ -s ip.txt ]; then
+            random_select_ip "$(cat ip.txt)" "ip.txt" "$max_lines"
+        fi
     else
         # 获取 IP 地址并随机选择
         local attempt=1
-        local grep_command
-
-        if [ "$ip_type" = "IPv4" ]; then
-            grep_command=(grep ".*\..*")
-        else
-            grep_command=(grep -v ".*\..*")
-        fi
 
         while (( attempt <= max_retries )); do
             response=$(timeout $single_attempt_timeout curl -sL "$url")
             if [ $? -eq 0 ]; then
-                echo "$response" | "${grep_command[@]}" | awk 'BEGIN {srand()} {print rand() "\t" $0}' | sort -n | cut -f2- | head -n "$max_lines" > ip.txt
+                random_select_ip "$response" "ip.txt" "$max_lines"
                 break  # 成功则跳出循环
             else
                 print_error "获取 ${ip_type} 地址失败，重试 $attempt 次..."
