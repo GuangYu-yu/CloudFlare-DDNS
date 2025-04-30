@@ -2,16 +2,16 @@
 
 # 定义文件路径和API URL
 SETUP_SCRIPT_LOCAL="setup_cloudflarest.sh"
-SETUP_SCRIPT_API="https://cdn.jsdelivr.net/gh/GuangYu-yu/opw-cloudflare/raw/refs/heads/main/setup_cloudflarest.sh"
+SETUP_SCRIPT_API="https://ghfast.top/https://github.com/GuangYu-yu/opw-cloudflare/raw/refs/heads/main/setup_cloudflarest.sh"
 
 RESOLVE_SCRIPT_LOCAL="cf"
-RESOLVE_SCRIPT_API="https://cdn.jsdelivr.net/gh/GuangYu-yu/opw-cloudflare/raw/refs/heads/main/cf"
+RESOLVE_SCRIPT_API="https://ghfast.top/https://github.com/GuangYu-yu/opw-cloudflare/raw/refs/heads/main/cf"
 
 START_DDNS_LOCAL="start_ddns.sh"
-START_DDNS_API="https://cdn.jsdelivr.net/gh/GuangYu-yu/opw-cloudflare/raw/refs/heads/main/start_ddns.sh"
+START_DDNS_API="https://ghfast.top/https://github.com/GuangYu-yu/opw-cloudflare/raw/refs/heads/main/start_ddns.sh"
 
 CF_PUSH_LOCAL="cf_push.sh"
-CF_PUSH_API="https://cdn.jsdelivr.net/gh/GuangYu-yu/opw-cloudflare/raw/refs/heads/main/cf_push.sh"
+CF_PUSH_API="https://ghfast.top/https://github.com/GuangYu-yu/opw-cloudflare/raw/refs/heads/main/cf_push.sh"
 
 # 定义下载脚本的函数
 download_script() {
