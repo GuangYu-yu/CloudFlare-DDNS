@@ -19,9 +19,20 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y shc
         
-    - name: 编译wrapper脚本
+    - name: 合并并编译脚本
       run: |
-        shc -f wrapper.sh -o cf-ddns
+        # 创建临时合并文件
+        {
+          echo '#!/bin/bash'
+          echo 'case "$1" in'
+          echo '  "start") shift; . ./start_ddns.sh "$@" ;;'
+          echo '  "push") shift; . ./cf_push.sh "$@" ;;'
+          echo '  *) . ./cf "$@" ;;'
+          echo 'esac'
+        } > merged_temp.sh
+        
+        # 编译合并后的文件
+        shc -f merged_temp.sh -o cf-ddns
         chmod +x cf-ddns
         
     - name: 打包成品
