@@ -7,9 +7,11 @@ ARCH=$(uname -m)
 case "$ARCH" in
     x86_64) 
         FILENAME="CloudflareST-Rust_linux_amd64.tar.gz"
+        DOWNLOAD_URL="https://gitee.com/zhxdcyy/cfurl/raw/master/CloudflareST-Rust_linux_amd64.tar.gz"
         ;;
     aarch64) 
         FILENAME="CloudflareST-Rust_linux_arm64.tar.gz"
+        DOWNLOAD_URL="https://gitee.com/zhxdcyy/cfurl/raw/master/CloudflareST-Rust_linux_arm64.tar.gz"
         ;;
     *)
         echo "不支持的架构: $ARCH"
@@ -22,93 +24,19 @@ if [ -f "$FILENAME" ]; then
     rm -f "$FILENAME"
 fi
 
-# 创建临时文件存储延迟测试结果
-TEMP_DIR=$(mktemp -d)
-RESULTS_FILE="$TEMP_DIR/results"
-
-# 测试单个域名的延迟的函数
-test_domain_latency() {
-    local DOMAIN=$1
-    local URL=$2
-    local OUTPUT_FILE=$3
-    
-    TOTAL=0
-    SUCCESS=0
-    for i in {1..3}; do
-        LATENCY=$(curl --max-time 5 -o /dev/null -s -w "%{time_total}\n" "$URL" 2>/dev/null)
-        if [ $? -eq 0 ]; then
-            TOTAL=$(awk "BEGIN {print $TOTAL + $LATENCY}")
-            SUCCESS=$((SUCCESS + 1))
-        fi
-    done
-    
-    if [ $SUCCESS -gt 0 ]; then
-        AVG=$(awk "BEGIN {printf \"%.3f\", $TOTAL / $SUCCESS}")
-        echo "$AVG $DOMAIN" >> "$OUTPUT_FILE"
-        echo "$DOMAIN 平均延迟: ${AVG}s"
-    else
-        echo "999999 $DOMAIN" >> "$OUTPUT_FILE"
-        echo "$DOMAIN 无法连接"
-    fi
-}
-
-# 定义下载源列表
-declare -A DOMAINS=(
-    ["quantil.jsdelivr.net"]="https://quantil.jsdelivr.net"
-    ["fastly.jsdelivr.net"]="https://fastly.jsdelivr.net"
-    ["raw.staticdn.net"]="https://raw.staticdn.net"
-    ["gh-proxy.com"]="https://gh-proxy.com"
-    ["raw.gitmirror.com"]="https://raw.gitmirror.com"
-    ["ghproxy.cc"]="https://ghproxy.cc"
-    ["ghproxy.com"]="https://ghproxy.com"
-    ["ghproxy.net"]="https://ghproxy.net"
-    ["gcore.jsdelivr.net"]="https://gcore.jsdelivr.net"
-    ["ghp.ci"]="https://ghp.ci"
-    ["github.com"]="https://github.com"
-    ["testingcf.jsdelivr.net"]="https://testingcf.jsdelivr.net"
-    ["raw.gitmirror.com"]="https://raw.gitmirror.com"
-)
-
-# 并发测试所有域名的延迟
-echo "并发测试下载源延迟中..."
-for DOMAIN in "${!DOMAINS[@]}"; do
-    test_domain_latency "$DOMAIN" "${DOMAINS[$DOMAIN]}" "$RESULTS_FILE" &
-done
-
-# 等待所有测试完成
-wait
-
-# 读取并排序结果
-SORTED_DOMAINS=($(sort -n "$RESULTS_FILE" | cut -d' ' -f2))
-
-# 构建下载URL列表
-declare -a SOURCES
-for DOMAIN in "${SORTED_DOMAINS[@]}"; do
-    if [ "$DOMAIN" = "github.com" ]; then
-        SOURCES+=("https://github.com/GuangYu-yu/CloudflareST-Rust/releases/latest/download/$FILENAME")
-    else
-        SOURCES+=("${DOMAINS[$DOMAIN]}/https://github.com/GuangYu-yu/CloudflareST-Rust/releases/latest/download/$FILENAME")
-    fi
-done
-
 # 定义重试次数
 MAX_RETRIES=3
+RETRY_COUNT=0
 
-# 尝试从排序后的源下载
-for URL in "${SOURCES[@]}"; do
-    echo "尝试从延迟最低的源下载: $URL"
-    RETRY_COUNT=0
-    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-        if curl --max-time 10 -O "$URL"; then
-            echo "下载成功！"
-            break 2
-        else
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            echo "下载失败，重试第 $RETRY_COUNT 次..."
-        fi
-    done
-    if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-        echo "从 $URL 下载失败，尝试下一个下载源..."
+# 尝试从gitee下载
+echo "尝试从gitee下载: $DOWNLOAD_URL"
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if curl --max-time 10 -O "$DOWNLOAD_URL"; then
+        echo "下载成功！"
+        break
+    else
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        echo "下载失败，重试第 $RETRY_COUNT 次..."
     fi
 done
 
@@ -121,8 +49,8 @@ if [ ! -f "$FILENAME" ]; then
     exit 1
 fi
 
-# 只解压出名为 CloudflareST 的文件
-tar -zxf "$FILENAME" --wildcards 'CloudflareST-Rust'
+# 解压
+tar -zxf "$FILENAME" && rm -f "$FILENAME"
 
 # 删除压缩包
 rm -f "$FILENAME"
