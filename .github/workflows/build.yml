@@ -41,7 +41,7 @@ jobs:
         cp cf-ddns dist/
         
     - name: 上传构建结果
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: cf-ddns-bin
         path: dist/
