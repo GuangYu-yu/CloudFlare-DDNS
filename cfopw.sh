@@ -49,8 +49,8 @@ if [ ! -f "$FILENAME" ]; then
     exit 1
 fi
 
-# 只解压出名为 CloudflareST 的文件
-tar -zxf "$FILENAME" --wildcards 'CloudflareST-Rust'
+# 解压
+tar -zxf "$FILENAME" && rm -f "$FILENAME"
 
 # 删除压缩包
 rm -f "$FILENAME"
