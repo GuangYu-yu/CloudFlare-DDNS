@@ -13,11 +13,6 @@ jobs:
     
     steps:
     - uses: actions/checkout@v3
-    
-    - name: 安装shc编译器
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y shc
         
     - name: 合并并编译脚本
       run: |
