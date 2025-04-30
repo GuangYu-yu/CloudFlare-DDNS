@@ -99,7 +99,7 @@ for URL in "${SOURCES[@]}"; do
     echo "尝试从延迟最低的源下载: $URL"
     RETRY_COUNT=0
     while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-        if wget --timeout=10 -N "$URL"; then
+        if curl --max-time 10 -O "$URL"; then
             echo "下载成功！"
             break 2
         else
