@@ -256,7 +256,7 @@ process_ip() {
 
     # 检查URL是否为空
     if [ -z "$url" ]; then
-        print_info "URL为空，跳过${ip_type}地址下载，直接运行CloudflareST"
+        print_info "URL为空，跳过${ip_type}地址下载，直接运行CloudflareST-Rust"
         # 如果 ip.txt 存在且不为空，对其进行随机选择
         if [ -f ip.txt ] && [ -s ip.txt ]; then
             random_select_ip "$(cat ip.txt)" "ip.txt" "$max_lines"
@@ -283,10 +283,10 @@ process_ip() {
         fi
     fi
     
-    print_info "./CloudflareST $cf_command -dn $cf_num -p $cf_num"
+    print_info "./CloudflareST-Rust $cf_command -dn $cf_num -p $cf_num"
 
-    if ! ./CloudflareST $cf_command -dn $cf_num -p $cf_num; then
-        print_error "CloudflareST 执行失败"
+    if ! ./CloudflareST-Rust $cf_command -dn $cf_num -p $cf_num; then
+        print_error "CloudflareST-Rust 执行失败"
         return 1
     fi
 

@@ -114,12 +114,6 @@ fi
 # 下载所有脚本
 download_script "$RESOLVE_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_API" "cf"
 
-# 创建 CF 文件夹，如果存在则跳过
-mkdir -p CF
-
-# 进入 CF 文件夹
-cd CF
-
 download_script "$SETUP_SCRIPT_LOCAL" "$SETUP_SCRIPT_API" "setup_cloudflarest.sh"
 download_script "$START_DDNS_LOCAL" "$START_DDNS_API" "start_ddns.sh"
 download_script "$CF_PUSH_LOCAL" "$CF_PUSH_API" "cf_push.sh"

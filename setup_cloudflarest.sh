@@ -5,30 +5,16 @@ ARCH=$(uname -m)
 
 # 根据系统架构选择相应的文件名
 case "$ARCH" in
-    x86_64) FILE_SUFFIX="amd64" ;;
-    i386|i686) FILE_SUFFIX="386" ;;
-    aarch64) FILE_SUFFIX="arm64" ;;
-    armv5*) FILE_SUFFIX="armv5" ;;
-    armv6*) FILE_SUFFIX="armv6" ;;
-    armv7*) FILE_SUFFIX="armv7" ;;
-    mips) FILE_SUFFIX="mips" ;;
-    mips64) FILE_SUFFIX="mips64" ;;
-    mipsle) FILE_SUFFIX="mipsle" ;;
-    mips64le) FILE_SUFFIX="mips64le" ;;
+    x86_64) 
+        FILENAME="CloudflareST-Rust_linux_amd64.tar.gz"
+        ;;
+    aarch64) 
+        FILENAME="CloudflareST-Rust_linux_arm64.tar.gz"
+        ;;
     *)
         echo "不支持的架构: $ARCH"
         exit 1 ;;
 esac
-
-# 获取最新版本号
-LATEST_VERSION=$(curl -s https://api.github.com/repos/XIU2/CloudflareSpeedTest/releases/latest | grep 'tag_name' | cut -d '"' -f 4)
-if [ -z "$LATEST_VERSION" ]; then
-    echo "无法从 GitHub 获取最新版本信息"
-    exit 1
-fi
-
-# 下载的压缩包文件名
-FILENAME="CloudflareST_linux_${FILE_SUFFIX}.tar.gz"
 
 # 如果文件存在，则删除
 if [ -f "$FILENAME" ]; then
@@ -99,9 +85,9 @@ SORTED_DOMAINS=($(sort -n "$RESULTS_FILE" | cut -d' ' -f2))
 declare -a SOURCES
 for DOMAIN in "${SORTED_DOMAINS[@]}"; do
     if [ "$DOMAIN" = "github.com" ]; then
-        SOURCES+=("https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME")
+        SOURCES+=("https://github.com/GuangYu-yu/CloudflareST-Rust/releases/latest/download/$FILENAME")
     else
-        SOURCES+=("${DOMAINS[$DOMAIN]}/https://github.com/XIU2/CloudflareSpeedTest/releases/download/$LATEST_VERSION/$FILENAME")
+        SOURCES+=("${DOMAINS[$DOMAIN]}/https://github.com/GuangYu-yu/CloudflareST-Rust/releases/latest/download/$FILENAME")
     fi
 done
 
@@ -136,13 +122,13 @@ if [ ! -f "$FILENAME" ]; then
 fi
 
 # 只解压出名为 CloudflareST 的文件
-tar -zxf "$FILENAME" --wildcards 'CloudflareST'
+tar -zxf "$FILENAME" --wildcards 'CloudflareST-Rust'
 
 # 删除压缩包
 rm -f "$FILENAME"
 
 # 赋予执行权限
-chmod +x CloudflareST
+chmod +x CloudflareST-Rust
 
 echo "设置完成！"
 
