@@ -25,8 +25,7 @@ download_script() {
 
     while [ $retry_count -lt $MAX_RETRIES ]; do
         echo "获取 $script_name..."
-        if content=$(curl -sL "$script_api" | jq -r '.content' | base64 -d); then
-            echo "$content" > "$script_local"
+        if curl -sL "$script_api" -o "$script_local"; then
             echo "$script_name 已更新"
             chmod +x "$script_local"
             break
