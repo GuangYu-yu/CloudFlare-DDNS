@@ -49,6 +49,7 @@ if [ -f "$csvfile" ]; then
             ips[NR-1] = $1
             latency[NR-1] = $5
             speed[NR-1] = $6
+            datacenter[NR-1] = $7
             count++
         }
     }
@@ -63,6 +64,9 @@ if [ -f "$csvfile" ]; then
         print "━━━━━━━━━━━━━━━━━━━"
         print "下载速度："
         for (i=1; i<=count; i++) print speed[i] " MB/s"
+        print "━━━━━━━━━━━━━━━━━━━"
+        print "数据中心："
+        for (i=1; i<=count; i++) print datacenter[i]
     }' "$csvfile")
     message_text="${ip_info}"
 else
