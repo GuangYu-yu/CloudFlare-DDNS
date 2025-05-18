@@ -60,6 +60,4 @@ chmod +x CloudflareST-Rust
 
 echo "设置完成！"
 
-echo "使用bash cf进入主菜单"
-
 rm setup_cloudflarest.sh
