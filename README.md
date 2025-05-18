@@ -1,10 +1,6 @@
-# opw-cloudflare
-
-通过 OpenWrt 优选 IP 并解析到 Cloudflare
-
 ## 简介
 
-通过 OpenWrt 路由器优选 Cloudflare 的 IP 地址,并将其自动更新到 Cloudflare DNS 记录中
+通过测试和选择速度最快的 Cloudflare IP 地址，并使用这些优化的 IP 自动更新 Cloudflare DNS 记录，从而优化对 Cloudflare 服务的访问。主要针对 OpenWrt 路由器，但也可在各种 Linux 环境中运行。
 
 ## 脚本功能
 
