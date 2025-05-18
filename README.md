@@ -22,6 +22,7 @@
 选择其中一条来首次运行
 
 使用 Github api 地址（需要安装 `jq` `base64`）
+
 ```curl -s "https://api.github.com/repos/GuangYu-yu/opw-cloudflare/contents/cfopw.sh" | jq -r '.content' | base64 -d | bash```
 
 使用 GitHub raw 地址
