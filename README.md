@@ -27,9 +27,7 @@
 使用 GitHub raw 地址
 ```curl -ksSL https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cfopw.sh | bash```
 
-使用 GitHub 镜像地址（推荐）
-
-```curl -ksSL https://gh-proxy.com/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cfopw.sh | bash```
+使用 GitHub 镜像地址
 
 ```curl -ksSL https://ghproxy.cc/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cfopw.sh | bash```
 
