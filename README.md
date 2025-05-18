@@ -2,6 +2,8 @@
 
 通过测试和选择速度最快的 Cloudflare IP 地址，并使用这些优化的 IP 自动更新 Cloudflare DNS 记录，从而优化对 Cloudflare 服务的访问。主要针对 OpenWrt 路由器，但也可在各种 Linux 环境中运行。
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/GuangYu-yu/opw-cloudflare)
+
 ## 脚本功能
 
 - 自动测速 Cloudflare IP
