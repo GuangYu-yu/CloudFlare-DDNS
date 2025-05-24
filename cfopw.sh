@@ -41,19 +41,13 @@ download_script() {
     done
 }
 
-# 定义执行脚本的函数
-execute_script() {
-    local script_local=$1
-    local script_name=$2
+# 下载所有脚本
+download_script "$RESOLVE_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_API" "cf"
+download_script "$START_DDNS_LOCAL" "$START_DDNS_API" "start_ddns.sh"
+download_script "$CF_PUSH_LOCAL" "$CF_PUSH_API" "cf_push.sh"
 
-    echo "正在执行 $script_name..."
-    if ./"$script_local"; then
-        echo "$script_name 执行完成"
-    else
-        echo "执行 $script_name 失败"
-        exit 1
-    fi
-}
+# 执行 setup_cloudflarest.sh
+curl -ksSL https://gitee.com/zhxdcyy/sh/raw/master/setup_cloudflarest.sh | bash
 
 # 初始化包列表
 packages=""
@@ -126,11 +120,3 @@ if [ -n "$packages" ]; then
         exit 1
     fi
 fi
-
-# 下载所有脚本
-download_script "$RESOLVE_SCRIPT_LOCAL" "$RESOLVE_SCRIPT_API" "cf"
-download_script "$START_DDNS_LOCAL" "$START_DDNS_API" "start_ddns.sh"
-download_script "$CF_PUSH_LOCAL" "$CF_PUSH_API" "cf_push.sh"
-
-# 执行 setup_cloudflarest.sh
-curl -ksSL https://gitee.com/zhxdcyy/sh/raw/master/setup_cloudflarest.sh | bash
