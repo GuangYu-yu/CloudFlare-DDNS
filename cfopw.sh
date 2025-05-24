@@ -93,7 +93,11 @@ fi
 if [ -n "$packages" ]; then
     echo "需要安装以下软件包: $packages"
 
-    if command -v apt-get >/dev/null 2>&1; then
+    if command -v pkg >/dev/null 2>&1; then
+        echo "检测到 pkg，使用 pkg 安装"
+        pkg update
+        pkg install $packages
+    elif command -v apt-get >/dev/null 2>&1; then
         echo "检测到 apt-get，使用 apt-get 安装"
         sudo apt-get update
         sudo apt-get install -y $packages
@@ -117,10 +121,6 @@ if [ -n "$packages" ]; then
         echo "检测到 opkg，使用 opkg 安装"
         opkg update
         opkg install $packages
-    elif command -v pkg >/dev/null 2>&1; then
-        echo "检测到 pkg，使用 pkg 安装"
-        pkg update
-        pkg install $packages
     else
         echo "未检测到已知的包管理器，请手动安装: $packages"
         exit 1
