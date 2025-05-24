@@ -43,12 +43,6 @@ done
 # 清理临时文件
 rm -rf "$TEMP_DIR"
 
-# 如果所有下载源均失败，退出
-if [ ! -f "$FILENAME" ]; then
-    echo "所有下载源均不可用，下载终止。"
-    exit 1
-fi
-
 # 解压
 tar -zxf "$FILENAME" && rm -f "$FILENAME"
 
