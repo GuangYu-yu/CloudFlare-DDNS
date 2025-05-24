@@ -28,8 +28,7 @@ fi
 MAX_RETRIES=3
 RETRY_COUNT=0
 
-# 尝试从gitee下载
-echo "尝试从gitee下载: $DOWNLOAD_URL"
+# 下载
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     if curl --max-time 10 -O "$DOWNLOAD_URL"; then
         echo "下载成功！"
