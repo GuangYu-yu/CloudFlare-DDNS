@@ -72,51 +72,7 @@ check_dependency "sed" "sed"
 check_dependency "awk" "gawk"
 check_dependency "tr" "coreutils"
 
-# 先单独安装 timeout (针对 OpenWrt)
-if ! command -v timeout >/dev/null 2>&1; then
-    if command -v opkg >/dev/null 2>&1; then
-        echo "检测到缺少 timeout 命令，尝试使用 opkg 安装 coreutils-timeout"
-        opkg update
-        opkg install coreutils-timeout
-    else
-        echo "警告：缺少 timeout 命令，请确保 coreutils 已安装"
-    fi
-fi
-
 # 自动检测包管理器进行安装
 if [ -n "$packages" ]; then
     echo "需要安装以下软件包: $packages"
-
-    if command -v pkg >/dev/null 2>&1; then
-        echo "检测到 pkg，使用 pkg 安装"
-        pkg update
-        pkg install $packages
-    elif command -v apt-get >/dev/null 2>&1; then
-        echo "检测到 apt-get，使用 apt-get 安装"
-        sudo apt-get update
-        sudo apt-get install -y $packages
-    elif command -v apk >/dev/null 2>&1; then
-        echo "检测到 apk，使用 apk 安装"
-        apk update
-        apk add $packages
-    elif command -v yum >/dev/null 2>&1; then
-        echo "检测到 yum，使用 yum 安装"
-        sudo yum install -y $packages
-    elif command -v dnf >/dev/null 2>&1; then
-        echo "检测到 dnf，使用 dnf 安装"
-        sudo dnf install -y $packages
-    elif command -v pacman >/dev/null 2>&1; then
-        echo "检测到 pacman，使用 pacman 安装"
-        sudo pacman -Sy --noconfirm $packages
-    elif command -v zypper >/dev/null 2>&1; then
-        echo "检测到 zypper，使用 zypper 安装"
-        sudo zypper install -y $packages
-    elif command -v opkg >/dev/null 2>&1; then
-        echo "检测到 opkg，使用 opkg 安装"
-        opkg update
-        opkg install $packages
-    else
-        echo "未检测到已知的包管理器，请手动安装: $packages"
-        exit 1
-    fi
 fi
