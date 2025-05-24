@@ -58,6 +58,4 @@ rm -f "$FILENAME"
 # 赋予执行权限
 chmod +x CloudflareST-Rust
 
-echo "设置完成！"
-
-rm setup_cloudflarest.sh
+echo "CloudflareST-Rust 获取完成！"
