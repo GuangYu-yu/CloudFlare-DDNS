@@ -72,6 +72,10 @@ check_dependency "sed" "sed"
 check_dependency "awk" "gawk"
 check_dependency "tr" "coreutils"
 
+# 检查 timeout 和 base64 是否可用
+check_dependency "timeout" "coreutils-timeout"
+check_dependency "base64" "coreutils-base64"
+
 # 自动检测包管理器进行安装
 if [ -n "$packages" ]; then
     echo "需要安装以下软件包: $packages"
