@@ -58,20 +58,19 @@ execute_script() {
 # 初始化包列表
 packages=""
 
-# 检查依赖是否安装
+# 检查依赖函数
 check_dependency() {
     local dependency=$1
     local package_name=$2
-
-    if ! command -v "$dependency" &> /dev/null; then
-        echo "$dependency 未找到，将其添加到所需软件包列表中"
+    if ! command -v "$dependency" >/dev/null 2>&1; then
+        echo "$dependency 未找到，将其添加到待安装软件包列表中"
         packages="$packages $package_name"
     else
         echo "$dependency 已安装"
     fi
 }
 
-# 检查所有依赖
+# 检查依赖
 check_dependency "jq" "jq"
 check_dependency "yq" "yq"
 check_dependency "tar" "tar"
@@ -79,30 +78,51 @@ check_dependency "sed" "sed"
 check_dependency "awk" "gawk"
 check_dependency "tr" "coreutils"
 
-# 判断系统进行安装
+# 先单独安装 timeout (针对 OpenWrt)
+if ! command -v timeout >/dev/null 2>&1; then
+    if command -v opkg >/dev/null 2>&1; then
+        echo "检测到缺少 timeout 命令，尝试使用 opkg 安装 coreutils-timeout"
+        opkg update
+        opkg install coreutils-timeout
+    else
+        echo "警告：缺少 timeout 命令，请确保 coreutils 已安装"
+    fi
+fi
+
+# 自动检测包管理器进行安装
 if [ -n "$packages" ]; then
-    echo "以下软件包是必需的: $packages"
-    if grep -qi "alpine" /etc/os-release; then
-        echo "使用 apk 安装软件包..."
+    echo "需要安装以下软件包: $packages"
+
+    if command -v apt-get >/dev/null 2>&1; then
+        echo "检测到 apt-get，使用 apt-get 安装"
+        sudo apt-get update
+        sudo apt-get install -y $packages
+    elif command -v apk >/dev/null 2>&1; then
+        echo "检测到 apk，使用 apk 安装"
         apk update
         apk add $packages
-    elif grep -qi "openwrt" /etc/os-release; then
-        echo "使用 opkg 安装软件包..."
+    elif command -v yum >/dev/null 2>&1; then
+        echo "检测到 yum，使用 yum 安装"
+        sudo yum install -y $packages
+    elif command -v dnf >/dev/null 2>&1; then
+        echo "检测到 dnf，使用 dnf 安装"
+        sudo dnf install -y $packages
+    elif command -v pacman >/dev/null 2>&1; then
+        echo "检测到 pacman，使用 pacman 安装"
+        sudo pacman -Sy --noconfirm $packages
+    elif command -v zypper >/dev/null 2>&1; then
+        echo "检测到 zypper，使用 zypper 安装"
+        sudo zypper install -y $packages
+    elif command -v opkg >/dev/null 2>&1; then
+        echo "检测到 opkg，使用 opkg 安装"
         opkg update
-        for package in $packages; do
-            opkg install "$package"
-        done
-        # openwrt 没有安装 timeout
-        opkg install coreutils-timeout
-    elif grep -qi "ubuntu\|debian" /etc/os-release; then
-        echo "使用 apt-get 安装软件包..."
-        sudo apt-get update
-        sudo apt-get install $packages
-    elif grep -qi "centos\|red hat\|fedora" /etc/os-release; then
-        echo "使用 yum 安装软件包..."
-        sudo yum install $packages
+        opkg install $packages
+    elif command -v pkg >/dev/null 2>&1; then
+        echo "检测到 pkg，使用 pkg 安装"
+        pkg update
+        pkg install $packages
     else
-        echo "未能检测出你的系统：$(uname)，请自行安装 $packages 这些软件"
+        echo "未检测到已知的包管理器，请手动安装: $packages"
         exit 1
     fi
 fi
