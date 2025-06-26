@@ -1,41 +1,62 @@
+# 账户信息
 account:
-  - account_name: haha
-    x_email: xxx@xx.com
-    zone_id: xxx
-    api_key: xxx
+  - account_name: "account1"
+    x_email: "user1@example.com"
+    zone_id: "zone_id_1"
+    api_key: "api_key_1"
+  - account_name: "account2"
+    x_email: "user2@example.com"
+    zone_id: "zone_id_2"
+    api_key: "api_key_2"
+
+# 解析信息
 resolve:
-  - add_ddns: haha
-    ddns_name: sg
+  - add_ddns: "account1"
+    ddns_name: "resolve1"
+    hostname1: "example.com"
+    hostname2: "sub1 sub2"
+    v4_num: 2
+    v6_num: 1
+    cf_command: "-n 500 -tll 20 -tl 300 -sl 15 -tp 2053 -t 8 -tlr 0.2"
+    v4_url: "https://example.com/v4"
+    v6_url: "https://example.com/v6"
+    push_mod: "Telegram PushPlus"
+  - add_ddns: "未指定"
+    ddns_name: "resolve2"
     hostname1: ""
     hostname2: ""
-    v4_num: 3
+    v4_num: 0
     v6_num: 0
-    cf_command: -n 500 -tll 20 -tl 300 -sl 15 -tp 2053 -all4
-    v4_url: https://www.cloudflare.com/ips-v4
-    v6_url: https://www.cloudflare.com/ips-v6
-    push_mod: Github PushPlus
-  - add_ddns: 未指定
-    ddns_name: gb
-    hostname1: ""
-    hostname2: ""
-    v4_num: 3
-    v6_num: 0
-    cf_command: -n 500 -tll 20 -tl 300 -sl 15 -tp 2053 -all4
-    v4_url: https://www.cloudflare.com/ips-v4
-    v6_url: https://www.cloudflare.com/ips-v6
-    push_mod: Github PushPlus
-plugin:
-  clien: openclash
+    cf_command: ""
+    v4_url: ""
+    v6_url: ""
+    push_mod: "不设置"
+
+# 推送信息
 push:
-  - push_name: PushPlus
-    pushplus_token: xxx
-  - push_name: Github
-    ddns_push: sg
-    file_url: https://raw.githubusercontent.com/
-    port: "2053"
-    remark: sg
-  - push_name: Github
-    ddns_push: gb
-    file_url: https://raw.githubusercontent.com/
-    port: "2053"
-    remark: gb
+  - push_name: "Telegram"
+    telegram_bot_token: "bot_token_1"
+    telegram_user_id: "user_id_1"
+  - push_name: "PushPlus"
+    pushplus_token: "token_2"
+  - push_name: "Server酱"
+    server_sendkey: "sendkey_3"
+  - push_name: "PushDeer"
+    pushdeer_pushkey: "pushkey_4"
+  - push_name: "企业微信"
+    wechat_corpid: "corpid_5"
+    wechat_secret: "secret_5"
+    wechat_agentid: "agentid_5"
+    wechat_userid: "userid_5"
+  - push_name: "Synology-Chat"
+    synology_chat_url: "url_6"
+  - push_name: "Github"
+    ddns_push: "resolve1"
+    file_url: "https://github.com/user/repo/file"
+    port: "8080"
+    remark: "IPv4 remark"
+    remark6: "IPv6 remark"
+
+# 插件信息
+plugin:
+  clien: "passwall"
