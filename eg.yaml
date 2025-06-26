@@ -1,0 +1,41 @@
+account:
+  - account_name: haha
+    x_email: xxx@xx.com
+    zone_id: xxx
+    api_key: xxx
+resolve:
+  - add_ddns: haha
+    ddns_name: sg
+    hostname1: ""
+    hostname2: ""
+    v4_num: 3
+    v6_num: 0
+    cf_command: -n 500 -tll 20 -tl 300 -sl 15 -tp 2053 -all4
+    v4_url: https://www.cloudflare.com/ips-v4
+    v6_url: https://www.cloudflare.com/ips-v6
+    push_mod: Github PushPlus
+  - add_ddns: 未指定
+    ddns_name: gb
+    hostname1: ""
+    hostname2: ""
+    v4_num: 3
+    v6_num: 0
+    cf_command: -n 500 -tll 20 -tl 300 -sl 15 -tp 2053 -all4
+    v4_url: https://www.cloudflare.com/ips-v4
+    v6_url: https://www.cloudflare.com/ips-v6
+    push_mod: Github PushPlus
+plugin:
+  clien: openclash
+push:
+  - push_name: PushPlus
+    pushplus_token: 1796c98e8e734cac938a0d9e6e0b2940
+  - push_name: Github
+    ddns_push: sg
+    file_url: https://raw.githubusercontent.com/
+    port: "2053"
+    remark: sg
+  - push_name: Github
+    ddns_push: gb
+    file_url: https://raw.githubusercontent.com/
+    port: "2053"
+    remark: gb
