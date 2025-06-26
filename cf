@@ -191,7 +191,7 @@ look_cfst_rules() {
     echo -e "${CYAN}    -tlr 0.2    丢包几率上限${NC}"
     echo -e "${CYAN}    -sl 5       下载速度下限${NC}"
     echo -e "${CYAN}    -dd         禁用下载测速${NC}"
-    echo -e "${CYAN}    -allip      测速全部的IP${NC}"
+    echo -e "${CYAN}    -all4       测速全部的IP${NC}"
 }
 
 # 主菜单
