@@ -28,7 +28,7 @@ plugin:
   clien: openclash
 push:
   - push_name: PushPlus
-    pushplus_token: 1796c98e8e734cac938a0d9e6e0b2940
+    pushplus_token: xxx
   - push_name: Github
     ddns_push: sg
     file_url: https://raw.githubusercontent.com/
