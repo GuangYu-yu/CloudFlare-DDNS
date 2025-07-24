@@ -1,62 +1,133 @@
-## 简介
+# 🚀 OPW-Cloudflare
 
-通过 [CloudflareST-Rust](https://github.com/GuangYu-yu/CloudflareST-Rust) 测试和选择速度最快的 Cloudflare IP 地址，并使用这些优化的 IP 自动更新 Cloudflare DNS 记录，从而优化对 Cloudflare 服务的访问。主要针对 OpenWrt 路由器，但也可在各种 Linux 环境中运行。
+<p align="center">
+  <img src="https://img.shields.io/badge/Platform-OpenWrt%20%7C%20Linux-blue.svg" alt="Platform">
+  <img src="https://img.shields.io/badge/Language-Bash%20%7C%20Shell-blue.svg" alt="Language">
+  <a href="https://github.com/GuangYu-yu/opw-cloudflare">
+    <img src="https://img.shields.io/github/stars/GuangYu-yu/opw-cloudflare?style=social" alt="GitHub Stars">
+  </a>
+  <a href="https://deepwiki.com/GuangYu-yu/opw-cloudflare">
+    <img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki">
+  </a>
+</p>
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/GuangYu-yu/opw-cloudflare)
+## 📖 项目简介
 
-## 脚本功能
+**OPW-Cloudflare** 主要用于在OpenWrt优选IP，通过集成[CloudflareST-Rust](https://github.com/GuangYu-yu/CloudflareST-Rust)实现Cloudflare IP地址的自动测速与优选，并将最优IP自动更新到Cloudflare DNS记录。
 
-- 自动测速 Cloudflare IP
-- 自动更新 Cloudflare DNS 记录
-- 自动推送测速和解析的结果
-- 可以将优选 IP 提交到 GitHub
+## ✨ 功能特性
 
-## 安装说明
+| 功能类别 | 具体特性 |
+|---------|---------|
+| 🌐 **IP优选** | • 自动测速Cloudflare全球节点<br>• 支持IPv4/IPv6优选<br>• 自定义测速参数 |
+| 🔄 **DNS管理** | • 自动更新Cloudflare DNS记录<br>• 支持多个域名和子域名<br>• 批量解析管理 |
+| 📱 **消息推送** | • 多种推送途径<br>• 自定义推送内容 |
+| 📊 **数据管理** | • 测速结果本地存储<br>• 支持GitHub提交（需要令牌）<br> |
+| ⚙️ **灵活配置** | • YAML配置文件<br>• 多账户支持<br>• 定时任务集成 |
 
-运行前安装依赖
+### 🔧 安装方式
 
-`bash` `curl`
-
-选择其中一条来首次运行
-
-使用 Github api 地址（需要安装 `jq` `base64`）
-
-```
+#### 方式一：GitHub API安装
+```bash
+# 需要安装 jq 和 base64
 curl -s "https://api.github.com/repos/GuangYu-yu/opw-cloudflare/contents/cfopw.sh" | jq -r '.content' | base64 -d | bash
 ```
 
-使用 GitHub raw 地址
-```
+#### 方式二：GitHub Raw安装
+```bash
 curl -ksSL https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cfopw.sh | bash
 ```
 
-使用 GitHub 镜像地址
-
-```
+#### 方式三：镜像源安装
+```bash
 curl -ksSL https://ghproxy.cc/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/cfopw.sh | bash
 ```
 
-后续运行，打开主菜单
+### 🎯 首次运行
 
-`bash cf`
+安装完成后，通过主菜单进行配置：
+```bash
+bash cf
+```
 
-## 文件说明
+## ⚙️ 配置文件详解
 
-- `cf`: 主菜单脚本
-- `cf_push.sh`: 推送消息服务
-- `cfopw.sh`: 初始安装脚本
-- `cf.yaml`: 配置文件
-- `setup_cloudflarest.sh`: 获取最新 CloudflareST 文件
-- `start_ddns.sh`: 测速并解析到 Cloudflare
+### 📄 配置文件结构 (`cf.yaml`)
 
-## 特别功能
+```yaml
+# 账户信息配置
+account:
+  - account_name: "主账户"           # 账户标识名称
+    x_email: "your@email.com"        # Cloudflare注册邮箱
+    zone_id: "your_zone_id"          # 域名对应的Zone ID
+    api_key: "your_api_key"          # Cloudflare API密钥
 
-- 支持多个测速配置以及多个 Cloudflare 账户
-- 较为详细的推送消息
-- 从 URL 获取最新 CIDR
-- 支持分别设置和测速 IPv4 和 IPv6
-- 假设解析组名称为`www`，那么可以通过`bash cf start www`立即执行
+# DNS解析配置
+resolve:
+  - add_ddns: "主账户"              # 关联的账户名称
+    ddns_name: "主域名解析"          # 解析任务名称
+    hostname1: "example.com"        # 主域名
+    hostname2: "www blog shop"      # 子域名列表（空格分隔）
+    v4_num: 2                       # IPv4优选IP数量
+    v6_num: 1                       # IPv6优选IP数量
+    cf_command: "-n 500 -tll 20 -tl 300 -sl 15 -tp 2053 -t 8 -tlr 0.2"  # 测速参数
+    v4_url: "https://ipv4.icanhazip.com"    # IPv4地址获取接口
+    v6_url: "https://ipv6.icanhazip.com"    # IPv6地址获取接口
+    push_mod: "Telegram"             # 推送方式
+```
 
-## 注意事项
+### 🔑 参数说明
 
-提交到 GitHub ，需要先复制私库中对应文件的原始 URL ,将临时 Token 替换为自建令牌，库中没有该文件会自动创建
+| 参数 | 说明 | 示例 |
+|-----|------|------|
+| `account_name` | 账户标识，可自定义 | `"主域名"` |
+| `x_email` | Cloudflare账户邮箱 | `"admin@example.com"` |
+| `zone_id` | 域名Zone ID | `"a1b2c3d4e5f6"` |
+| `api_key` | Cloudflare Global API Key | `"xxxxxxxxxxxxxxxx"` |
+| `hostname1` | 需要解析的主域名 | `"example.com"` |
+| `hostname2` | 子域名列表（空格分隔） | `"www blog api"` |
+| `v4_num/v6_num` | 优选IP数量 | `2` |
+
+## 📁 项目结构
+
+```
+opw-cloudflare/
+├── 📄 README.md                    # 项目说明文档
+├── 🖥️  cf                          # 主菜单脚本（核心）
+├── 📤 cf_push.sh                  # 消息推送服务
+├── 🚀 cfopw.sh                    # 初始安装脚本
+├── ⚙️  eg.yaml                     # 配置文件模板
+├── 🔄 setup_cloudflarest.sh       # CloudflareST-Rust更新工具
+├── 🎯 start_ddns.sh               # 测速与DNS更新主程序
+├── 📁 .github/workflows/          # GitHub Actions工作流
+│   └── build.yml                  # 自动化构建配置
+└── 🗂️  old_cf.sh                  # 旧版本兼容脚本
+```
+
+## 🎯 使用指南
+
+### 📋 基本操作步骤
+
+   **首次配置**
+   ```bash
+   # 运行主菜单
+   bash cf
+   
+   # 选择配置向导
+   [1] 配置账户信息
+   [2] 配置解析
+   [3] 配置推送服务
+   [4] 暂停插件功能
+   [5] 配置计划任务
+   ```
+
+   **直接执行**
+   ```bash
+   bash cf start www
+   ```
+
+---
+
+<div align="center">
+  <p>🐛 遇到问题或有建议？欢迎提交 <a href="https://github.com/GuangYu-yu/opw-cloudflare/issues">Issue</a></p>
+</div>
