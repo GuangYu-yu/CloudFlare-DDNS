@@ -125,9 +125,3 @@ opw-cloudflare/
    ```bash
    bash cf start www
    ```
-
----
-
-<div align="center">
-  <p>🐛 遇到问题或有建议？欢迎提交 <a href="https://github.com/GuangYu-yu/opw-cloudflare/issues">Issue</a></p>
-</div>
