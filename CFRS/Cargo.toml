@@ -12,7 +12,7 @@ base64 = "0.22"
 colored = "3.0"
 anyhow = "1.0"
 dialoguer = "0.11"
-console = "0.15"
+console = "0.16"
 regex = "1.11"
 urlencoding = "2.1"
 
