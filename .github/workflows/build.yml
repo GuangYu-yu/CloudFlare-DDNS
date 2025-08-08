@@ -100,6 +100,7 @@ jobs:
 
       - name: 尝试 cargo-zigbuild 构建
         run: |
+          cd CFRS
           cargo install --locked cargo-zigbuild
           cargo update
           echo "尝试使用 cargo-zigbuild 构建..."
