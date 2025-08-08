@@ -76,7 +76,6 @@ pub struct PushConfig {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GithubPushConfig {
-    pub push_name: String,
     pub ddns_push: String,
     pub file_url: String,
     pub port: String,

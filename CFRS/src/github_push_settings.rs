@@ -125,7 +125,6 @@ fn add_github_push(&mut self) -> Result<()> {
 
         // 创建新的配置
         let new_config = GithubPushConfig {
-            push_name: "Github".to_string(),
             ddns_push,
             file_url,
             port,

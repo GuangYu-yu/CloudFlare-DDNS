@@ -514,7 +514,7 @@ impl PushService {
     fn push_github(&self, ddns_name: &str, informlog_content: &str) -> Result<()> {
         if let Some(github_push_configs) = &self.config.github_push {
             for config in github_push_configs {
-                if config.push_name == "Github" && config.ddns_push == ddns_name {
+                if config.ddns_push == ddns_name {
                     // 解析文件URL获取参数
                     let re = regex::Regex::new(r"^https://raw\.githubusercontent\.com/([^/]+)/([^/]+)/refs/heads/([^/]+)/(.+)\?token=(.+)$")?;
                     if let Some(captures) = re.captures(&config.file_url) {
