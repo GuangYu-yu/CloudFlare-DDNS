@@ -1,1 +1,1522 @@
-1
+#!/bin/bash
+
+# 定义颜色常量，用于美化输出
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# 配置文件路径
+config_file=cf.yaml
+
+# 定义脚本文件名变量
+The_CF_SCRIPT="cf"
+
+# 获取当前脚本路径
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+
+# 组合路径和文件名
+script_path="$script_dir/$The_CF_SCRIPT"
+
+# 检测并创建配置文件（如果不存在）
+if [ ! -f "$config_file" ]; then
+    touch "$config_file"
+fi
+
+# 读取并丢弃所有在缓冲区中的输入
+clear_input_buffer() {
+    while read -r -t 0.1; do : ; done
+}
+
+# handle_error 函数
+handle_error() {
+    local error_message="$1"
+    echo -e "${RED}错误: $error_message${NC}"
+    clear_input_buffer
+    sleep 1
+}
+
+# 启动解析
+start() {
+    local ddns_name=$1
+    
+    # 检查配置文件是否存在
+    if [ ! -f "$config_file" ]; then
+        handle_error "配置文件不存在"
+        return 1
+    fi
+
+    # 检查 ddns_name 是否存在
+    if ! yq e ".resolve[] | select(.ddns_name == \"$ddns_name\") | .ddns_name" "$config_file" | grep -q .; then
+        handle_error "未找到指定的解析组"
+        return 1
+    fi
+
+    # 提取解析信息
+    local add_ddns=$(yq e ".resolve[] | select(.ddns_name == \"$ddns_name\") | .add_ddns" "$config_file")
+    local hostname1=$(yq e ".resolve[] | select(.ddns_name == \"$ddns_name\") | .hostname1" "$config_file")
+    local hostname2=$(yq e ".resolve[] | select(.ddns_name == \"$ddns_name\") | .hostname2" "$config_file")
+    local v4_num=$(yq e ".resolve[] | select(.ddns_name == \"$ddns_name\") | .v4_num" "$config_file")
+    local v6_num=$(yq e ".resolve[] | select(.ddns_name == \"$ddns_name\") | .v6_num" "$config_file")
+    local cf_command=$(yq e ".resolve[] | select(.ddns_name == \"$ddns_name\") | .cf_command" "$config_file")
+    local v4_url=$(yq e ".resolve[] | select(.ddns_name == \"$ddns_name\") | .v4_url" "$config_file")
+    local v6_url=$(yq e ".resolve[] | select(.ddns_name == \"$ddns_name\") | .v6_url" "$config_file")
+    local push_mod=$(yq e ".resolve[] | select(.ddns_name == \"$ddns_name\") | .push_mod" "$config_file")
+
+    # 提取账户信息（如果不是未指定账户组）
+    local x_email=""
+    local zone_id=""
+    local api_key=""
+    
+    if [ "$add_ddns" != "未指定" ]; then
+        x_email=$(yq e ".account[] | select(.account_name == \"$add_ddns\") | .x_email" "$config_file")
+        zone_id=$(yq e ".account[] | select(.account_name == \"$add_ddns\") | .zone_id" "$config_file")
+        api_key=$(yq e ".account[] | select(.account_name == \"$add_ddns\") | .api_key" "$config_file")
+    fi
+
+    # 提取插件信息
+    local clien=$(yq e '.plugin.clien' "$config_file")
+
+    # 运行 start_ddns.sh 并传递所有参数
+    ./start_ddns.sh "$add_ddns" "$ddns_name" "$x_email" "$zone_id" "$api_key" "$hostname1" "$hostname2" "$v4_num" "$v6_num" "$cf_command" "$v4_url" "$v6_url" "$push_mod" "$clien" "$config_file"
+}
+
+# 检查命令行参数
+if [ "$1" = "start" ] && [ -n "$2" ]; then
+    start "$2"
+    exit $?
+fi
+
+# 读取配置
+read_config() {
+    yq eval "$1" "$config_file"
+}
+
+# 写入配置
+write_config() {
+    local operation="$1"
+    local group_type="$2"
+    local group_name="$3"
+    shift 3
+    local data="$@"
+
+    case "$operation" in
+        add)
+            yq e -i ".$group_type += [$data]" "$config_file"
+            ;;
+        modify)
+            if [ "$group_type" = "account" ]; then
+                yq e -i ".$group_type = [.[$group_type][] | select(.account_name == \"$group_name\") = $data // .]" "$config_file"
+            else
+                yq e -i ".$group_type = [.[$group_type][] | select(.add_ddns == \"$group_name\") = $data // .]" "$config_file"
+            fi
+            ;;
+        delete)
+            if [ "$group_type" = "account" ]; then
+                yq e -i "del(.$group_type[] | select(.account_name == \"$group_name\"))" "$config_file"
+            else
+                yq e -i "del(.$group_type[] | select(.add_ddns == \"$group_name\"))" "$config_file"
+            fi
+            ;;
+        *)
+            echo "未知操作: $operation"
+            return 1
+            ;;
+    esac
+}
+
+# 输出已存在的账户信息
+look_account_group() {
+    local accounts=$(yq e '.account' "$config_file")
+    if [ -z "$accounts" ] || [ "$accounts" = "null" ]; then
+        echo "当前没有设置任何账户组"
+    else
+        yq e '.account[] | "账户组：\(.account_name) 邮箱：\(.x_email) 区域ID：\(.zone_id) API Key：\(.api_key)"' "$config_file"
+    fi
+}
+
+# 查看解析
+look_ddns() {
+    local resolves=$(yq e '.resolve' "$config_file")
+    if [ -z "$resolves" ] || [ "$resolves" = "null" ]; then
+        echo "当前没有设置任何解析组"
+    else
+        yq e '.resolve[] | "账户组：\(.add_ddns)\n解析组：\(.ddns_name)\n一级域名：\(.hostname1)\n二级域名：\(.hostname2)\nIPv4数量：\(.v4_num)\nIPv6数量：\(.v6_num)\nCloudflareST命令：\(.cf_command)\nIPv4地址URL：\(.v4_url)\nIPv6地址URL：\(.v6_url)\n推送方式：\(.push_mod)\n"' "$config_file"
+    fi
+}
+
+# 定义一个函数来转换推送方式
+convert_push_mod() {
+    local input=("$@")
+    declare -A push_mod_map=(
+        [0]="不设置"
+        [1]="Telegram"
+        [2]="PushPlus"
+        [3]="Server酱"
+        [4]="PushDeer"
+        [5]="企业微信"
+        [6]="Synology-Chat"
+        [7]="Github"
+    )
+    local push_mod_names=()
+    for mod in "${input[@]}"; do
+        push_mod_names+=("${push_mod_map[$mod]}")
+    done
+    echo "${push_mod_names[*]}"
+}
+
+# 只看账户组和解析组
+look_ddns_simple() {
+    local resolves=$(yq e '.resolve' "$config_file")
+    if [ -z "$resolves" ] || [ "$resolves" = "null" ]; then
+        echo "当前没有设置任何解析组"
+    else
+        yq e '.resolve[] | "账户组：\(.add_ddns)     解析组：\(.ddns_name)"' "$config_file" | sed '/^$/d'
+    fi
+}
+
+# CloudflareST命令
+look_cfst_rules() {
+    echo -e "${CYAN}    示例：-n 500 -tll 20 -tl 300 -sl 15 -tp 2053 -t 8 -tlr 0.2${NC}"
+    echo -e "${CYAN}    HTTP  端口  80  8080 2052 2082 2086 2095 8880${NC}"
+    echo -e "${CYAN}    HTTPS 端口  443 8443 2053 2083 2087 2096 ${NC}"
+    echo -e "${CYAN}    -n 200      延迟测速线程${NC}"
+    echo -e "${CYAN}    -t 4        延迟测速次数${NC}"
+    echo -e "${CYAN}    -dt 10      下载测速时间${NC}"
+    echo -e "${CYAN}    -tp 443     指定测速端口${NC}"
+    echo -e "${CYAN}    -url <URL>  指定测速地址${NC}"
+    echo -e "${CYAN}    -tl 200     平均延迟上限${NC}"
+    echo -e "${CYAN}    -tll 40     平均延迟下限${NC}"
+    echo -e "${CYAN}    -tlr 0.2    丢包几率上限${NC}"
+    echo -e "${CYAN}    -sl 5       下载速度下限${NC}"
+    echo -e "${CYAN}    -dd         禁用下载测速${NC}"
+    echo -e "${CYAN}    -all4       测速全部的IP${NC}"
+}
+
+# 主菜单
+main_menu() {
+    while true; do
+        clear
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${YELLOW}|            主菜单               |${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${CYAN}1. 账户设置${NC}"
+        echo -e "${CYAN}2. 解析设置${NC}"
+        echo -e "${CYAN}3. 推送设置${NC}"
+        echo -e "${CYAN}4. 执行解析${NC}"
+        echo -e "${CYAN}5. 计划任务${NC}"
+        echo -e "${CYAN}6. 插件设置${NC}"
+        echo -e "${CYAN}7. 退出${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+        
+        clear_input_buffer
+        
+        read -p "请选择 (1-7): " choice
+
+        case $choice in
+            1) account_settings ;;
+            2) resolve_settings ;;
+            3) push_settings ;;
+            4) execute_resolve ;;
+            5) view_schedule ;;
+            6) write_plugin_settings ;;
+            7) exit 0 ;;
+            *) handle_error "无效的选项" ;;
+        esac
+    done
+}
+
+# 账户设置
+account_settings() {
+    clear_input_buffer
+    while true; do
+        clear
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${YELLOW}|           账户设置              |${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${CYAN}已设置的账户信息：${NC}"
+
+        look_account_group
+
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${CYAN}1. 添加账户${NC}"
+        echo -e "${CYAN}2. 删除账户${NC}"
+        echo -e "${CYAN}3. 修改账户${NC}"
+        echo -e "${CYAN}4. 返回主菜单${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+        
+        clear_input_buffer
+        
+        read -p "请选择 (1-4): " choice
+
+        case $choice in
+            1) add_account ;;
+            2) delete_account ;;
+            3) modify_account ;;
+            4) clear_input_buffer
+               main_menu ;;
+            *) handle_error "无效的选项" ;;
+        esac
+    done
+}
+
+# 添加账户
+add_account() {
+    clear_input_buffer
+    clear
+    echo -e "${YELLOW}===================================${NC}"
+    echo -e "${YELLOW}|           添加账户              |${NC}"
+    echo -e "${YELLOW}===================================${NC}"
+    
+    while true; do
+        read -p "请输入自定义账户组名称（留空则返回上级）：" account_name
+        
+        if [ -z "$account_name" ]; then
+            return
+        fi
+
+        if [ "$account_name" = "0" ]; then
+            handle_error "账户组名称不能设置为0"
+            continue
+        fi
+
+        if [[ "$account_name" =~ ^[A-Za-z0-9_]+$ ]]; then
+            # 检查账户组名称是否已存在
+            if yq e ".account[] | select(.account_name == \"$account_name\")" "$config_file" | grep -q .; then
+                handle_error "已有该账户组名称！"
+                continue
+            fi
+            break
+        else
+            handle_error "只能包含字母、数字和下划线"
+        fi
+    done
+
+    read -p "请输入账户登陆邮箱：" x_email
+    while ! [[ "$x_email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; do
+        handle_error "邮箱格式不正确"
+        read -p "请输入账户登陆邮箱：" x_email
+    done
+
+    read -p "请输入区域ID：" zone_id
+    while [[ -z "$zone_id" ]]; do
+        handle_error "区域ID不能为空"
+        read -p "请输入区域ID：" zone_id
+    done
+
+    read -p "请输入API Key：" api_key
+    while [[ -z "$api_key" ]]; do
+        handle_error "API Key不能为空"
+        read -p "请输入API Key：" api_key
+    done
+
+    # 写入账户相关信息到配置文件
+    if ! yq e -i ".account += [{\"account_name\": \"$account_name\", \"x_email\": \"$x_email\", \"zone_id\": \"$zone_id\", \"api_key\": \"$api_key\"}]" "$config_file"; then
+        echo -e "${RED}账户添加失败，请检查配置文件格式或 yq 命令。${NC}"
+        echo "错误详情："
+        yq e -i ".account += [{\"account_name\": \"$account_name\", \"x_email\": \"$x_email\", \"zone_id\": \"$zone_id\", \"api_key\": \"$api_key\"}]" "$config_file" 2>&1
+    else
+        echo -e "${GREEN}账户添加成功！${NC}"
+    fi
+    sleep 1
+    clear_input_buffer
+    account_settings
+}
+
+# 删除账户
+delete_account() {
+    clear_input_buffer
+    clear
+    echo -e "${YELLOW}===================================${NC}"
+    echo -e "${YELLOW}|           删除账户              |${NC}"
+    echo -e "${YELLOW}===================================${NC}"
+    echo -e "${CYAN}已设置的账户信息：${NC}"
+
+    look_account_group
+
+    echo -e "${YELLOW}===================================${NC}"
+    read -p "请输入要删除的账户组名称（留空则返回上级）：" delete_group
+
+    if [ -z "$delete_group" ]; then
+        return
+    fi
+
+    # 检查账户组名称是否存在
+    if ! yq e ".account[] | select(.account_name == \"$delete_group\")" "$config_file" | grep -q .; then
+        handle_error "不存在该账户组名称！"
+        sleep 1
+        return
+    fi
+
+    # 确认删除
+    while true; do
+        read -p "确认删除账户组 $delete_group 吗？(y/n): " confirm_delete
+        case $confirm_delete in
+            [yY]) 
+                # 删除指定的账户组
+                yq e -i "del(.account[] | select(.account_name == \"$delete_group\"))" "$config_file"
+                
+                # 检查是否还有剩余的账户组
+                if ! yq e '.account | length' "$config_file" | grep -q '[^0]'; then
+                    # 如果没有剩余的账户组，删除 account 键
+                    yq e -i 'del(.account)' "$config_file"
+                fi
+
+                echo -e "${GREEN}账户组 $delete_group 成功删除！${NC}"
+                break
+                ;;
+            [nN]) 
+                echo -e "${YELLOW}取消删除操作${NC}"
+                break
+                ;;
+            *) 
+                handle_error "无效输入"
+                ;;
+        esac
+    done
+
+    sleep 1
+    clear_input_buffer
+    account_settings
+}
+
+# 修改账户
+modify_account() {
+    clear_input_buffer
+    clear
+    echo -e "${YELLOW}===================================${NC}"
+    echo -e "${YELLOW}|           修改账户              |${NC}"
+    echo -e "${YELLOW}===================================${NC}"
+    echo -e "${CYAN}已设置的账户信息：${NC}"
+
+    look_account_group
+
+    echo -e "${YELLOW}===================================${NC}"
+    
+    read -p "请输入要修改的账户组（留空则返回上级）：" modify_account_group
+    if [ -z "$modify_account_group" ]; then
+        return
+    fi
+    
+    # 检查账户组名称是否存在
+    if ! yq e ".account[] | select(.account_name == \"$modify_account_group\")" "$config_file" | grep -q .; then
+        handle_error "账户组不存在"
+        sleep 1
+        modify_account
+        return
+    fi
+    
+    # 提取当前账户信息
+    local current_email=$(yq e ".account[] | select(.account_name == \"$modify_account_group\") | .x_email" "$config_file")
+    local current_zone_id=$(yq e ".account[] | select(.account_name == \"$modify_account_group\") | .zone_id" "$config_file")
+    local current_api_key=$(yq e ".account[] | select(.account_name == \"$modify_account_group\") | .api_key" "$config_file")
+    
+    # 显示当前账户信息
+    echo -e "${CYAN}当前账户信息：${NC}"
+    echo -e "${CYAN}账户组名称：$modify_account_group${NC}"
+    echo -e "${CYAN}账户登陆邮箱：$current_email${NC}"
+    echo -e "${CYAN}区域ID：$current_zone_id${NC}"
+    echo -e "${CYAN}API Key：$current_api_key${NC}"
+    echo -e "${YELLOW}===================================${NC}"
+    
+    # 提示用户选择要修改的内容
+    while true; do
+        echo -e "${YELLOW}请选择要修改的内容：${NC}"
+        echo -e "${CYAN}1. 账户登陆邮箱${NC}"
+        echo -e "${CYAN}2. 区域ID${NC}"
+        echo -e "${CYAN}3. API Key${NC}"
+        echo -e "${CYAN}4. 退出${NC}"
+        read -p "请输入选项 (1-4)：" choice
+
+        case $choice in
+            1)  read -p "请输入新的账户登陆邮箱：" new_email
+                # 验证邮箱格式
+                if [[ -z "$new_email" ]]; then
+                    handle_error "输入不能为空"
+                elif ! [[ "$new_email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+                    handle_error "邮箱格式不正确"
+                else
+                    yq e -i ".account[] |= select(.account_name == \"$modify_account_group\").x_email = \"$new_email\"" "$config_file"
+                    echo -e "${GREEN}邮箱已更新${NC}"
+                    current_email=$new_email
+                fi ;;
+            2)  read -p "请输入新的区域ID：" new_zone_id
+                if [[ -z "$new_zone_id" ]]; then
+                    handle_error "输入不能为空"
+                else
+                    yq e -i ".account[] |= select(.account_name == \"$modify_account_group\").zone_id = \"$new_zone_id\"" "$config_file"
+                    echo -e "${GREEN}区域ID已更新${NC}"
+                    current_zone_id=$new_zone_id
+                fi ;;
+            3)  read -p "请输入新的API Key：" new_api_key
+                if [[ -z "$new_api_key" ]]; then
+                    handle_error "输入不能为空"
+                else
+                    yq e -i ".account[] |= select(.account_name == \"$modify_account_group\").api_key = \"$new_api_key\"" "$config_file"
+                    echo -e "${GREEN}API Key已更新${NC}"
+                    current_api_key=$new_api_key
+                fi ;;
+            4)  break ;;
+            *)  handle_error "无效的选项" ;;
+        esac
+
+        # 显示更新后的账户信息
+        echo -e "${CYAN}更新后的账户信息：${NC}"
+        echo -e "${CYAN}账户组名称：$modify_account_group${NC}"
+        echo -e "${CYAN}账户登陆邮箱：$current_email${NC}"
+        echo -e "${CYAN}区域ID：$current_zone_id${NC}"
+        echo -e "${CYAN}API Key：$current_api_key${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+    done
+
+    echo -e "${GREEN}账户信息修改完毕${NC}"
+    sleep 1
+    clear_input_buffer
+    account_settings
+}
+
+# 解析设置
+resolve_settings() {
+    clear_input_buffer
+    while true; do
+        clear
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${YELLOW}|           解析设置              |${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+        
+        look_ddns_simple
+
+        echo -e "${YELLOW}===================================${NC}"
+        
+        echo -e "${CYAN}1. 查看解析${NC}"
+        echo -e "${CYAN}2. 添加解析${NC}"
+        echo -e "${CYAN}3. 删除解析${NC}"
+        echo -e "${CYAN}4. 修改解析${NC}"
+        echo -e "${CYAN}5. 返回主菜单${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+        
+        read -p "请选择 (1-5): " choice
+
+        case $choice in
+            1) view_resolve ;;
+            2) add_resolve ;;
+            3) delete_resolve ;;
+            4) modify_resolve ;;
+            5) clear_input_buffer
+               main_menu ;;
+            *) handle_error "无效的选项" ;;
+        esac
+    done
+}
+
+# 查看解析
+view_resolve() {
+    clear_input_buffer
+    clear
+    echo -e "${YELLOW}===================================${NC}"
+    echo -e "${YELLOW}|           查看解析              |${NC}"
+    echo -e "${YELLOW}===================================${NC}"
+
+    # 显示该解析组的信息
+    look_ddns
+
+    read -p "按回车返回上级"
+}
+
+# 添加解析
+add_resolve() {
+    clear_input_buffer
+    clear
+    echo -e "${YELLOW}===================================${NC}"
+    echo -e "${YELLOW}|           添加解析              |${NC}"
+    echo -e "${YELLOW}===================================${NC}"
+
+    look_ddns_simple
+
+    while true; do
+        read -p "请输入账户组名称（输入0不指定账户组，留空则返回上级）：" add_ddns
+        if [ -z "$add_ddns" ]; then
+            return
+        fi
+        
+        if [ "$add_ddns" = "0" ]; then
+            add_ddns="未指定"
+            break
+        fi
+        
+        if ! yq e ".account[] | select(.account_name == \"$add_ddns\")" "$config_file" | grep -q .; then
+            handle_error "账户组不存在"
+        else
+            break
+        fi
+    done
+
+    while true; do
+        read -p "请输入自定义解析组名称（只能包含字母、数字和下划线）： " ddns_name
+        
+        if [[ "$ddns_name" =~ ^[A-Za-z0-9_]+$ ]]; then
+            if yq e ".resolve[] | select(.ddns_name == \"$ddns_name\")" "$config_file" | grep -q .; then
+                handle_error "已有该解析组名称！"
+                continue
+            fi
+            break
+        else
+            handle_error "只能包含字母、数字和下划线"
+        fi
+    done
+    # 如果账户组为"未指定"，则跳过 hostname 设置
+    if [ "$add_ddns" = "未指定" ]; then
+        hostname1=""
+        hostname2=""
+    else
+        while true; do
+            read -p "请输入要解析的一级域名（留空则返回上级）：" hostname1
+            if [ -z "$hostname1" ]; then
+                return
+            fi
+            if [[ "$hostname1" =~ ^[a-zA-Z0-9\u4e00-\u9fa5.-]+$ ]]; then
+                break
+            else
+                handle_error "格式不正确"
+            fi
+        done
+
+        while true; do
+            read -p "请输入一个或多个二级域名（不含一级域名，多个则以空格分隔）：" hostname2
+            if [ -z "$hostname2" ]; then
+                handle_error "格式不正确"
+                continue
+            fi
+            
+            valid=true
+            for sub in $hostname2; do
+                if ! [[ "$sub" =~ ^[a-zA-Z0-9\u4e00-\u9fa5.-]+$ ]]; then
+                    valid=false
+                    break
+                fi
+            done
+            
+            if $valid; then
+                break
+            else
+                handle_error "格式不正确"
+            fi
+        done
+    fi
+
+    while true; do
+        read -p "请输入IPv4解析数量（可设置为0，留空则返回上级）：" ipv4_count
+        if [[ -z "$ipv4_count" ]]; then
+            return
+        elif [[ "$ipv4_count" =~ ^[0-9]+$ ]]; then
+            break
+        else
+            handle_error "格式不正确"
+        fi
+    done
+    
+    while true; do
+        read -p "请输入IPv6解析数量（可设置为0，留空则返回上级）：" ipv6_count
+        if [[ -z "$ipv6_count" ]]; then
+            return
+        elif [[ "$ipv6_count" =~ ^[0-9]+$ ]]; then
+            break
+        else
+            handle_error "格式不正确"
+        fi
+    done
+
+    look_cfst_rules 
+    while true; do
+        read -p "请输入CloudflareST命令（无需以\"./CloudflareST\"开头，留空则返回上级）：" cf_command_input
+        if [ -z "$cf_command_input" ]; then
+            return
+        else
+            break
+        fi
+    done
+
+    while true; do
+        read -p "从URL链接获取IPv4地址：" v4_url
+        if [ -n "$v4_url" ] && ! [[ "$v4_url" =~ ^https?://.* ]]; then
+            handle_error "格式不正确"
+        else
+            break
+        fi
+    done
+
+    while true; do
+        read -p "从URL链接获取IPv6地址：" v6_url
+        if [ -n "$v6_url" ] && ! [[ "$v6_url" =~ ^https?://.* ]]; then
+            handle_error "格式不正确"
+        else
+            break
+        fi
+    done
+
+    while true; do
+        read -p "请选择推送方式 (0.不设置 1.Telegram 2.PushPlus 3.Server酱 4.PushDeer 5.企业微信 6.Synology-Chat 7.Github，添加至少一个模式，以空格分隔)： " push_mod_input
+        IFS=' ' read -ra push_mod <<< "$push_mod_input"
+
+        # 验证输入
+        if [[ $(printf '%s\n' "${push_mod[@]}" | grep -vE '^[0-7]$') ]]; then
+            handle_error "请输入 0~7 的数字"
+            continue
+        fi
+
+        if [[ " ${push_mod[@]} " =~ " 0 " && ${#push_mod[@]} -gt 1 ]]; then
+            handle_error "0 不能与其他数字一起输入"
+            continue
+        fi
+
+        if [[ $(printf '%s\n' "${push_mod[@]}" | sort | uniq -d) ]]; then
+            handle_error "数字不能重复"
+            continue
+        fi
+
+        # 使用函数转换推送方式
+        push_mod_input=$(convert_push_mod "${push_mod[@]}")
+        break
+    done
+
+    # 写入解析信息到配置文件
+    if ! yq e -i ".resolve += [{\"add_ddns\": \"$add_ddns\", \"ddns_name\": \"$ddns_name\", \"hostname1\": \"$hostname1\", \"hostname2\": \"$hostname2\", \"v4_num\": $ipv4_count, \"v6_num\": $ipv6_count, \"cf_command\": \"$cf_command_input\", \"v4_url\": \"$v4_url\", \"v6_url\": \"$v6_url\", \"push_mod\": \"$push_mod_input\"}]" "$config_file"; then
+        echo -e "${RED}解析条目添加失败，请检查配置文件格式或 yq 命令。${NC}"
+        echo "错误详情："
+        yq e -i ".resolve += [{\"add_ddns\": \"$add_ddns\", \"ddns_name\": \"$ddns_name\", \"hostname1\": \"$hostname1\", \"hostname2\": \"$hostname2\", \"v4_num\": $ipv4_count, \"v6_num\": $ipv6_count, \"cf_command\": \"$cf_command_input\", \"v4_url\": \"$v4_url\", \"v6_url\": \"$v6_url\", \"push_mod\": \"$push_mod_input\"}]" "$config_file" 2>&1
+    else
+        echo -e "${GREEN}解析条目添加成功！${NC}"
+    fi
+    sleep 1
+    push_settings
+}
+
+# 删除解析
+delete_resolve() {
+    clear_input_buffer
+    clear
+    echo -e "${YELLOW}===================================${NC}"
+    echo -e "${YELLOW}|           删除解析              |${NC}"
+    echo -e "${YELLOW}===================================${NC}"
+    
+    look_ddns_simple
+
+    echo -e "${YELLOW}===================================${NC}"
+    
+    read -p "请输入要删除的解析组名称（留空则返回上级）：" delete_ddns
+    if [ -z "$delete_ddns" ]; then
+        return
+    fi
+
+    # 检查解析组名称是否存在
+    if ! yq e ".resolve[] | select(.ddns_name == \"$delete_ddns\")" "$config_file" | grep -q .; then
+        handle_error "不存在该解析组名称！"
+        sleep 1
+        return
+    fi
+
+    # 确认删除
+    while true; do
+        read -p "确认删除解析组 $delete_ddns 吗？(y/n): " confirm_delete
+        case $confirm_delete in
+            [yY]) 
+                # 删除指定的解析组
+                yq e -i "del(.resolve[] | select(.ddns_name == \"$delete_ddns\"))" "$config_file"
+                
+                # 检查是否还有剩余的解析组
+                if ! yq e '.resolve | length' "$config_file" | grep -q '[^0]'; then
+                    # 如果没有剩余的解析组，删除 resolve 键
+                    yq e -i 'del(.resolve)' "$config_file"
+                fi
+
+                echo -e "${GREEN}解析组 $delete_ddns 已成功删除！${NC}"
+                break
+                ;;
+            [nN]) 
+                echo -e "${YELLOW}取消删除操作。${NC}"
+                break
+                ;;
+            *) 
+                handle_error "无效输入"
+                ;;
+        esac
+    done
+
+    sleep 1
+    resolve_settings
+}
+
+# 修改解析
+modify_resolve() {
+    clear_input_buffer
+    clear
+    echo -e "${YELLOW}===================================${NC}"
+    echo -e "${YELLOW}|           修改解析              |${NC}"
+    echo -e "${YELLOW}===================================${NC}"
+    
+    look_ddns_simple
+
+    echo -e "${YELLOW}===================================${NC}"
+    
+    modify_resolve_field() {
+        local field="$1"
+        local new_value="$2"
+        local ddns_name="$3"
+
+        yq e -i ".resolve[] |= select(.ddns_name == \"$ddns_name\").$field = \"$new_value\"" "$config_file"
+    }
+    
+    read -p "请输入要修改的解析组名称（留空则返回上级）：" modify_ddns
+    if [ -z "$modify_ddns" ]; then
+        return
+    fi
+
+    # 检查解析组名称是否存在
+    if ! yq e ".resolve[] | select(.ddns_name == \"$modify_ddns\")" "$config_file" | grep -q .; then
+        handle_error "解析组不存在"
+        sleep 1
+        clear_input_buffer
+        modify_resolve
+    fi
+
+    # 显示选定解析组的信息
+    echo -e "${CYAN}选定解析组的信息：${NC}"
+    yq e ".resolve[] | select(.ddns_name == \"$modify_ddns\") | \"\n账户组：\(.add_ddns)\n解析组：\(.ddns_name)\n一级域名：\(.hostname1)\n二级域名：\(.hostname2)\nIPv4数量：\(.v4_num)\nIPv6数量：\(.v6_num)\nCloudflareST命令：\(.cf_command)\nIPv4地址URL：\(.v4_url)\nIPv6地址URL：\(.v6_url)\n推送方式：\(.push_mod)\"" "$config_file"
+
+    # 提示用户选择要修改的内容
+    while true; do
+        echo -e "${YELLOW}请选择要修改的内容：${NC}"
+        echo -e "${CYAN}1. 一级域名${NC}"
+        echo -e "${CYAN}2. 二级域名${NC}"
+        echo -e "${CYAN}3. IPv4解析数量${NC}"
+        echo -e "${CYAN}4. IPv6解析数量${NC}"
+        echo -e "${CYAN}5. CloudflareST命令${NC}"
+        echo -e "${CYAN}6. IPv4地址URL${NC}"
+        echo -e "${CYAN}7. IPv6地址URL${NC}"
+        echo -e "${CYAN}8. 推送方式${NC}"
+        echo -e "${CYAN}9. 返回${NC}"
+        read -p "请输入选项 (1-9): " choice
+
+        case $choice in
+            1)
+                if [ "$(yq e ".resolve[] | select(.ddns_name == \"$modify_ddns\") | .add_ddns" "$config_file")" = "未指定" ]; then
+                    handle_error "未指定账户组，无法修改一级域名"
+                    continue
+                fi
+                while true; do
+                    read -p "请输入新的一级域名：" new_hostname1
+                    if [ -z "$new_hostname1" ]; then
+                        handle_error "格式不正确"
+                    elif [[ "$new_hostname1" =~ ^[a-zA-Z0-9\u4e00-\u9fa5.-]+$ ]]; then
+                        modify_resolve_field "hostname1" "$new_hostname1" "$modify_ddns"
+                        echo -e "${GREEN}一级域名已更新${NC}"
+                        break
+                    else
+                        handle_error "格式不正确"
+                    fi
+                done
+                ;;
+            2)  
+                if [ "$(yq e ".resolve[] | select(.ddns_name == \"$modify_ddns\") | .add_ddns" "$config_file")" = "未指定" ]; then
+                    handle_error "未指定账户组，无法修改二级域名"
+                    continue
+                fi
+                
+                while true; do
+                    read -p "请输入新的二级域名（不含一级域名，多个则以空格分隔）：" new_hostname2
+                    if [ -z "$new_hostname2" ]; then
+                        handle_error "格式不正确"
+                    else
+                        valid=true
+                        for sub in $new_hostname2; do
+                            if ! [[ "$sub" =~ ^[a-zA-Z0-9\u4e00-\u9fa5.-]+$ ]]; then
+                                valid=false
+                                break
+                            fi
+                        done
+                        
+                        if $valid; then
+                            modify_resolve_field "hostname2" "$new_hostname2" "$modify_ddns"
+                            echo -e "${GREEN}二级域名已更新${NC}"
+                            break
+                        else
+                            handle_error "格式不正确"
+                        fi
+                    fi
+                done
+                ;;
+            3)
+                while true; do
+                    read -p "请输入新的IPv4解析数量：" new_ipv4_count
+                    if [[ "$new_ipv4_count" =~ ^[0-9]+$ ]]; then
+                        modify_resolve_field "v4_num" "$new_ipv4_count" "$modify_ddns"
+                        echo -e "${GREEN}IPv4解析数量已更新${NC}"
+                        break
+                    else
+                        handle_error "格式不正确"
+                    fi
+                done
+                ;;
+            4)
+                while true; do
+                    read -p "请输入新的IPv6解析数量：" new_ipv6_count
+                    if [[ "$new_ipv6_count" =~ ^[0-9]+$ ]]; then
+                        modify_resolve_field "v6_num" "$new_ipv6_count" "$modify_ddns"
+                        echo -e "${GREEN}IPv6解析数量已更新${NC}"
+                        break
+                    else
+                        handle_error "格式不正确"
+                    fi
+                done
+                ;;
+            5)  
+                look_cfst_rules
+                while true; do
+                    read -p "请输入新的CloudflareST命令（无需以"./CloudflareST"开头）：" new_cf_command
+                    if [[ -z "$new_cf_command" ]]; then
+                        handle_error "格式不正确"
+                    else
+                        modify_resolve_field "cf_command" "$new_cf_command" "$modify_ddns"
+                        echo -e "${GREEN}CloudflareST命令已更新${NC}"
+                        break
+                    fi
+                done
+                ;;
+            6)
+                while true; do
+                    read -p "请输入新的IPv4地址URL：" new_v4_url
+                    if [ -n "$new_v4_url" ] && ! [[ "$new_v4_url" =~ ^https?://.* ]]; then
+                        handle_error "格式不正确"
+                    else
+                        modify_resolve_field "v4_url" "$new_v4_url" "$modify_ddns"
+                        echo -e "${GREEN}IPv4地址URL已更新${NC}"
+                        break
+                    fi
+                done
+                ;;
+            7)
+                while true; do
+                    read -p "请输入新的IPv6地址URL：" new_v6_url
+                    if [ -n "$new_v6_url" ] && ! [[ "$new_v6_url" =~ ^https?://.* ]]; then
+                        handle_error "格式不正确"
+                    else
+                        modify_resolve_field "v6_url" "$new_v6_url" "$modify_ddns"
+                        echo -e "${GREEN}IPv6地址URL已更新${NC}"
+                        break
+                    fi
+                done
+                ;;
+            8)  while true; do
+                    read -p "请输入新的推送方式（0.不设置 1.Telegram 2.PushPlus 3.Server酱 4.PushDeer 5.企业微信 6.Synology-Chat 7.Github，添加至少一个模式，以空格分隔）： " new_push_mod_input
+                    IFS=' ' read -ra new_push_mod <<< "$new_push_mod_input"
+
+                    # 验证输入
+                    if [[ $(printf '%s\n' "${new_push_mod[@]}" | grep -vE '^[0-7]$') ]]; then
+                        handle_error "请输入 0~7 的数字"
+                        continue
+                    fi
+
+                    if [[ " ${new_push_mod[@]} " =~ " 0 " && ${#new_push_mod[@]} -gt 1 ]]; then
+                        handle_error "0 不能与其他数字一起输入"
+                        continue
+                    fi
+
+                    if [[ $(printf '%s\n' "${new_push_mod[@]}" | sort | uniq -d) ]]; then
+                        handle_error "数字不能重复"
+                        continue
+                    fi
+
+                    # 使用函数转换推送方式
+                    new_push_mod_input=$(convert_push_mod "${new_push_mod[@]}")
+                    modify_resolve_field "push_mod" "$new_push_mod_input" "$modify_ddns"
+                    echo -e "${GREEN}推送方式已更新${NC}"
+                    break
+                done ;;
+            9)
+                break
+                ;;
+            *)
+                handle_error "无效的选项"
+                ;;
+        esac
+
+        # 每次修改后重新显示更新后的解析组信息
+        echo -e "${CYAN}更新后的解析组信息：${NC}"
+        yq e ".resolve[] | select(.ddns_name == \"$modify_ddns\") | \"\n账户组：\(.add_ddns)\n解析组：\(.ddns_name)\n一级域名：\(.hostname1)\n二级域名：\(.hostname2)\nIPv4数量：\(.v4_num)\nIPv6数量：\(.v6_num)\nCloudflareST命令：\(.cf_command)\nIPv4地址URL：\(.v4_url)\nIPv6地址URL：\(.v6_url)\n推送方式：\(.push_mod)\"" "$config_file"
+    done
+
+    echo -e "${GREEN}解析信息修改完毕。${NC}"
+    sleep 1
+    clear_input_buffer
+    resolve_settings
+}
+
+# 执行解析
+execute_resolve() {
+    clear
+    echo -e "${YELLOW}===================================${NC}"
+    echo -e "${YELLOW}|           执行解析              |${NC}"
+    echo -e "${YELLOW}===================================${NC}"
+
+    look_ddns  # 查看现有解析组
+
+    echo -e "${YELLOW}===================================${NC}"
+    read -p "请输入要执行的解析组名称（留空则返回上级）：" selected_ddns
+    if [ -z "$selected_ddns" ]; then
+        return
+    fi
+
+    # 调用 start 并传递解析组名称
+    bash "$script_path" start "$selected_ddns"
+    
+    # 执行完退出
+    exit 0
+}
+
+# 查看计划任务
+view_schedule() {
+    while true; do
+        clear
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${YELLOW}|           查看计划任务          |${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+
+        look_ddns  # 查看现有解析组
+
+        echo -e "${YELLOW}===================================${NC}"
+        # 提示用户输入解析组名称
+        read -p "请输入要查看计划任务的解析组名称（留空则返回上级）：" selected_ddns
+        if [ -z "$selected_ddns" ]; then
+            return
+        fi
+
+        # 检查解析组名称是否存在
+        if ! yq e ".resolve[] | select(.ddns_name == \"$selected_ddns\")" "$config_file" | grep -q .; then
+            handle_error "解析组不存在"
+            continue
+        fi
+
+        # 显示计划任务成品
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${CYAN}计划任务示例：${NC}"
+        echo -e "${CYAN}示例1：每4小时更新一次: 0 */4 * * * cd $script_dir && bash $The_CF_SCRIPT start $selected_ddns${NC}"
+        echo -e "${CYAN}示例2：每天5点更新一次: 0 5 * * * cd $script_dir && bash $The_CF_SCRIPT start $selected_ddns${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${CYAN}请选择操作：${NC}"
+        echo -e "${CYAN}1. 创建计划任务示例1${NC}"
+        echo -e "${CYAN}2. 创建计划任务示例2${NC}"
+        echo -e "${CYAN}3. 返回上级${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+        read -p "请选择操作 (1-3): " action_choice
+
+        # 读取现有的计划任务
+        existing_crontab=$(crontab -l 2>/dev/null)
+
+        case $action_choice in
+            1) 
+                new_task="0 */4 * * * cd $script_dir && bash $The_CF_SCRIPT start $selected_ddns"
+                (echo "$existing_crontab"; echo "$new_task") | crontab -
+                echo -e "${GREEN}计划任务示例1已创建！${NC}" ;;
+                
+            2) 
+                new_task="0 5 * * * cd $script_dir && bash $The_CF_SCRIPT start $selected_ddns"
+                (echo "$existing_crontab"; echo "$new_task") | crontab -
+                echo -e "${GREEN}计划任务示例2已创建！${NC}" ;;
+                
+            3) clear_input_buffer
+               main_menu ;;
+            *) 
+                handle_error "无效的选项" ;;
+                
+        esac
+
+        echo -e "${YELLOW}===================================${NC}"
+        read -p "按任意键返回上级菜单..." -n1 -s
+        clear_input_buffer
+    done
+}
+
+# 推送设置菜单
+push_settings() {
+    clear_input_buffer
+    while true; do
+        clear
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${YELLOW}|            推送管理             |${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${CYAN}1) Telegram${NC}"
+        echo -e "${CYAN}2) PushPlus${NC}"
+        echo -e "${CYAN}3) Server酱${NC}"
+        echo -e "${CYAN}4) PushDeer${NC}"
+        echo -e "${CYAN}5) 企业微信${NC}"
+        echo -e "${CYAN}6) Synology-Chat${NC}"
+        echo -e "${CYAN}7) 提交到Github${NC}"
+        echo -e "${CYAN}8) 返回主菜单${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+        read -p "请选择推送类型 (1-8): " push_type
+
+        case $push_type in
+            1) manage_push "Telegram" "telegram_bot_token" "telegram_user_id" "" "" ;;
+            2) manage_push "PushPlus" "pushplus_token" "" "" "" ;;
+            3) manage_push "Server酱" "server_sendkey" "" "" "" ;;
+            4) manage_push "PushDeer" "pushdeer_pushkey" "" "" "" ;;
+            5) manage_push "企业微信" "wechat_corpid" "wechat_secret" "wechat_agentid" "wechat_userid" ;;
+            6) manage_push "Synology-Chat" "synology_chat_url" "" "" "" ;;
+            7) github_push_menu ;;
+            8) clear_input_buffer
+               main_menu ;;
+            *) handle_error "无效的选项" ;;
+        esac
+    done
+}
+
+# 通用函数：管理推送（设置、修改、删除）
+manage_push() {
+    clear_input_buffer
+    local push_name="$1"
+    local app_id0_name="$2"
+    local app_id1_name="$3"
+    local app_id2_name="$4"
+    local app_id3_name="$5"
+
+    while true; do
+        clear
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${YELLOW}|       $push_name 推送管理        |${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+
+        # 显示当前设置
+        if yq e ".push[] | select(.push_name == \"$push_name\")" "$config_file" | grep -q .; then
+            echo -e "${CYAN}当前设置：${NC}"
+            case "$push_name" in
+                "Telegram")
+                    echo -e "Bot Token：$(yq e ".push[] | select(.push_name == \"$push_name\") | .telegram_bot_token" "$config_file")"
+                    echo -e "User ID：$(yq e ".push[] | select(.push_name == \"$push_name\") | .telegram_user_id" "$config_file")"
+                    ;;
+                "PushPlus")
+                    echo -e "Token：$(yq e ".push[] | select(.push_name == \"$push_name\") | .pushplus_token" "$config_file")"
+                    ;;
+                "Server酱")
+                    echo -e "SendKey：$(yq e ".push[] | select(.push_name == \"$push_name\") | .server_sendkey" "$config_file")"
+                    ;;
+                "PushDeer")
+                    echo -e "PushKey：$(yq e ".push[] | select(.push_name == \"$push_name\") | .pushdeer_pushkey" "$config_file")"
+                    ;;
+                "企业微信")
+                    echo -e "企业ID：$(yq e ".push[] | select(.push_name == \"$push_name\") | .wechat_corpid" "$config_file")"
+                    echo -e "应用Secret：$(yq e ".push[] | select(.push_name == \"$push_name\") | .wechat_secret" "$config_file")"
+                    echo -e "应用ID：$(yq e ".push[] | select(.push_name == \"$push_name\") | .wechat_agentid" "$config_file")"
+                    echo -e "接收者ID：$(yq e ".push[] | select(.push_name == \"$push_name\") | .wechat_userid" "$config_file")"
+                    ;;
+                "Synology-Chat")
+                    echo -e "Webhook URL：$(yq e ".push[] | select(.push_name == \"$push_name\") | .synology_chat_url" "$config_file")"
+                    ;;
+            esac
+        else
+            echo "当前没有设置任何参数"
+        fi
+
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${CYAN}1. 设置/修改参数${NC}"
+        echo -e "${CYAN}2. 删除推送${NC}"
+        echo -e "${CYAN}3. 返回上级${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+        read -p "请选择操作 (1-3): " push_choice
+
+        case $push_choice in
+            1)  # 设置或修改参数
+                if yq e ".push[] | select(.push_name == \"$push_name\")" "$config_file" | grep -q .; then
+                    configure_push "modify" "$push_name" "$app_id0_name" "$app_id1_name" "$app_id2_name" "$app_id3_name"
+                else
+                    configure_push "set" "$push_name" "$app_id0_name" "$app_id1_name" "$app_id2_name" "$app_id3_name"
+                fi
+                ;;
+            2)  # 删除推送
+                if yq e ".push[] | select(.push_name == \"$push_name\")" "$config_file" | grep -q .; then
+                    delete_push_section "$push_name"
+                else
+                    echo -e "${YELLOW}$push_name 未设置${NC}"
+                fi
+                sleep 1
+                ;;
+            3)  # 返回上级
+                return
+                ;;
+            *)
+                handle_error "无效的选项"
+                ;;
+        esac
+    done
+}
+
+# 通用函数：设置或修改推送参数
+configure_push() {
+    local mode="$1"  # 模式: set 或 modify
+    local name="$2"
+    local app_id0_name="$3"
+    local app_id1_name="$4"
+    local app_id2_name="$5"
+    local app_id3_name="$6"
+    local push_name="$name"
+
+    if [ "$mode" == "set" ]; then
+        echo -e "${CYAN}正在设置 $name 推送...${NC}"
+        
+        # 读取第一个必需参数
+        while true; do
+            read -p "请输入 $app_id0_name：" app_id0_value
+            if [ -z "$app_id0_value" ]; then
+                handle_error "$app_id0_name 不能为空"
+            else
+                break
+            fi
+        done
+
+        # 创建初始记录
+        local yq_expr=".push = (.push // []) + [{\"push_name\": \"$push_name\", \"$app_id0_name\": \"$app_id0_value\""
+        
+        # 添加其他必需字段
+        if [ -n "$app_id1_name" ]; then
+            while true; do
+                read -p "请输入 $app_id1_name：" app_id1_value
+                if [ -z "$app_id1_value" ]; then
+                    handle_error "$app_id1_name 不能为空"
+                else
+                    yq_expr="$yq_expr, \"$app_id1_name\": \"$app_id1_value\""
+                    break
+                fi
+            done
+        fi
+
+        if [ -n "$app_id2_name" ]; then
+            while true; do
+                read -p "请输入 $app_id2_name：" app_id2_value
+                if [ -z "$app_id2_value" ]; then
+                    handle_error "$app_id2_name 不能为空"
+                else
+                    yq_expr="$yq_expr, \"$app_id2_name\": \"$app_id2_value\""
+                    break
+                fi
+            done
+        fi
+
+        if [ -n "$app_id3_name" ]; then
+            while true; do
+                read -p "请输入 $app_id3_name：" app_id3_value
+                if [ -z "$app_id3_value" ]; then
+                    handle_error "$app_id3_name 不能为空"
+                else
+                    yq_expr="$yq_expr, \"$app_id3_name\": \"$app_id3_value\""
+                    break
+                fi
+            done
+        fi
+
+        # 完成记录并执行
+        yq_expr="$yq_expr}]"
+        yq e -i "$yq_expr" "$config_file"
+
+        echo -e "${GREEN}$name 参数已设置完成！${NC}"
+    else
+        # 修改模式：显示当前设置并选择要修改的参数
+        while true; do
+            clear
+            echo -e "${CYAN}正在修改 $name 推送...${NC}"
+            echo -e "${CYAN}当前设置：${NC}"
+            yq e ".push[] | select(.push_name == \"$push_name\")" "$config_file"
+            
+            echo -e "${YELLOW}===================================${NC}"
+            echo -e "${CYAN}请选择要修改的参数：${NC}"
+            echo -e "${CYAN}1. $app_id0_name${NC}"
+            local option_count=1
+            local field_options=()
+            
+            if [ -n "$app_id1_name" ]; then
+                ((option_count++))
+                echo -e "${CYAN}$option_count. $app_id1_name${NC}"
+                field_options+=("$app_id1_name")
+            fi
+            if [ -n "$app_id2_name" ]; then
+                ((option_count++))
+                echo -e "${CYAN}$option_count. $app_id2_name${NC}"
+                field_options+=("$app_id2_name")
+            fi
+            if [ -n "$app_id3_name" ]; then
+                ((option_count++))
+                echo -e "${CYAN}$option_count. $app_id3_name${NC}"
+                field_options+=("$app_id3_name")
+            fi
+            
+            ((option_count++))
+            echo -e "${CYAN}$option_count. 返回${NC}"
+            echo -e "${YELLOW}===================================${NC}"
+            
+            read -p "请选择 (1-$option_count): " choice
+            
+            case $choice in
+                $option_count)  # 返回选项
+                    break
+                    ;;
+                1)  # 修改第一个参数
+                    while true; do
+                        read -p "请输入新的 $app_id0_name：" new_value
+                        if [ -z "$new_value" ]; then
+                            handle_error "$app_id0_name 不能为空"
+                        else
+                            yq e -i ".push = [.push[] | select(.push_name == \"$push_name\").\"$app_id0_name\" = \"$new_value\" // .]" "$config_file"
+                            echo -e "${GREEN}$app_id0_name 已更新${NC}"
+                            sleep 1
+                            break
+                        fi
+                    done
+                    ;;
+                *)  # 修改其他参数
+                    if [ "$choice" -gt 1 ] && [ "$choice" -lt "$option_count" ]; then
+                        local field_name="${field_options[$choice-2]}"
+                        while true; do
+                            read -p "请输入新的 $field_name：" new_value
+                            if [ -z "$new_value" ]; then
+                                handle_error "$field_name 不能为空"
+                            else
+                                yq e -i ".push = [.push[] | select(.push_name == \"$push_name\").\"$field_name\" = \"$new_value\" // .]" "$config_file"
+                                echo -e "${GREEN}$field_name 已更新${NC}"
+                                sleep 1
+                                break
+                            fi
+                        done
+                    else
+                        handle_error "无效的选项"
+                        sleep 1
+                    fi
+                    ;;
+            esac
+        done
+    fi
+}
+
+# 删除推送设置
+delete_push_section() {
+    local push_name="$1"
+
+    # 提示用户确认删除操作
+    while true; do
+        read -p "确认删除 $push_name 的推送设置吗？(y/n): " confirm
+        case $confirm in
+            [yY]) 
+                # 删除指定的推送设置
+                yq e -i "del(.push[] | select(.push_name == \"$push_name\"))" "$config_file"
+                
+                # 检查是否还有剩余的推送设置
+                if ! yq e '.push | length' "$config_file" | grep -q '[^0]'; then
+                    # 如果没有剩余的推送设置，删除 push 键
+                    yq e -i 'del(.push)' "$config_file"
+                fi
+
+                echo -e "${GREEN}$push_name 的推送设置已删除${NC}"
+                break
+                ;;
+            [nN]) 
+                echo -e "${YELLOW}取消删除操作${NC}"
+                break
+                ;;
+            *) 
+                handle_error "无效输入"
+                ;;
+        esac
+    done
+}
+
+# 添加 Github 推送菜单
+github_push_menu() {
+    while true; do
+        clear
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${YELLOW}|         Github 推送设置         |${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+        
+        # 显示当前的 Github 推送配置
+        echo -e "${CYAN}当前配置：${NC}"
+        yq e '.push[] | select(.push_name == "Github") | "解析组：\(.ddns_push)\n文件URL：\(.file_url)\n端口：\(.port)\nIPv4备注：\(.remark)\nIPv6备注：\(.remark6)\n"' "$config_file" || echo "暂无配置"
+        
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${CYAN}1. 添加条目${NC}"
+        echo -e "${CYAN}2. 删除条目${NC}"
+        echo -e "${CYAN}3. 返回上级${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+
+        read -p "请选择 (1-3): " choice
+
+        case $choice in
+            1) add_github_push ;;
+            2) delete_github_push ;;
+            3) clear_input_buffer
+               push_settings ;;
+            *) handle_error "无效的选项" ;;
+        esac
+    done
+}
+
+# 添加 Github 推送配置
+add_github_push() {
+    clear
+    echo -e "${YELLOW}===================================${NC}"
+    echo -e "${YELLOW}|       添加 Github 推送          |${NC}"
+    echo -e "${YELLOW}===================================${NC}"
+    
+    while true; do
+        read -p "请输入解析组名称（留空则返回上级）：" ddns_push
+        if [ -z "$ddns_push" ]; then
+            return
+        fi
+
+        # 验证解析组是否存在
+        if ! yq e ".resolve[] | select(.ddns_name == \"$ddns_push\") | .ddns_name" "$config_file" | grep -q .; then
+            handle_error "解析组不存在"
+            continue
+        fi
+        break
+    done
+
+    while true; do
+        read -p "请输入文件URL：" file_url
+        if [ -z "$file_url" ]; then
+            handle_error "URL 不能为空"
+            continue
+        fi
+        break
+    done
+
+    while true; do
+        read -p "请输入端口：" port
+        if ! [[ "$port" =~ ^[0-9]+$ ]]; then
+            handle_error "端口必须是数字"
+            continue
+        fi
+        if [ -z "$file_url" ]; then
+            handle_error "端口不能为空"
+            continue
+        fi
+        break
+    done
+
+    while true; do
+        read -p "请输入IPv4备注（留空则不设置）：" remark
+        break
+    done
+    
+    while true; do
+        read -p "请输入IPv6备注（留空则不设置）：" remark6
+        break
+    done
+
+    # 添加配置
+    yq e -i ".push = (.push // []) + [{\"push_name\": \"Github\", \"ddns_push\": \"$ddns_push\", \"file_url\": \"$file_url\", \"port\": \"$port\", \"remark\": \"$remark\", \"remark6\": \"$remark6\"}]" "$config_file"
+    echo -e "${GREEN}Github 推送配置已添加！${NC}"
+    sleep 1
+}
+
+# 删除 Github 推送配置
+delete_github_push() {
+    echo -e "${YELLOW}===================================${NC}"
+    echo -e "${YELLOW}|       删除 Github 推送          |${NC}"
+    echo -e "${YELLOW}===================================${NC}"
+
+    # 显示现有的 Github 推送配置
+    echo -e "${CYAN}现有的 Github 推送配置：${NC}"
+    yq e '.push[] | select(.push_name == "Github") | "解析组：\(.ddns_push) IPv4备注：\(.remark) IPv6备注：\(.remark6)"' "$config_file"
+    echo -e "${YELLOW}===================================${NC}"
+
+    while true; do
+        read -p "请输入要删除的推送条目备注（留空则返回上级）：" del_remark
+        if [ -z "$del_remark" ]; then
+            return
+        fi
+    
+        # 验证该备注的 Github 推送是否存在
+        if ! yq e ".push[] | select(.push_name == \"Github\" and (.remark == \"$del_remark\" or .remark6 == \"$del_remark\"))" "$config_file" | grep -q .; then
+            handle_error "未找到该备注的 Github 推送配置"
+            continue
+        fi
+    
+        # 确认删除
+        while true; do
+            read -p "确认删除该推送配置？(y/n): " confirm
+            case $confirm in
+                [yY]) 
+                    yq e -i "del(.push[] | select(.push_name == \"Github\" and (.remark == \"$del_remark\" or .remark6 == \"$del_remark\")))" "$config_file"
+                    echo -e "${GREEN}Github 推送配置已删除！${NC}"
+                    sleep 1
+                    break
+                    ;;
+                [nN])
+                    echo -e "${YELLOW}取消删除操作${NC}"
+                    sleep 1
+                    break
+                    ;;
+                *)
+                    handle_error "无效输入"
+                    ;;
+            esac
+        done
+        break
+    done
+}
+
+# 插件设置
+write_plugin_settings() {
+    clear_input_buffer
+    local config_file="$config_file"
+    local current_clien="不使用"  # 修改初始值为 "不使用"
+
+    # 函数用于显示插件设置页面
+    display_plugin_menu() {
+        clear_input_buffer
+        clear
+        echo -e "${YELLOW}===================================${NC}"
+        echo -e "${YELLOW}|           插件设置              |${NC}"
+        echo -e "${YELLOW}===================================${NC}"
+        
+        # 读取当前的插件设置
+        current_clien=$(yq e '.plugin.clien' "$config_file")
+        if [ -z "$current_clien" ] || [ "$current_clien" = "null" ]; then
+            current_clien="不使用"  # 修改变量的初始值为 "不使用"
+            yq e -i '.plugin.clien = "不使用"' "$config_file"  # 设置配置文件中的初始值为 "不使用"
+        fi
+
+        # 显示当前插件
+        echo -e "${CYAN}当前插件：$current_clien${NC}"
+    }
+
+    while true; do
+        # 显示插件设置页面
+        display_plugin_menu
+
+        echo -e "${CYAN}插件位于/etc/init.d/目录下，例如：passwall passwall2 shadowsocksr openclash shellcrash bypass homeproxy mihomo${NC}"
+
+        # 获取用户输入
+        read -p "请输入插件名称(输入'0'不使用插件，输入'e'返回主菜单): " choice
+
+        # 处理用户选择
+        if [[ "$choice" == "e" ]]; then
+            clear_input_buffer
+            return 0
+        elif [[ "$choice" == "0" ]]; then
+            yq e -i '.plugin.clien = "不使用"' "$config_file"
+            echo -e "${GREEN}插件已设置为: 不使用${NC}"
+            sleep 1
+        elif [[ "$choice" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+            yq e -i ".plugin.clien = \"$choice\"" "$config_file"  # 保存为插件名称
+            echo -e "${GREEN}插件已设置为: $choice${NC}"
+            sleep 1
+        else
+            handle_error "请输入有效的插件名称"
+        fi
+
+        # 刷新显示插件设置页面
+        echo -e "${YELLOW}===================================${NC}"
+    done
+}
+
+# 主程序入口
+main_menu
