@@ -14,7 +14,7 @@ on:
       project_name:
         description: '项目名称'
         type: string
-        default: 'cfst'
+        default: 'CFRS'
         required: true
 
 jobs:
