@@ -31,7 +31,7 @@ RETRY_COUNT=0
 # 下载
 echo "下载 $FILENAME"
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if curl --max-time 10 -O "$DOWNLOAD_URL"; then
+    if curl -fL --max-time 10 -O "$DOWNLOAD_URL"; then
         echo "下载成功！"
         break
     else
