@@ -30,12 +30,12 @@
 
 #### GitHub
 ```bash
-curl -ksSL https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/setup/cfopw.sh | bash
+curl -ksSL https://raw.githubusercontent.com/GuangYu-yu/CloudFlare-DDNS/main/setup/cfopw.sh | bash
 ```
 
 #### 镜像源
 ```bash
-curl -ksSL https://ghproxy.cc/https://raw.githubusercontent.com/GuangYu-yu/opw-cloudflare/main/setup/cfopw.sh | bash
+curl -ksSL https://ghproxy.cc/https://raw.githubusercontent.com/GuangYu-yu/CloudFlare-DDNS/main/setup/cfopw.sh | bash
 ```
 
 ## 📄 配置文件结构 (`cf.yaml`)
