@@ -108,6 +108,7 @@ jobs:
             echo "cargo-zigbuild 构建失败，使用 cargo build 进行回退..."
             cargo build --release --target ${{ matrix.target }} || exit 1
           fi
+          cd ..
         shell: bash
 
       - name: 创建二进制目录
