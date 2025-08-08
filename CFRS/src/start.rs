@@ -262,24 +262,41 @@ impl Start {
             .arg("-H")
             .arg("Content-Type: application/json")
             .arg(&url)
-            .output()?;
+            .output();
             
+        let output = match output {
+            Ok(out) => out,
+            Err(e) => {
+                eprintln!("删除DNS记录失败: {}", e);
+                return Ok(());
+            }
+        };
+        
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("删除DNS记录失败: {}", stderr));
+            eprintln!("删除DNS记录失败: {}", stderr);
+            return Ok(());
         }
         
         let response_text = String::from_utf8_lossy(&output.stdout);
-        let json: Value = serde_json::from_str(&response_text)?;
+        let json: Value = match serde_json::from_str(&response_text) {
+            Ok(j) => j,
+            Err(e) => {
+                eprintln!("解析响应JSON失败: {}", e);
+                return Ok(());
+            }
+        };
+        
         let success = json["success"].as_bool().unwrap_or(false);
         
         if success {
             println!("成功删除DNS记录");
-            Ok(())
         } else {
             let error_message = json["errors"][0]["message"].as_str().unwrap_or("未知错误");
-            Err(anyhow::anyhow!("删除DNS记录失败: {}", error_message))
+            eprintln!("删除DNS记录失败: {}", error_message);
         }
+        
+        Ok(())
     }
     
     // 创建DNS记录
@@ -313,15 +330,31 @@ impl Start {
             .arg("-d")
             .arg(body.to_string())
             .arg(&url)
-            .output()?;
+            .output();
             
+        let output = match output {
+            Ok(out) => out,
+            Err(e) => {
+                eprintln!("创建DNS记录失败: {}", e);
+                return Ok(false);
+            }
+        };
+        
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("创建DNS记录失败: {}", stderr));
+            eprintln!("创建DNS记录失败: {}", stderr);
+            return Ok(false);
         }
         
         let response_text = String::from_utf8_lossy(&output.stdout);
-        let json: Value = serde_json::from_str(&response_text)?;
+        let json: Value = match serde_json::from_str(&response_text) {
+            Ok(j) => j,
+            Err(e) => {
+                eprintln!("解析响应JSON失败: {}", e);
+                return Ok(false);
+            }
+        };
+        
         let success = json["success"].as_bool().unwrap_or(false);
         
         if success {
@@ -339,7 +372,7 @@ impl Start {
                 println!("添加 {} 到 {} 失败", ip, domain);
                 println!("错误代码: {}", code);
                 println!("错误信息: {}", error_message);
-                return Err(anyhow::anyhow!("创建DNS记录失败: {}", error_message));
+                return Ok(false);
             }
         }
     }
@@ -594,10 +627,7 @@ impl Start {
                     let exclude_set: std::collections::HashSet<_> = v4_ips.iter().cloned().collect();
                     for record in &existing_records {
                         if !exclude_set.contains(&record.content) {
-                            if let Err(e) = self.delete_dns_record(x_email, api_key, zone_id, "A", &record.id) {
-                                eprintln!("删除IPv4记录失败: {}", e);
-                                // 继续执行，不退出程序
-                            }
+                            let _ = self.delete_dns_record(x_email, api_key, zone_id, "A", &record.id);
                         }
                     }
                 }
@@ -635,10 +665,7 @@ impl Start {
                     let exclude_set: std::collections::HashSet<_> = v6_ips.iter().cloned().collect();
                     for record in &existing_records {
                         if !exclude_set.contains(&record.content) {
-                            if let Err(e) = self.delete_dns_record(x_email, api_key, zone_id, "AAAA", &record.id) {
-                                eprintln!("删除IPv6记录失败: {}", e);
-                                // 继续执行，不退出程序
-                            }
+                            let _ = self.delete_dns_record(x_email, api_key, zone_id, "AAAA", &record.id);
                         }
                     }
                 }

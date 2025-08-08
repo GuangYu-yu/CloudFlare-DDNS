@@ -25,10 +25,6 @@ mod github_push_settings;
 mod plugin_settings;
 use plugin_settings::PluginSettings;
 
-// -- 计划任务 --
-mod view_schedule;
-use view_schedule::ViewSchedule;
-
 // -- 执行解析 --
 mod start;
 use start::Start;
@@ -131,7 +127,6 @@ fn main() -> Result<()> {
         "解析设置",
         "推送设置",
         "执行解析",
-        "计划任务",
         "插件设置",
     ];
 
@@ -148,8 +143,7 @@ fn main() -> Result<()> {
                 1 => resolve_settings()?,
                 2 => push_settings()?,
                 3 => execute_resolve()?,
-                4 => view_schedule()?,
-                5 => write_plugin_settings()?,
+                4 => write_plugin_settings()?,
                 _ => unreachable!(),
             }
         } else {
@@ -183,13 +177,6 @@ fn execute_resolve() -> Result<()> {
     let config_path = PathBuf::from(CONFIG_FILE);
     let mut start = Start::new(config_path)?;
     start.run(None)?;
-    Ok(())
-}
-
-fn view_schedule() -> Result<()> {
-    let config_path = PathBuf::from(CONFIG_FILE);
-    let mut view_schedule = ViewSchedule::new(config_path)?;
-    view_schedule.run()?;
     Ok(())
 }
 
