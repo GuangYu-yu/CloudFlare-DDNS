@@ -476,11 +476,19 @@ impl Start {
 
         // ========== 插件控制：停止 ==========
         let plugin_status = if clien != "不使用" && !clien.is_empty() {
+            println!("正在停止插件 {}", clien);
             let status = Command::new(format!("/etc/init.d/{}", clien))
                 .arg("stop")
                 .status()?;
-            if status.success() { Some("stopped") } else { None }
+            if status.success() { 
+                println!("已停止插件 {}", clien);
+                Some("stopped") 
+            } else { 
+                eprintln!("停止插件 {} 失败", clien);
+                None 
+            }
         } else {
+            println!("按配置不停止插件");
             None
         };
 
@@ -521,12 +529,18 @@ impl Start {
         // ========== 插件控制：重启 ==========
 
         if add_ddns != "未指定" {
-            if let Some(_) = plugin_status {
+            if clien.is_empty() || clien == "不使用" {
+                println!("根据配置，插件不会重启");
+            } else if let Some(_) = plugin_status {
+                println!("正在重启插件 {}", clien);
                 let status = Command::new(format!("/etc/init.d/{}", clien))
                     .arg("restart")
                     .status()?;
                 if status.success() {
+                    println!("已重启插件 {}", clien);
                     std::thread::sleep(std::time::Duration::from_secs(10));
+                } else {
+                    eprintln!("重启插件 {} 失败", clien);
                 }
             }
         }
@@ -580,7 +594,10 @@ impl Start {
                     let exclude_set: std::collections::HashSet<_> = v4_ips.iter().cloned().collect();
                     for record in &existing_records {
                         if !exclude_set.contains(&record.content) {
-                            self.delete_dns_record(x_email, api_key, zone_id, "A", &record.id)?;
+                            if let Err(e) = self.delete_dns_record(x_email, api_key, zone_id, "A", &record.id) {
+                                eprintln!("删除IPv4记录失败: {}", e);
+                                // 继续执行，不退出程序
+                            }
                         }
                     }
                 }
@@ -618,7 +635,10 @@ impl Start {
                     let exclude_set: std::collections::HashSet<_> = v6_ips.iter().cloned().collect();
                     for record in &existing_records {
                         if !exclude_set.contains(&record.content) {
-                            self.delete_dns_record(x_email, api_key, zone_id, "AAAA", &record.id)?;
+                            if let Err(e) = self.delete_dns_record(x_email, api_key, zone_id, "AAAA", &record.id) {
+                                eprintln!("删除IPv6记录失败: {}", e);
+                                // 继续执行，不退出程序
+                            }
                         }
                     }
                 }
@@ -675,10 +695,18 @@ impl Start {
 
         // ========== 插件控制：恢复 ==========
 
-        if let Some("stopped") = plugin_status {
-            let _ = Command::new(format!("/etc/init.d/{}", clien))
-                .arg("start")
-                .status();
+        if clien != "不使用" && !clien.is_empty() {
+            if let Some("stopped") = plugin_status {
+                println!("正在恢复插件 {}", clien);
+                let status = Command::new(format!("/etc/init.d/{}", clien))
+                    .arg("start")
+                    .status();
+                if status.is_ok() && status.unwrap().success() {
+                    println!("已恢复插件 {}", clien);
+                } else {
+                    eprintln!("恢复插件 {} 失败", clien);
+                }
+            }
         }
 
         // 退出程序
