@@ -3,10 +3,10 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Platform-OpenWrt%20%7C%20Linux-blue.svg" alt="Platform">
   <img src="https://img.shields.io/badge/Language-Bash%20%7C%20Shell-blue.svg" alt="Language">
-  <a href="https://github.com/GuangYu-yu/opw-cloudflare">
-    <img src="https://img.shields.io/github/stars/GuangYu-yu/opw-cloudflare?style=social" alt="GitHub Stars">
+  <a href="https://github.com/GuangYu-yu/CloudFlare-DDNS">
+    <img src="https://img.shields.io/github/stars/GuangYu-yu/CloudFlare-DDNS?style=social" alt="GitHub Stars">
   </a>
-  <a href="https://deepwiki.com/GuangYu-yu/opw-cloudflare">
+  <a href="https://deepwiki.com/GuangYu-yu/CloudFlare-DDNS">
     <img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki">
   </a>
 </p>
