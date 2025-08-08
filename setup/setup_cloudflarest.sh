@@ -7,11 +7,11 @@ ARCH=$(uname -m)
 case "$ARCH" in
     x86_64) 
         FILENAME="CloudflareST-Rust_linux_amd64.tar.gz"
-        DOWNLOAD_URL="https://gitee.com/zhxdcyy/cfurl/raw/master/CloudflareST-Rust_linux_amd64.tar.gz"
+        DOWNLOAD_URL="https://github.com/GuangYu-yu/CloudflareST-Rust/releases/download/latest/CloudflareST-Rust_linux_amd64.tar.gz"
         ;;
     aarch64) 
         FILENAME="CloudflareST-Rust_linux_arm64.tar.gz"
-        DOWNLOAD_URL="https://gitee.com/zhxdcyy/cfurl/raw/master/CloudflareST-Rust_linux_arm64.tar.gz"
+        DOWNLOAD_URL="https://github.com/GuangYu-yu/CloudflareST-Rust/releases/download/latest/CloudflareST-Rust_linux_arm64.tar.gz"
         ;;
     *)
         echo "不支持的架构: $ARCH"
