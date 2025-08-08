@@ -53,11 +53,34 @@ resolve:
   - add_ddns: "账户"              # 关联的账户名称
     ddns_name: "域名解析"          # 解析任务名称
     hostname1: "example.com"        # 主域名
-    hostname2: "www blog shop"      # 子域名列表（空格分隔）
+    hostname2: "www blog shop"      # 一个或多个子域名（空格分隔）
     v4_num: 2                       # IPv4优选IP数量
     v6_num: 1                       # IPv6优选IP数量
     cf_command: "-n 500 -tll 20 -tl 300 -sl 15 -tp 2053 -t 8 -tlr 0.2"  # 测速参数
     v4_url: "https://ipv4.icanhazip.com"    # IPv4地址获取接口
     v6_url: "https://ipv6.icanhazip.com"    # IPv6地址获取接口
     push_mod: "Telegram"             # 推送方式
+# 插件
+plugin:
+  clien: 不使用
+# 推送
+push:
+- push_name: PushPlus
+  telegram_bot_token: null
+  telegram_user_id: null
+  pushplus_token: null
+  server_sendkey: null
+  pushdeer_pushkey: null
+  wechat_corpid: null
+  wechat_secret: null
+  wechat_agentid: null
+  wechat_userid: null
+  synology_chat_url: null
+github_push:
+- push_name: Github
+  ddns_push: www
+  file_url: https://raw.githubusercontent.com/<用户名>/<私库>/refs/heads/<分支>/<文件路径>?token=<令牌>
+  port: '443'
+  remark: ''
+  remark6: ''
 ```
