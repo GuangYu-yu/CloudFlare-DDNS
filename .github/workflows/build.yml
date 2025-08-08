@@ -117,7 +117,7 @@ jobs:
 
       - name: 复制二进制文件
         run: |
-          cp target/${{ matrix.target }}/release/${{ matrix.binary_name }} binaries/${{ matrix.os }}_${{ matrix.arch }}/
+          cp CFRS/target/${{ matrix.target }}/release/${{ matrix.binary_name }} binaries/${{ matrix.os }}_${{ matrix.arch }}/
         shell: bash
 
       - name: 上传构建产物
