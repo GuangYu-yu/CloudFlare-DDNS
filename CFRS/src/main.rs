@@ -165,9 +165,8 @@ fn clear_screen() -> std::io::Result<()> {
 
 #[cfg(unix)]
 fn clear_screen() -> std::io::Result<()> {
-    let _ = Command::new("sh")
-        .args(&["-c", "printf '\033c'"])
-        .status();
+    print!("\x1Bc");
+    std::io::stdout().flush()?;
     Ok(())
 }
 
