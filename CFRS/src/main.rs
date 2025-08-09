@@ -4,6 +4,7 @@ use std::env;
 use std::path::PathBuf;
 use std::fs;
 use serde::{Deserialize, Serialize};
+use std::process::Command;
 
 // 全局常量
 pub const CONFIG_FILE: &str = "cf.yaml";
@@ -40,7 +41,7 @@ pub struct Account {
     pub api_key: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Resolve {
     pub add_ddns: String,
     pub ddns_name: String,
@@ -130,6 +131,7 @@ fn main() -> Result<()> {
     ];
 
     loop {
+        clear_screen()?;
         let selection = Select::with_theme(&ColorfulTheme::default())
             .with_prompt("请选择菜单项（按ESC退出）")
             .items(&items)
@@ -150,6 +152,23 @@ fn main() -> Result<()> {
             std::process::exit(0);
         }
     }
+}
+
+/// 跨平台清屏函数
+fn clear_screen() -> Result<()> {
+    #[cfg(target_os = "windows")]
+    let output = Command::new("cmd")
+        .args(&["/C", "cls"])
+        .status();
+
+    #[cfg(unix)]
+    let output = Command::new("sh")
+        .args(&["-c", "printf '\033c'"])
+        .status();
+
+    // 忽略命令执行结果，即使失败也继续执行
+    let _ = output;
+    Ok(())
 }
 
 // 各个菜单项函数

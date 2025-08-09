@@ -2,7 +2,7 @@ use anyhow::Result;
 use dialoguer::{theme::ColorfulTheme, Input};
 use std::path::PathBuf;
 use console::Term;
-use crate::{Config, Plugin};
+use crate::{Config, Plugin, clear_screen};
 
 pub struct PluginSettings {
     config_path: PathBuf,
@@ -32,8 +32,7 @@ impl PluginSettings {
 
     pub fn run(&mut self) -> Result<()> {
         loop {
-            self.term.clear_screen()?;
-            self.show_current_plugin()?;
+            clear_screen()?;
 
             if !self.set_plugin()? {
                 break;
@@ -48,16 +47,8 @@ impl PluginSettings {
             .unwrap_or_else(|| "未指定".to_string())
     }
 
-    fn show_current_plugin(&self) -> Result<()> {
-        let current_plugin = self.get_current_plugin();
-        
-        self.term.write_line(&format!("- 当前插件：{}", current_plugin))?;
-        self.term.write_line("")?;
-        Ok(())
-    }
-
     fn set_plugin(&mut self) -> Result<bool> {
-        self.term.clear_screen()?;
+        clear_screen()?;
         
         // 显示当前插件
         let current_plugin = self.get_current_plugin();

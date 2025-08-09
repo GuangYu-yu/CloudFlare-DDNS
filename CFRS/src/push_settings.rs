@@ -2,7 +2,7 @@ use anyhow::Result;
 use dialoguer::{theme::ColorfulTheme, Select, Input};
 use std::path::PathBuf;
 use console::Term;
-use crate::{Config, PushConfig};
+use crate::{Config, PushConfig, clear_screen};
 
 pub struct PushSettings {
     config_path: PathBuf,
@@ -23,7 +23,7 @@ impl PushSettings {
 
     pub fn run(&mut self) -> Result<()> {
         loop {
-            self.term.clear_screen()?;
+            clear_screen()?;
             self.list_push_configs()?;
 
             let items = [
@@ -115,7 +115,6 @@ impl PushSettings {
                         },
                         _ => {}
                     }
-                    info.push_str("\n");
                     info
                 })
                 .collect::<Vec<String>>()
@@ -135,7 +134,7 @@ impl PushSettings {
 
     fn manage_push(&mut self, push_name: &str) -> Result<()> {
         loop {
-            self.term.clear_screen()?;
+            clear_screen()?;
             self.term.write_line(&format!("{} 推送管理", push_name))?;
             
             // 显示当前设置
@@ -198,7 +197,6 @@ impl PushSettings {
             let items = [
                 "设置/修改参数",
                 "删除推送",
-                "返回上级",
             ];
 
             let selection = Select::with_theme(&self.theme)
@@ -210,7 +208,7 @@ impl PushSettings {
             // 如果用户按ESC返回，则直接返回
             let selection = match selection {
                 Some(value) => value,
-                None => return Ok(()),
+                None => break,
             };
 
             match selection {
@@ -229,8 +227,7 @@ impl PushSettings {
                         self.term.read_line()?;
                     }
                 },
-                2 => break,
-                _ => unreachable!(),
+                _ => {}
             }
         }
         Ok(())

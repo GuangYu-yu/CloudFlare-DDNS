@@ -8,7 +8,7 @@ use serde::{Deserialize};
 use serde_json::Value;
 use std::time::Duration;
 use crate::push::PushService;
-use crate::{Config, Resolve};
+use crate::{Config, Resolve, clear_screen};
 
 pub struct Start {
     config_path: PathBuf,
@@ -386,7 +386,7 @@ impl Start {
 
         // 交互模式
         loop {
-            self.term.clear_screen()?;
+            clear_screen()?;
 
             let resolves = self.get_resolves()?;
             if resolves.is_empty() {

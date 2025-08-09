@@ -3,7 +3,7 @@ use dialoguer::{theme::ColorfulTheme, Select, Input};
 use std::path::PathBuf;
 use console::Term;
 use regex::Regex;
-use crate::{Config, GithubPushConfig};
+use crate::{Config, GithubPushConfig, clear_screen};
 
 pub struct GithubPushSettings {
     config_path: PathBuf,
@@ -24,7 +24,7 @@ impl GithubPushSettings {
 
     pub fn run(&mut self) -> Result<()> {
         loop {
-            self.term.clear_screen()?;
+            clear_screen()?;
             
             // 显示当前的 Github 推送配置
             self.term.write_line("当前配置：")?;
@@ -64,7 +64,6 @@ impl GithubPushSettings {
     }
 
 fn add_github_push(&mut self) -> Result<()> {
-    self.term.clear_screen()?;
     self.term.write_line("添加 Github 推送")?;
 
     // 检查是否有解析组
@@ -76,6 +75,7 @@ fn add_github_push(&mut self) -> Result<()> {
             return Ok(());
         }
     };
+    clear_screen()?;
 
     // 创建解析组选择项
     let resolve_names: Vec<&String> = resolves.iter().map(|r| &r.ddns_name).collect();
@@ -96,9 +96,19 @@ fn add_github_push(&mut self) -> Result<()> {
     // 获取选中的解析组名称
     let ddns_push = resolves[selection].ddns_name.clone();
 
-        let file_url: String = Input::with_theme(&self.theme)
-            .with_prompt("请输入文件URL")
-            .interact_text()?;
+        let file_url: String = loop {
+            let input: String = Input::with_theme(&self.theme)
+                .with_prompt("请输入文件URL")
+                .interact_text()?;
+
+            // 使用正则表达式验证URL格式
+            if Regex::new(r"^https?://")?.is_match(&input) {
+                break input;
+            }
+            
+            self.term.write_line("URL格式不正确")?;
+            self.term.read_line()?;
+        };
 
         let port = loop {
             let input: String = Input::with_theme(&self.theme)
@@ -146,7 +156,6 @@ fn add_github_push(&mut self) -> Result<()> {
     }
 
     fn delete_github_push(&mut self) -> Result<()> {
-        self.term.clear_screen()?;
         self.term.write_line("删除 Github 推送")?;
 
         // 收集所有 Github 推送配置
@@ -155,6 +164,7 @@ fn add_github_push(&mut self) -> Result<()> {
         } else {
             Vec::new()
         };
+        clear_screen()?;
 
         if github_configs.is_empty() {
             self.term.write_line("暂无配置")?;
