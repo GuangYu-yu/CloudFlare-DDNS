@@ -45,8 +45,6 @@ jobs:
     name: 构建 ${{ matrix.os }}_${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
     if: ${{ always() }}
-    env:
-      ZIG_SYSTEM_LINKER: 1
     strategy:
       fail-fast: false
       matrix:
