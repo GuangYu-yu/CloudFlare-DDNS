@@ -157,9 +157,9 @@ fn main() -> Result<()> {
 #[cfg(target_os = "windows")]
 fn clear_screen() -> std::io::Result<()> {
     use std::process::Command;
-    let _ = Command::new("cmd")
+    Command::new("cmd")
         .args(&["/C", "cls"])
-        .status();
+        .status()?;
     Ok(())
 }
 
@@ -168,7 +168,7 @@ fn clear_screen() -> std::io::Result<()> {
     use std::io::Write;
     print!("\x1Bc");
     std::io::stdout().flush()?;
-    Ok()
+    Ok(())
 }
 
 // 各个菜单项函数
