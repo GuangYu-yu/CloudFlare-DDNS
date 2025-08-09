@@ -43,17 +43,6 @@ done
 # 清理临时文件
 rm -rf "$TEMP_DIR"
 
-# 解压
-tar -zxf "$FILENAME" && rm -f "$FILENAME"
-
-# 删除压缩包
-rm -f "$FILENAME"
-
-# 赋予执行权限
-chmod +x CFRS
-
-echo "CFRS 获取完成！"
-
 # 初始化包列表
 packages=""
 
@@ -98,6 +87,17 @@ if [ -n "$packages" ]; then
         exit 1
     fi
 fi
+
+# 解压
+tar -zxf "$FILENAME" && rm -f "$FILENAME"
+
+# 删除压缩包
+rm -f "$FILENAME"
+
+# 赋予执行权限
+chmod +x CFRS
+
+echo "CFRS 获取完成！"
 
 # 执行 setup_cloudflarest.sh
 curl -ksSL https://raw.githubusercontent.com/GuangYu-yu/CloudFlare-DDNS/refs/heads/main/setup/setup_cloudflarest.sh | bash
