@@ -682,6 +682,13 @@ impl Start {
         push_mod: &str,
         clien: &str,
     ) -> Result<()> {
+
+        if v4_num == 0 && v6_num == 0 {
+            println!("IPv4和IPv6所需数量不能同时设为0");
+            std::process::exit(0);
+
+        }
+
         // ========== 构造域名 ==========
 
         let mut domains = Vec::new();
@@ -717,7 +724,7 @@ impl Start {
         let output_file = Self::parse_cf_command_for_output_file(cf_command);
         
         let mut all_domain_ip_map = std::collections::HashMap::new();
-        let mut has_update = false;
+//        let mut has_update = false;
         
         let process_ip = |ip_type: &str, url: &str, num: u32| -> Result<(Vec<String>, std::collections::HashMap<String, Vec<String>>)> {
             self.process_ip_type(
@@ -741,12 +748,14 @@ impl Start {
             let (v4_ips, v4_domain_ip_map) = process_ip("IPv4", v4_url, v4_num)?;
             
             if !v4_ips.is_empty() {
-                has_update = true;
+//                has_update = true;
                 all_domain_ip_map.extend(v4_domain_ip_map);
                 
                 // IPv4消息推送
                 self.execute_push(push_mod, &hostnames, v4_num, v6_num, "IPv4", ddns_name, &all_domain_ip_map, add_ddns)?;
             }
+        } else {
+            println!("根据设置，跳过 IPv4 测速");
         }
         
         // 处理IPv6
@@ -754,14 +763,17 @@ impl Start {
             let (v6_ips, v6_domain_ip_map) = process_ip("IPv6", v6_url, v6_num)?;
             
             if !v6_ips.is_empty() {
-                has_update = true;
+//                has_update = true;
                 all_domain_ip_map.extend(v6_domain_ip_map);
                 
                 // IPv6消息推送
                 self.execute_push(push_mod, &hostnames, v4_num, v6_num, "IPv6", ddns_name, &all_domain_ip_map, add_ddns)?;
             }
+        } else {
+            println!("根据设置，跳过 IPv6 测速");
         }
         
+/*
         // 当v4_num和v6_num都为0时，直接测速、处理DNS、推送
         if v4_num == 0 && v6_num == 0 {
             let (ips, domain_ip_map) = process_ip("", "", 0)?;
@@ -776,6 +788,7 @@ impl Start {
                 self.execute_push(push_mod, &hostnames, v4_num, v6_num, "IP", ddns_name, &all_domain_ip_map, add_ddns)?;
             }
         }
+*/
 
         // ========== 插件控制：恢复 ==========
 
