@@ -451,7 +451,7 @@ impl Start {
         };
 
         // 获取插件配置
-        let default_clien = "不使用".to_string();
+        let default_clien = "未指定".to_string();
         let clien = self.config.plugin.as_ref()
             .map(|p| &p.clien)
             .unwrap_or(&default_clien);
@@ -508,7 +508,7 @@ impl Start {
         };
 
         // ========== 插件控制：停止 ==========
-        let plugin_status = if clien != "不使用" && !clien.is_empty() {
+        let plugin_status = if clien != "未指定" && !clien.is_empty() {
             println!("正在停止插件 {}", clien);
             let status = Command::new(format!("/etc/init.d/{}", clien))
                 .arg("stop")
@@ -562,7 +562,7 @@ impl Start {
         // ========== 插件控制：重启 ==========
 
         if add_ddns != "未指定" {
-            if clien.is_empty() || clien == "不使用" {
+            if clien.is_empty() || clien == "未指定" {
                 println!("根据配置，插件不会重启");
             } else if let Some(_) = plugin_status {
                 println!("正在重启插件 {}", clien);
@@ -722,7 +722,7 @@ impl Start {
 
         // ========== 插件控制：恢复 ==========
 
-        if clien != "不使用" && !clien.is_empty() {
+        if clien != "未指定" && !clien.is_empty() {
             if let Some("stopped") = plugin_status {
                 println!("正在恢复插件 {}", clien);
                 let status = Command::new(format!("/etc/init.d/{}", clien))

@@ -15,10 +15,10 @@ impl PluginSettings {
     pub fn new(config_path: PathBuf) -> Result<Self> {
         let mut config = Config::load(&config_path)?;
         
-        // 如果没有插件配置，则初始化为"不使用"
+        // 如果没有插件配置，则初始化为"未指定"
         if config.plugin.is_none() {
             config.plugin = Some(Plugin {
-                clien: "不使用".to_string(),
+                clien: "未指定".to_string(),
             });
         }
         
@@ -35,16 +35,17 @@ impl PluginSettings {
             self.term.clear_screen()?;
             self.show_current_plugin()?;
 
-            self.set_plugin()?;
+            if !self.set_plugin()? {
+                break;
+            }
         }
+        Ok(())
     }
 
     fn get_current_plugin(&self) -> String {
-        if let Some(plugin) = &self.config.plugin {
-            plugin.clien.clone()
-        } else {
-            "不使用".to_string()
-        }
+        self.config.plugin.as_ref()
+            .map(|p| p.clien.clone())
+            .unwrap_or_else(|| "未指定".to_string())
     }
 
     fn show_current_plugin(&self) -> Result<()> {
@@ -55,7 +56,7 @@ impl PluginSettings {
         Ok(())
     }
 
-    fn set_plugin(&mut self) -> Result<()> {
+    fn set_plugin(&mut self) -> Result<bool> {
         self.term.clear_screen()?;
         
         // 显示当前插件
@@ -73,18 +74,18 @@ impl PluginSettings {
             .interact_text()?;
 
         if input.trim().is_empty() {
-            return Ok(()); // 返回上级
+            return Ok(false); // 返回上级
         }
 
         let plugin_name = if input.trim() == "0" {
-            "不使用".to_string()
+            "未指定".to_string()
         } else if input.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-') {
             input
         } else {
             self.term.write_line("插件名称格式不正确")?;
             self.term.write_line("按回车键继续...")?;
             self.term.read_line()?;
-            return Ok(());
+            return Ok(true);
         };
 
         self.config.plugin = Some(Plugin {
@@ -95,6 +96,6 @@ impl PluginSettings {
         self.term.write_line(&format!("插件已设置为: {}", plugin_name))?;
         self.term.write_line("按回车键继续...")?;
         self.term.read_line()?;
-        Ok(())
+        Ok(true)
     }
 }

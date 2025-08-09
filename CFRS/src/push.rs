@@ -592,7 +592,9 @@ impl PushService {
                                 
                                 // 获取现有内容并解码
                                 let existing_content_encoded = check_json["content"].as_str().unwrap_or("");
-                                let existing_content_decoded = general_purpose::STANDARD.decode(existing_content_encoded)?;
+                                // 移除base64字符串中的换行符
+                                let clean_base64 = existing_content_encoded.replace(|c| c == '\n' || c == '\r', "");
+                                let existing_content_decoded = general_purpose::STANDARD.decode(clean_base64)?;
                                 let existing_content = String::from_utf8(existing_content_decoded)?;
                                 
                                 // 从现有内容中过滤掉当前记录
