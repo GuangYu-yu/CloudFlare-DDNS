@@ -395,7 +395,7 @@ impl Start {
                 break;
             }
 
-            let items: Vec<String> = resolves.iter().map(|r| format!("{} ({}, {})", r.ddns_name, r.hostname1, r.hostname2)).collect();
+            let items: Vec<String> = resolves.iter().map(|r| format!("{}", r.ddns_name)).collect();
             let items_ref: Vec<&str> = items.iter().map(|s| s.as_str()).collect();
 
             let selection = Select::with_theme(&self.theme)

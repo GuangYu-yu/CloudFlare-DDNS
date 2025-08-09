@@ -53,14 +53,14 @@ impl PluginSettings {
         // 显示当前插件
         let current_plugin = self.get_current_plugin();
         
-        self.term.write_line(&format!("当前插件：{}", current_plugin))?;
+        self.term.write_line(&format!("测速前暂停指定插件，当前插件：{}", current_plugin))?;
         self.term.write_line("")?;
         self.term.write_line("插件位于/etc/init.d/目录下，例如：passwall passwall2 shadowsocksr openclash shellcrash bypass homeproxy mihomo")?;
         self.term.write_line("")?;
 
         // 获取用户输入
         let input: String = Input::with_theme(&self.theme)
-            .with_prompt("请输入插件名称（输入0不使用插件，留空则返回上级）")
+            .with_prompt("请输入插件名称（输入 0 不指定插件，留空则返回上级）")
             .allow_empty(true)
             .interact_text()?;
 
