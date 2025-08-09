@@ -530,17 +530,19 @@ impl Start {
         // 解析 cf_command 获取 -f 参数指定的文件路径
         let output_file = Self::parse_cf_command_for_output_file(cf_command);
 
-        if v4_num > 0 {
-            self.fetch_and_filter_ips(v4_url, v4_num, "IPv4", output_file.as_ref().map(|f| f.as_str()))?
-        } else {
-            Vec::new()
-        };
+        let should_run_ipv4_test = v4_num > 0;
+        let should_run_ipv6_test = v6_num > 0;
 
-        if v6_num > 0 {
-            self.fetch_and_filter_ips(v6_url, v6_num, "IPv6", output_file.as_ref().map(|f| f.as_str()))?
-        } else {
-            Vec::new()
-        };
+        // 只有在指定了-f参数时才下载IP数据，否则跳过下载
+        if output_file.is_some() {
+            if should_run_ipv4_test && !v4_url.is_empty() {
+                self.fetch_and_filter_ips(v4_url, v4_num, "IPv4", output_file.as_ref().map(|f| f.as_str()))?;
+            }
+            
+            if should_run_ipv6_test && !v6_url.is_empty() {
+                self.fetch_and_filter_ips(v6_url, v6_num, "IPv6", output_file.as_ref().map(|f| f.as_str()))?;
+            }
+        }
 
         // ========== 执行测速 ==========
 
