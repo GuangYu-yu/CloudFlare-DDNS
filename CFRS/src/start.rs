@@ -179,13 +179,18 @@ impl Start {
     }
     
     // 获取DNS记录
-    fn get_dns_records(&self, x_email: &str, api_key: &str, zone_id: &str, domain: &str, record_type: &str) -> Result<Vec<DnsRecord>> {
-        println!("获取域名 {} 的 {} 记录...", domain, record_type);
-        
-        let url = format!(
-            "https://api.cloudflare.com/client/v4/zones/{}/dns_records?type={}&name={}",
-            zone_id, record_type, domain
-        );
+    fn get_dns_records(&self, x_email: &str, api_key: &str, zone_id: &str, domain: &str, record_type: Option<&str>) -> Result<Vec<DnsRecord>> {
+        let url = if let Some(rt) = record_type {
+            format!(
+                "https://api.cloudflare.com/client/v4/zones/{}/dns_records?type={}&name={}"
+                , zone_id, rt, domain
+            )
+        } else {
+            format!(
+                "https://api.cloudflare.com/client/v4/zones/{}/dns_records?name={}"
+                , zone_id, domain
+            )
+        };
         
         let output = Command::new("curl")
             .arg("-s")
@@ -223,8 +228,6 @@ impl Start {
                 records.push(DnsRecord { id, content });
             }
         }
-        
-        println!("找到 {} 条 {} 记录", records.len(), record_type);
         
         Ok(records)
     }
@@ -477,6 +480,142 @@ impl Start {
         Ok(())
     }
 
+    // 处理单个IP类型的完整流程
+    fn process_ip_type(
+        &self,
+        ip_type: &str,
+        url: &str,
+        num: u32,
+        cf_command: &str,
+        add_ddns: &str,
+        x_email: &str,
+        zone_id: &str,
+        api_key: &str,
+        domains: &[String],
+        output_file: Option<&str>,
+        plugin_status: Option<&str>,
+        clien: &str,
+    ) -> Result<(Vec<String>, std::collections::HashMap<String, Vec<String>>)> {
+        let mut ips = Vec::new();
+        let mut domain_ip_map = std::collections::HashMap::new();
+        let record_type = if ip_type.is_empty() { None } else if ip_type == "IPv4" { Some("A") } else { Some("AAAA") };
+        
+        // 下载IP地址
+        if output_file.is_some() && !url.is_empty() {
+            self.fetch_and_filter_ips(url, num, ip_type, output_file)?;
+        }
+        
+        // 执行测速
+        let mut cmd = Command::new("./CloudflareST-Rust");
+        cmd.args(cf_command.split_whitespace());
+            
+        if num > 0 {
+            let num_str = num.to_string();
+            cmd.arg("-dn").arg(&num_str);
+            cmd.arg("-p").arg(&num_str);
+        }
+            
+        let status = cmd.status()?;
+        if !status.success() {
+            return Err(anyhow::anyhow!("CloudflareST-Rust 执行失败"));
+        }
+        
+        // 读取测速结果
+        if std::path::Path::new("result.csv").exists() {
+            let content = fs::read_to_string("result.csv")?;
+            let lines: Vec<&str> = content.lines().collect();
+            
+            if lines.len() > 1 {
+                // 跳过标题行，读取结果
+                for line in lines.iter().skip(1) {
+                    let fields: Vec<&str> = line.split(',').collect();
+                    if fields.len() >= 1 {
+                        let ip = fields[0].to_string();
+                        let is_ipv4 = ip.contains('.');
+                        
+                        if ip_type.is_empty() || (ip_type == "IPv4" && is_ipv4) || (ip_type == "IPv6" && !is_ipv4) {
+                            if num == 0 || ips.len() < num as usize {
+                                ips.push(ip);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 处理DNS记录
+        if add_ddns != "未指定" && !ips.is_empty() {
+            // 验证Cloudflare账号
+            self.validate_cloudflare_account(x_email, api_key, zone_id)?;
+            
+            // 重启插件
+            if !clien.is_empty() && clien != "未指定" && plugin_status == Some("stopped") {
+                println!("正在重启插件 {}", clien);
+                let status = Command::new(format!("/etc/init.d/{}", clien))
+                    .arg("restart")
+                    .status()?;
+                if status.success() {
+                    println!("已重启插件 {}", clien);
+                    std::thread::sleep(std::time::Duration::from_secs(10));
+                } else {
+                    eprintln!("重启插件 {} 失败", clien);
+                }
+            }
+            
+            // 删除旧记录
+            for domain in domains {
+                if ip_type.is_empty() {
+                    // 当ip_type为空时，获取并删除所有类型的记录
+                    let existing_records = self.get_dns_records(x_email, api_key, zone_id, domain, None)?;
+                    let exclude_set: std::collections::HashSet<_> = ips.iter().cloned().collect();
+                    for record in &existing_records {
+                        if !exclude_set.contains(&record.content) {
+                            // 根据记录内容判断记录类型
+                            let record_type = if record.content.contains('.') { "A" } else { "AAAA" };
+                            let _ = self.delete_dns_record(x_email, api_key, zone_id, record_type, &record.id);
+                        }
+                    }
+                } else {
+                    // 当ip_type不为空时，只获取并删除对应类型的记录
+                    let existing_records = self.get_dns_records(x_email, api_key, zone_id, domain, record_type)?;
+                    let exclude_set: std::collections::HashSet<_> = ips.iter().cloned().collect();
+                    for record in &existing_records {
+                        if !exclude_set.contains(&record.content) {
+                            let _ = self.delete_dns_record(x_email, api_key, zone_id, record_type.unwrap(), &record.id);
+                        }
+                    }
+                }
+            }
+            
+            // 添加新记录
+            let domain_count = domains.len();
+            let ip_count = ips.len();
+            let mut ip_index = 0;
+            let mut domain_index = 0;
+            
+            while ip_index < ip_count {
+                let current_domain = &domains[domain_index];
+                let current_ip = &ips[ip_index];
+                
+                // 根据IP地址内容确定记录类型
+                let record_type = if current_ip.contains('.') { "A" } else { "AAAA" };
+                let res = self.create_dns_record(x_email, api_key, zone_id, current_domain, record_type, current_ip)?;
+                if res {
+                    domain_ip_map.entry(current_domain.clone()).or_insert_with(Vec::new).push(current_ip.clone());
+                }
+                
+                ip_index += 1;
+                domain_index += 1;
+                
+                if domain_index >= domain_count {
+                    domain_index = 0;
+                }
+            }
+        }
+        
+        Ok((ips, domain_ip_map))
+    }
+    
     fn run_start_ddns(
         &self,
         add_ddns: &str,
@@ -525,201 +664,115 @@ impl Start {
             None
         };
 
-        // ========== 下载 IP ==========
-
         // 解析 cf_command 获取 -f 参数指定的文件路径
         let output_file = Self::parse_cf_command_for_output_file(cf_command);
-
-        let should_run_ipv4_test = v4_num > 0;
-        let should_run_ipv6_test = v6_num > 0;
-
-        // 只有在指定了-f参数时才下载IP数据，否则跳过下载
-        if output_file.is_some() {
-            if should_run_ipv4_test && !v4_url.is_empty() {
-                self.fetch_and_filter_ips(v4_url, v4_num, "IPv4", output_file.as_ref().map(|f| f.as_str()))?;
-            }
-            
-            if should_run_ipv6_test && !v6_url.is_empty() {
-                self.fetch_and_filter_ips(v6_url, v6_num, "IPv6", output_file.as_ref().map(|f| f.as_str()))?;
-            }
-        }
-
-        // ========== 执行测速 ==========
-
-        // 分别处理 IPv4 和 IPv6 的测速逻辑
-        let should_run_ipv4_test = v4_num > 0;
-        let should_run_ipv6_test = v6_num > 0;
         
-        if (should_run_ipv4_test || should_run_ipv6_test) && !cf_command.is_empty() {
-            let status = Command::new("./CloudflareST-Rust")
-                .args(cf_command.split_whitespace())
-                .arg("-dn").arg(v4_num.max(v6_num).to_string())
-                .arg("-p").arg(v4_num.max(v6_num).to_string())
-                .status()?;
-            if !status.success() {
-                return Err(anyhow::anyhow!("CloudflareST-Rust 执行失败"));
-            }
-        }
-
-        // ========== 插件控制：重启 ==========
-
-        if add_ddns != "未指定" {
-            if clien.is_empty() || clien == "未指定" {
-                println!("根据配置，插件不会重启");
-            } else if let Some(_) = plugin_status {
-                println!("正在重启插件 {}", clien);
-                let status = Command::new(format!("/etc/init.d/{}", clien))
-                    .arg("restart")
-                    .status()?;
-                if status.success() {
-                    println!("已重启插件 {}", clien);
-                    std::thread::sleep(std::time::Duration::from_secs(10));
-                } else {
-                    eprintln!("重启插件 {} 失败", clien);
-                }
-            }
-        }
-
-        if add_ddns != "未指定" {
-            self.validate_cloudflare_account(x_email, api_key, zone_id)?;
-        }
-
-        let mut v4_ips = Vec::new();
-        let mut v6_ips = Vec::new();
+        let mut all_domain_ip_map = std::collections::HashMap::new();
+        let mut has_update = false;
         
-        // 读取测速结果
-        if std::path::Path::new("result.csv").exists() {
-            let content = fs::read_to_string("result.csv")?;
-            let lines: Vec<&str> = content.lines().collect();
+        let process_ip = |ip_type: &str, url: &str, num: u32| -> Result<(Vec<String>, std::collections::HashMap<String, Vec<String>>)> {
+            self.process_ip_type(
+                ip_type,
+                url,
+                num,
+                cf_command,
+                add_ddns,
+                x_email,
+                zone_id,
+                api_key,
+                &domains,
+                output_file.as_ref().map(|f| f.as_str()),
+                plugin_status.as_deref(),
+                clien,
+            )
+        };
+
+        // 处理IPv4
+        if v4_num > 0 {
+            let (v4_ips, v4_domain_ip_map) = process_ip("IPv4", v4_url, v4_num)?;
             
-            if lines.len() > 1 {
-                // 跳过标题行，读取测速结果
-                let max_records = v4_num.max(v6_num) as usize;
-                for line in lines.iter().skip(1).take(max_records) {
-                    let fields: Vec<&str> = line.split(',').collect();
-                    if fields.len() >= 1 {
-                        let ip = fields[0].to_string();
-                        if ip.contains('.') {
-                            // IPv4地址
-                            if v4_ips.len() < v4_num as usize {
-                                v4_ips.push(ip);
-                            }
-                        } else {
-                            // IPv6地址
-                            if v6_ips.len() < v6_num as usize {
-                                v6_ips.push(ip);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // ========== Cloudflare DNS 处理 ==========
-
-        let mut domain_ip_map: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
-        let mut informlog_content = String::new();
-
-        if add_ddns != "未指定" {
-            // 处理 IPv4 记录
             if !v4_ips.is_empty() {
-                // 删除旧记录
-                for domain in &domains {
-                    let existing_records = self.get_dns_records(x_email, api_key, zone_id, domain, "A")?;
-                    let exclude_set: std::collections::HashSet<_> = v4_ips.iter().cloned().collect();
-                    for record in &existing_records {
-                        if !exclude_set.contains(&record.content) {
-                            let _ = self.delete_dns_record(x_email, api_key, zone_id, "A", &record.id);
-                        }
+                has_update = true;
+                all_domain_ip_map.extend(v4_domain_ip_map);
+                
+                // IPv4消息推送
+                if !push_mod.is_empty() && push_mod != "不设置" {
+                    let mut informlog_content = String::new();
+                    for (domain, ips) in &all_domain_ip_map {
+                        informlog_content += &format!("{}={}\n", domain, ips.join(","));
                     }
-                }
-
-                // 添加新记录
-                let domain_count = domains.len();
-                let ip_count = v4_ips.len();
-                let mut ip_index = 0;
-                let mut domain_index = 0;
-
-                while ip_index < ip_count {
-                    let current_domain = &domains[domain_index];
-                    let current_ip = &v4_ips[ip_index];
                     
-                    let res = self.create_dns_record(x_email, api_key, zone_id, current_domain, "A", current_ip)?;
-                    if res {
-                        // 累积每个域名的 IP 地址
-                        domain_ip_map.entry(current_domain.clone()).or_insert_with(Vec::new).push(current_ip.clone());
-                    }
-
-                    ip_index += 1;
-                    domain_index += 1;
-                    
-                    if domain_index >= domain_count {
-                        domain_index = 0;
-                    }
+                    self.run_push(
+                        push_mod,
+                        &hostnames,
+                        v4_num,
+                        v6_num,
+                        "IPv4",
+                        "result.csv",
+                        ddns_name,
+                        &informlog_content,
+                    )?;
                 }
             }
-
-            // 处理 IPv6 记录
-            if !v6_ips.is_empty() {
-                // 删除旧记录
-                for domain in &domains {
-                    let existing_records = self.get_dns_records(x_email, api_key, zone_id, domain, "AAAA")?;
-                    let exclude_set: std::collections::HashSet<_> = v6_ips.iter().cloned().collect();
-                    for record in &existing_records {
-                        if !exclude_set.contains(&record.content) {
-                            let _ = self.delete_dns_record(x_email, api_key, zone_id, "AAAA", &record.id);
-                        }
-                    }
-                }
-
-                // 添加新记录
-                let domain_count = domains.len();
-                let ip_count = v6_ips.len();
-                let mut ip_index = 0;
-                let mut domain_index = 0;
-
-                while ip_index < ip_count {
-                    let current_domain = &domains[domain_index];
-                    let current_ip = &v6_ips[ip_index];
-                    
-                    let res = self.create_dns_record(x_email, api_key, zone_id, current_domain, "AAAA", current_ip)?;
-                    if res {
-                        // 累积每个域名的 IP 地址
-                        domain_ip_map.entry(current_domain.clone()).or_insert_with(Vec::new).push(current_ip.clone());
-                    }
-
-                    ip_index += 1;
-                    domain_index += 1;
-                    
-                    if domain_index >= domain_count {
-                        domain_index = 0;
-                    }
-                }
-            }
-
-            // 在处理完DNS记录后构造informlog_content
-            for (domain, ips) in &domain_ip_map {
-                informlog_content += &format!("{}={}\n", domain, ips.join(","));
-            }
-        } else {
-            // 未指定模式下，将所有 IP 放在一起
-            let all_ips = v4_ips.iter().chain(v6_ips.iter()).cloned().collect::<Vec<_>>();
-            informlog_content = format!("未指定={}", all_ips.join(","));
         }
-
-        // ========== 消息推送 ==========
-
-        if !push_mod.is_empty() && push_mod != "不设置" {
-            self.run_push(
-                push_mod,
-                &hostnames,
-                v4_num,
-                v6_num,
-                if !v4_ips.is_empty() { "IPv4" } else { "IPv6" },
-                "result.csv",
-                ddns_name,
-                &informlog_content,
-            )?;
+        
+        // 处理IPv6
+        if v6_num > 0 {
+            let (v6_ips, v6_domain_ip_map) = process_ip("IPv6", v6_url, v6_num)?;
+            
+            if !v6_ips.is_empty() {
+                has_update = true;
+                all_domain_ip_map.extend(v6_domain_ip_map);
+                
+                // IPv6消息推送
+                if !push_mod.is_empty() && push_mod != "不设置" {
+                    let mut informlog_content = String::new();
+                    for (domain, ips) in &all_domain_ip_map {
+                        informlog_content += &format!("{}={}\n", domain, ips.join(","));
+                    }
+                    
+                    self.run_push(
+                        push_mod,
+                        &hostnames,
+                        v4_num,
+                        v6_num,
+                        "IPv6",
+                        "result.csv",
+                        ddns_name,
+                        &informlog_content,
+                    )?;
+                }
+            }
+        }
+        
+        // 当v4_num和v6_num都为0时，直接测速、处理DNS、推送
+        if v4_num == 0 && v6_num == 0 {
+            let (ips, domain_ip_map) = process_ip("", "", 0)?;
+            
+            if !ips.is_empty() {
+                has_update = true;
+                all_domain_ip_map.extend(domain_ip_map);
+            }
+            
+            // 综合消息推送
+            if has_update && !push_mod.is_empty() && push_mod != "不设置" {
+                let mut informlog_content = String::new();
+                
+                for (domain, ips) in &all_domain_ip_map {
+                    informlog_content += &format!("{}={}\n", domain, ips.join(","));
+                }
+                
+                self.run_push(
+                    push_mod,
+                    &hostnames,
+                    v4_num,
+                    v6_num,
+                    "IP",
+                    "result.csv",
+                    ddns_name,
+                    &informlog_content,
+                )?;
+            }
         }
 
         // ========== 插件控制：恢复 ==========
