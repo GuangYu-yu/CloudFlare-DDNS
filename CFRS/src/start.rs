@@ -32,7 +32,56 @@ impl Start {
             term: Term::stdout(),
         })
     }
-    
+
+    fn generate_informlog_content(&self, add_ddns: &str, domain_ip_map: &std::collections::HashMap<String, Vec<String>>) -> String {
+        let mut informlog_content = String::new();
+        
+        if add_ddns != "未指定" {
+            for (domain, ips) in domain_ip_map {
+                informlog_content += &format!("{}={}\n", domain, ips.join(","));
+            }
+        } else {
+            // 当add_ddns为未指定时，将所有IP合并到一行
+            let all_ips: Vec<String> = domain_ip_map.values()
+                .flatten()
+                .cloned()
+                .collect();
+            if !all_ips.is_empty() {
+                informlog_content = format!("未指定={}\n", all_ips.join(","));
+            }
+        }
+        
+        informlog_content
+    }
+
+    /// 执行消息推送的统一封装
+    fn execute_push(&self, 
+        push_mod: &str, 
+        hostnames: &str, 
+        v4_num: u32, 
+        v6_num: u32, 
+        ip_type: &str, 
+        ddns_name: &str, 
+        domain_ip_map: &std::collections::HashMap<String, Vec<String>>,
+        add_ddns: &str,
+    ) -> Result<()> {
+        if !push_mod.is_empty() && push_mod != "不设置" {
+            let informlog_content = self.generate_informlog_content(add_ddns, domain_ip_map);
+            
+            self.run_push(
+                push_mod,
+                hostnames,
+                v4_num,
+                v6_num,
+                ip_type,
+                "result.csv",
+                ddns_name,
+                &informlog_content,
+            )?;
+        }
+        Ok(())
+    }
+
     // 获取并过滤IP地址
     fn fetch_and_filter_ips(&self, url: &str, max_count: u32, ip_type: &str, output_file: Option<&str>) -> Result<Vec<String>> {
         println!("获取{}地址...", ip_type);
@@ -696,23 +745,7 @@ impl Start {
                 all_domain_ip_map.extend(v4_domain_ip_map);
                 
                 // IPv4消息推送
-                if !push_mod.is_empty() && push_mod != "不设置" {
-                    let mut informlog_content = String::new();
-                    for (domain, ips) in &all_domain_ip_map {
-                        informlog_content += &format!("{}={}\n", domain, ips.join(","));
-                    }
-                    
-                    self.run_push(
-                        push_mod,
-                        &hostnames,
-                        v4_num,
-                        v6_num,
-                        "IPv4",
-                        "result.csv",
-                        ddns_name,
-                        &informlog_content,
-                    )?;
-                }
+                self.execute_push(push_mod, &hostnames, v4_num, v6_num, "IPv4", ddns_name, &all_domain_ip_map, add_ddns)?;
             }
         }
         
@@ -725,23 +758,7 @@ impl Start {
                 all_domain_ip_map.extend(v6_domain_ip_map);
                 
                 // IPv6消息推送
-                if !push_mod.is_empty() && push_mod != "不设置" {
-                    let mut informlog_content = String::new();
-                    for (domain, ips) in &all_domain_ip_map {
-                        informlog_content += &format!("{}={}\n", domain, ips.join(","));
-                    }
-                    
-                    self.run_push(
-                        push_mod,
-                        &hostnames,
-                        v4_num,
-                        v6_num,
-                        "IPv6",
-                        "result.csv",
-                        ddns_name,
-                        &informlog_content,
-                    )?;
-                }
+                self.execute_push(push_mod, &hostnames, v4_num, v6_num, "IPv6", ddns_name, &all_domain_ip_map, add_ddns)?;
             }
         }
         
@@ -755,23 +772,8 @@ impl Start {
             }
             
             // 综合消息推送
-            if has_update && !push_mod.is_empty() && push_mod != "不设置" {
-                let mut informlog_content = String::new();
-                
-                for (domain, ips) in &all_domain_ip_map {
-                    informlog_content += &format!("{}={}\n", domain, ips.join(","));
-                }
-                
-                self.run_push(
-                    push_mod,
-                    &hostnames,
-                    v4_num,
-                    v6_num,
-                    "IP",
-                    "result.csv",
-                    ddns_name,
-                    &informlog_content,
-                )?;
+            if has_update {
+                self.execute_push(push_mod, &hostnames, v4_num, v6_num, "IP", ddns_name, &all_domain_ip_map, add_ddns)?;
             }
         }
 
