@@ -4,7 +4,6 @@ use std::env;
 use std::path::PathBuf;
 use std::fs;
 use serde::{Deserialize, Serialize};
-use std::process::Command;
 
 // 全局常量
 pub const CONFIG_FILE: &str = "cf.yaml";
@@ -157,6 +156,7 @@ fn main() -> Result<()> {
 /// 跨平台清屏函数
 #[cfg(target_os = "windows")]
 fn clear_screen() -> std::io::Result<()> {
+    use std::process::Command;
     let _ = Command::new("cmd")
         .args(&["/C", "cls"])
         .status();
@@ -165,9 +165,10 @@ fn clear_screen() -> std::io::Result<()> {
 
 #[cfg(unix)]
 fn clear_screen() -> std::io::Result<()> {
+    use std::io::Write;
     print!("\x1Bc");
     std::io::stdout().flush()?;
-    Ok(())
+    Ok()
 }
 
 // 各个菜单项函数
