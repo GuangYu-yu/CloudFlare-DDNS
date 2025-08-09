@@ -155,19 +155,19 @@ fn main() -> Result<()> {
 }
 
 /// 跨平台清屏函数
-fn clear_screen() -> Result<()> {
-    #[cfg(target_os = "windows")]
-    let output = Command::new("cmd")
+#[cfg(target_os = "windows")]
+fn clear_screen() -> std::io::Result<()> {
+    let _ = Command::new("cmd")
         .args(&["/C", "cls"])
         .status();
+    Ok(())
+}
 
-    #[cfg(unix)]
-    let output = Command::new("sh")
+#[cfg(unix)]
+fn clear_screen() -> std::io::Result<()> {
+    let _ = Command::new("sh")
         .args(&["-c", "printf '\033c'"])
         .status();
-
-    // 忽略命令执行结果，即使失败也继续执行
-    let _ = output;
     Ok(())
 }
 
