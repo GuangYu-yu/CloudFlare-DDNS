@@ -9,12 +9,12 @@ on:
         default: false
       create_release:
         description: '创建发布版本'
-        输入: boolean
-        默认: true
+        type: boolean
+        default: true
       project_name:
         description: '项目名称'
-        输入: string
-        默认: 'CFRS'
+        type: string
+        default: 'CFRS'
         required: true
 
 jobs:
