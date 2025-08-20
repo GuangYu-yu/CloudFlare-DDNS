@@ -790,8 +790,8 @@ impl Start {
             if let Some("stopped") = plugin_status {
                 println!("正在恢复插件 {}", clien);
                 let status = Command::new(format!("/etc/init.d/{}", clien))
-                    。arg("start")
-                    。status();
+                    .arg("start")
+                    .status();
                 if status.is_ok() && status.unwrap().success() {
                     println!("已恢复插件 {}", clien);
                 } else {
