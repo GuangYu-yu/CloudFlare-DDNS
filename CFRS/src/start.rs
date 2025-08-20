@@ -33,22 +33,11 @@ impl Start {
         })
     }
 
-    fn generate_informlog_content(&self, add_ddns: &str, domain_ip_map: &std::collections::HashMap<String, Vec<String>>) -> String {
+  fn generate_informlog_content(&self, domain_ip_map: &std::collections::HashMap<String, Vec<String>>) -> String {
         let mut informlog_content = String::new();
         
-        if add_ddns != "未指定" {
-            for (domain, ips) in domain_ip_map {
-                informlog_content += &format!("{}={}\n", domain, ips.join(","));
-            }
-        } else {
-            // 当add_ddns为未指定时，将所有IP合并到一行
-            let all_ips: Vec<String> = domain_ip_map.values()
-                .flatten()
-                .cloned()
-                .collect();
-            if !all_ips.is_empty() {
-                informlog_content = format!("未指定={}\n", all_ips.join(","));
-            }
+        for (domain, ips) in domain_ip_map {
+            informlog_content += &format!("{}={}\n", domain, ips.join(","));
         }
         
         informlog_content
@@ -63,10 +52,15 @@ impl Start {
         ip_type: &str, 
         ddns_name: &str, 
         domain_ip_map: &std::collections::HashMap<String, Vec<String>>,
-        add_ddns: &str,
+        ips: &[String], // 添加ips参数
     ) -> Result<()> {
         if !push_mod.is_empty() && push_mod != "不设置" {
-            let informlog_content = self.generate_informlog_content(add_ddns, domain_ip_map);
+            // 直接使用传入的ips生成推送内容
+            let informlog_content = if !ips.is_empty() {
+                format!("未指定={}\n", ips.join(","))
+            } else {
+                self.generate_informlog_content(domain_ip_map)
+            };
             
             self.run_push(
                 push_mod,
@@ -752,7 +746,7 @@ impl Start {
                 all_domain_ip_map.extend(v4_domain_ip_map);
                 
                 // IPv4消息推送
-                self.execute_push(push_mod, &hostnames, v4_num, v6_num, "IPv4", ddns_name, &all_domain_ip_map, add_ddns)?;
+                self.execute_push(push_mod, &hostnames, v4_num, v6_num, "IPv4", ddns_name, &all_domain_ip_map, &v4_ips)?
             }
         } else {
             println!("根据设置，跳过 IPv4 测速");
@@ -767,7 +761,7 @@ impl Start {
                 all_domain_ip_map.extend(v6_domain_ip_map);
                 
                 // IPv6消息推送
-                self.execute_push(push_mod, &hostnames, v4_num, v6_num, "IPv6", ddns_name, &all_domain_ip_map, add_ddns)?;
+                self.execute_push(push_mod, &hostnames, v4_num, v6_num, "IPv6", ddns_name, &all_domain_ip_map, &v6_ips)?
             }
         } else {
             println!("根据设置，跳过 IPv6 测速");
@@ -796,8 +790,8 @@ impl Start {
             if let Some("stopped") = plugin_status {
                 println!("正在恢复插件 {}", clien);
                 let status = Command::new(format!("/etc/init.d/{}", clien))
-                    .arg("start")
-                    .status();
+                    。arg("start")
+                    。status();
                 if status.is_ok() && status.unwrap().success() {
                     println!("已恢复插件 {}", clien);
                 } else {
