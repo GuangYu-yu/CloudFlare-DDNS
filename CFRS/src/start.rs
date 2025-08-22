@@ -33,13 +33,6 @@ impl Start {
         })
     }
 
-    fn generate_informlog_content(&self, domain_ip_map: &std::collections::HashMap<String, Vec<String>>) -> String {
-        domain_ip_map.iter()
-            .map(|(domain, ips)| format!("{}={}", domain, ips.join(",")))
-            .collect::<Vec<String>>()
-            .join("\n")
-    }
-
     /// 执行消息推送的统一封装
     fn execute_push(
         &self, 
@@ -49,15 +42,13 @@ impl Start {
         v6_num: u32, 
         ip_type: &str, 
         ddns_name: &str, 
-        domain_ip_map: &std::collections::HashMap<String, Vec<String>>,
         ips: &[String],
+        domains: &[String],
+        add_ddns: &str,
     ) -> Result<()> {
         if !push_mod.is_empty() && push_mod != "不设置" {
-            let informlog_content = if !ips.is_empty() {
-                format!("未指定={}\n", ips.join(","))
-            } else {
-                self.generate_informlog_content(domain_ip_map)
-            };
+            // 使用 create_domain_ip_mapping 创建域名和IP的映射关系
+            let domain_ip_mapping = Self::create_domain_ip_mapping(ips, domains, add_ddns);
             
             self.run_push(
                 push_mod,
@@ -67,7 +58,7 @@ impl Start {
                 ip_type,
                 "result.csv",
                 ddns_name,
-                &informlog_content,
+                &domain_ip_mapping,
             )?;
         }
         Ok(())
@@ -281,12 +272,12 @@ impl Start {
         Ok(records)
     }
     
-    // 解析 cf_command 获取 -f 参数指定的文件路径
-    fn parse_cf_command_for_output_file(cf_command: &str) -> Option<String> {
+    // 解析 cf_command 获取指定参数(-f或-o)指定的文件路径
+    fn parse_cf_command_for_file(cf_command: &str, param: &str) -> Option<String> {
         cf_command.split_whitespace()
             .collect::<Vec<&str>>()
             .windows(2)
-            .find(|window| window[0] == "-f")
+            .find(|window| window[0] == param)
             .and_then(|window| window.get(1))
             .map(|&s| s.to_string())
     }
@@ -536,6 +527,29 @@ impl Start {
         Ok(())
     }
 
+    // 从CSV文件读取指定类型的IP地址
+    fn read_ips_from_csv(ip_type: &str, num: u32, cf_command: &str) -> Result<Vec<String>> {
+        let result_csv_path = Self::get_result_csv_path(cf_command);
+        if std::path::Path::new(&result_csv_path).exists() {
+            let content = fs::read_to_string(&result_csv_path)?;
+            
+            Ok(content.lines()
+                .skip(1) // 跳过标题行
+                .filter_map(|line| {
+                    let fields: Vec<&str> = line.split(',').collect();
+                    fields.first().map(|&ip| ip.to_string())
+                })
+                .filter(|ip| {
+                    let is_ipv4 = ip.contains('.');
+                    ip_type.is_empty() || (ip_type == "IPv4" && is_ipv4) || (ip_type == "IPv6" && !is_ipv4)
+                })
+                .take(if num == 0 { usize::MAX } else { num as usize })
+                .collect())
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
     // 处理单个IP类型的完整流程
     fn process_ip_type(
         &self,
@@ -566,6 +580,9 @@ impl Start {
         if output_file.is_some() && !url.is_empty() {
             self.fetch_and_filter_ips(url, num, ip_type, output_file)?;
         }
+
+        // 打印将要执行的命令
+        println!("./CloudflareST-Rust {}", cf_command);
         
         // 执行测速
         let mut cmd = Command::new("./CloudflareST-Rust");
@@ -583,8 +600,9 @@ impl Start {
         }
         
         // 读取测速结果
-        if std::path::Path::new("result.csv").exists() {
-            let content = fs::read_to_string("result.csv")?;
+        let result_csv_path = Self::get_result_csv_path(cf_command);
+        if std::path::Path::new(&result_csv_path).exists() {
+            let content = fs::read_to_string(&result_csv_path)?;
             
             ips = content.lines()
                 .skip(1) // 跳过标题行
@@ -644,18 +662,15 @@ impl Start {
                 }
             }
             
-            // 添加新记录
-            let domain_count = domains.len();
+            // 创建域名和IP的映射关系
+            let domain_ip_mapping = Self::create_domain_ip_mapping(&ips, &domains, add_ddns);
             
-            for (i, ip) in ips.iter().enumerate() {
-                let domain_index = i % domain_count;
-                let current_domain = &domains[domain_index];
-                
+            for (domain, ip) in domain_ip_mapping {
                 // 根据IP地址内容确定记录类型
                 let record_type = if ip.contains('.') { "A" } else { "AAAA" };
-                let res = self.create_dns_record(x_email, api_key, zone_id, current_domain, record_type, ip)?;
+                let res = self.create_dns_record(x_email, api_key, zone_id, &domain, record_type, &ip)?;
                 if res {
-                    domain_ip_map.entry(current_domain.clone())
+                    domain_ip_map.entry(domain.clone())
                         .or_insert_with(Vec::new)
                         .push(ip.clone());
                 }
@@ -682,11 +697,6 @@ impl Start {
         push_mod: &str,
         clien: &str,
     ) -> Result<()> {
-
-        if v4_num == 0 && v6_num == 0 {
-            println!("IPv4和IPv6所需数量不能同时设为0");
-            std::process::exit(0);
-        }
 
         // ========== 构造域名 ==========
         let domains: Vec<String> = if add_ddns != "未指定" {
@@ -718,7 +728,7 @@ impl Start {
         };
 
         // 解析 cf_command 获取 -f 参数指定的文件路径
-        let output_file = Self::parse_cf_command_for_output_file(cf_command);
+        let output_file = Self::parse_cf_command_for_file(cf_command, "-f");
         
         let mut all_domain_ip_map = std::collections::HashMap::new();
         
@@ -740,50 +750,57 @@ impl Start {
             )
         };
 
-        // 处理IPv4
-        if v4_num > 0 {
-            let (v4_ips, v4_domain_ip_map) = process_ip("IPv4", v4_url, v4_num)?;
+        // 通用消息推送函数
+        let execute_push_for_ip = |ip_type: &str, ips: &[String]| -> Result<()> {
+            if !ips.is_empty() {
+                self.execute_push(
+                    push_mod, 
+                    &hostnames, 
+                    v4_num, 
+                    v6_num, 
+                    ip_type, 
+                    ddns_name, 
+                    ips,
+                    &domains,
+                    add_ddns,
+                )?;
+            }
+            Ok(())
+        };
+
+        // 处理IPv4和IPv6都为0的情况
+        if v4_num == 0 && v6_num == 0 {
+            println!("IPv4和IPv6所需数量都设为0，跳过测速并直接推送消息");
             
-            if !v4_ips.is_empty() {
+            // 读取所有IPv4地址
+            let v4_ips = Self::read_ips_from_csv("IPv4", 0, cf_command)?;
+            
+            // 读取所有IPv6地址
+            let v6_ips = Self::read_ips_from_csv("IPv6", 0, cf_command)?;
+            
+            // 推送结果
+            execute_push_for_ip("IPv4", &v4_ips)?;
+            execute_push_for_ip("IPv6", &v6_ips)?;
+        } else {
+            // 处理IPv4
+            if v4_num > 0 {
+                let (v4_ips, v4_domain_ip_map) = process_ip("IPv4", v4_url, v4_num)?;
+                
                 all_domain_ip_map.extend(v4_domain_ip_map);
-                
-                // IPv4消息推送
-                self.execute_push(
-                    push_mod, 
-                    &hostnames, 
-                    v4_num, 
-                    v6_num, 
-                    "IPv4", 
-                    ddns_name, 
-                    &all_domain_ip_map, 
-                    &v4_ips
-                )?;
+                execute_push_for_ip("IPv4", &v4_ips)?;
+            } else {
+                println!("根据设置，跳过 IPv4 测速");
             }
-        } else {
-            println!("根据设置，跳过 IPv4 测速");
-        }
-        
-        // 处理IPv6
-        if v6_num > 0 {
-            let (v6_ips, v6_domain_ip_map) = process_ip("IPv6", v6_url, v6_num)?;
             
-            if !v6_ips.is_empty() {
-                all_domain_ip_map.extend(v6_domain_ip_map);
+            // 处理IPv6
+            if v6_num > 0 {
+                let (v6_ips, v6_domain_ip_map) = process_ip("IPv6", v6_url, v6_num)?;
                 
-                // IPv6消息推送
-                self.execute_push(
-                    push_mod, 
-                    &hostnames, 
-                    v4_num, 
-                    v6_num, 
-                    "IPv6", 
-                    ddns_name, 
-                    &all_domain_ip_map, 
-                    &v6_ips
-                )?;
+                all_domain_ip_map.extend(v6_domain_ip_map);
+                execute_push_for_ip("IPv6", &v6_ips)?;
+            } else {
+                println!("根据设置，跳过 IPv6 测速");
             }
-        } else {
-            println!("根据设置，跳过 IPv6 测速");
         }
 
         // ========== 插件控制：恢复 ==========
@@ -814,7 +831,7 @@ impl Start {
         ip_type: &str,
         csvfile: &str,
         ddns_name: &str,
-        informlog_content: &str,
+        domain_ip_mapping: &[(String, String)],
     ) -> Result<()> {
 
         let push_service = PushService::new(self.config_path.clone())?;
@@ -824,11 +841,48 @@ impl Start {
             v4_num,
             v6_num,
             ip_type,
-            csvfile,
+            &Self::get_result_csv_path(csvfile),
             ddns_name,
-            informlog_content,
+            domain_ip_mapping,
         )?;
 
         Ok(())
+    }
+
+    /// 创建域名和IP的映射关系，格式为 [[域名, IP], [域名, IP], ...]
+    /// 如果域名为空（未指定），则域名处设为极狐空字符串
+    fn create_domain_ip_mapping(
+        ips: &[String], 
+        domains: &[String],
+        add_ddns: &str
+    ) -> Vec<(String, String)> {
+        let mut mapping = Vec::new();
+        
+        if add_ddns == "未指定" || domains.is_empty() {
+            // 未指定域名时，所有IP都映射到空域名
+            for ip in ips {
+                mapping.push((String::new(), ip.clone()));
+            }
+        } else {
+            // 循环分配IP到域名
+            let domain_count = domains.len();
+            for (i, ip) in ips.iter().enumerate() {
+                let domain_index = i % domain_count;
+                let current_domain = domains[domain_index].clone();
+                mapping.push((current_domain, ip.clone()));
+            }
+        }
+        
+        mapping
+    }
+
+    // 解析 cf_command 获取 -o 参数指定的文件路径
+    fn parse_cf_command_for_output_file(cf_command: &str) -> Option<String> {
+        Self::parse_cf_command_for_file(cf_command, "-o")
+    }
+
+    // 获取result.csv文件路径，优先使用-o参数指定的文件
+    fn get_result_csv_path(cf_command: &str) -> String {
+        Self::parse_cf_command_for_output_file(cf_command).unwrap_or_else(|| "result.csv".to_string())
     }
 }

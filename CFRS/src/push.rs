@@ -26,7 +26,7 @@ impl PushService {
         ip_type: &str,
         csvfile: &str,
         ddns_name: &str,
-        informlog_content: &str,
+        domain_ip_mapping: &[(String, String)],
     ) -> Result<()> {
         // 检查是否设置了推送模式
         let push_modes: Vec<&str> = push_mod.split_whitespace().collect();
@@ -38,9 +38,8 @@ impl PushService {
             println!("根据配置跳过推送");
         }
 
-        // 使用传入的 informlog 内容
-        let message_text = informlog_content.trim();
-        if message_text.is_empty() {
+        // 检查是否有更新信息
+        if domain_ip_mapping.is_empty() {
             println!("没有更新信息，跳过推送");
             return Ok(());
         }
@@ -70,7 +69,7 @@ impl PushService {
                     self.push_synology_chat(&ip_info)?;
                 }
                 "Github" => {
-                    self.push_github(ddns_name, informlog_content)?;
+                    self.push_github(ddns_name, domain_ip_mapping)?;
                 }
                 _ => {
                     println!("未知的推送模式: {}", mode);
@@ -511,7 +510,7 @@ impl PushService {
         Ok(())
     }
 
-    fn push_github(&self, ddns_name: &str, informlog_content: &str) -> Result<()> {
+    fn push_github(&self, ddns_name: &str, domain_ip_mapping: &[(String, String)]) -> Result<()> {
         if let Some(github_push_configs) = &self.config.github_push {
             for config in github_push_configs {
                 if config.ddns_push == ddns_name {
@@ -525,27 +524,23 @@ impl PushService {
                         
                         // 处理当前的IP地址
                         let mut processed_ips = String::new();
-                        for line in informlog_content.lines() {
-                            if let Some((_domain, ips_str)) = line.split_once('=') {
-                                for ip_str in ips_str.split(',') {
-                                    let processed_ip = if ip_str.contains('.') {
-                                        // IPv4地址
-                                        if !config.remark.is_empty() {
-                                            format!("{}:{}#{}", ip_str, config.port, config.remark)
-                                        } else {
-                                            ip_str.to_string()
-                                        }
-                                    } else {
-                                        // IPv6地址
-                                        if !config.remark6.is_empty() {
-                                            format!("[{}]:{}#{}", ip_str, config.port, config.remark6)
-                                        } else {
-                                            format!("[{}]", ip_str)
-                                        }
-                                    };
-                                    processed_ips.push_str(&format!("{}\n", processed_ip));
+                        for (_domain, ip_str) in domain_ip_mapping.iter() {
+                            let processed_ip = if ip_str.contains('.') {
+                                // IPv4地址
+                                if !config.remark.is_empty() {
+                                    format!("{}:{}#{}", ip_str, config.port, config.remark)
+                                } else {
+                                    ip_str.to_string()
                                 }
-                            }
+                            } else {
+                                // IPv6地址
+                                if !config.remark6.is_empty() {
+                                    format!("[{}]:{}#{}", ip_str, config.port, config.remark6)
+                                } else {
+                                    format!("[{}]", ip_str)
+                                }
+                            };
+                            processed_ips.push_str(&format!("{}\n", processed_ip));
                         }
                         
                         // 去除空行和重复行
