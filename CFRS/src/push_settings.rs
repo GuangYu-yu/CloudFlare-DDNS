@@ -2,7 +2,8 @@ use anyhow::Result;
 use dialoguer::{theme::ColorfulTheme, Select, Input};
 use std::path::PathBuf;
 use console::Term;
-use crate::{Config, PushConfig, clear_screen};
+use crate::{Config, PushConfig, clear_screen, Settings, impl_settings};
+
 
 pub struct PushSettings {
     config_path: PathBuf,
@@ -13,12 +14,14 @@ pub struct PushSettings {
 
 impl PushSettings {
     pub fn new(config_path: PathBuf) -> Result<Self> {
-        Ok(PushSettings {
-            config: Config::load(&config_path)?,
-            config_path,
+        let mut settings = PushSettings {
+            config_path: config_path.clone(),
+            config: Config::default(),
             theme: ColorfulTheme::default(),
             term: Term::stdout(),
-        })
+        };
+        settings.load_config()?;
+        Ok(settings)
     }
 
     pub fn run(&mut self) -> Result<()> {
@@ -372,3 +375,5 @@ impl PushSettings {
         Ok(())
     }
 }
+
+impl_settings!(PushSettings);

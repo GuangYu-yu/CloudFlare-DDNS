@@ -3,7 +3,7 @@ use dialoguer::{theme::ColorfulTheme, Select, Input};
 use regex::Regex;
 use std::path::PathBuf;
 use console::Term;
-use crate::{Config, Account, clear_screen};
+use crate::{Config, Account, clear_screen, Settings, impl_settings};
 
 pub struct AccountSettings {
     config_path: PathBuf,
@@ -15,13 +15,15 @@ pub struct AccountSettings {
 
 impl AccountSettings {
     pub fn new(config_path: PathBuf) -> Result<Self> {
-        Ok(AccountSettings {
-            config: Config::load(&config_path)?,
-            config_path,
+        let mut settings = AccountSettings {
+            config_path: config_path.clone(),
+            config: Config::default(),
             theme: ColorfulTheme::default(),
             email_regex: Regex::new(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$").unwrap(),
             term: Term::stdout(),
-        })
+        };
+        settings.load_config()?;
+        Ok(settings)
     }
 
     pub fn run(&mut self) -> Result<()> {
@@ -179,9 +181,9 @@ impl AccountSettings {
 
         self.term.write_line("删除账户")?;
 
-        let account_names: Vec<String> = self.config.account
+        let account_names: Vec<&str> = self.config.account
             .iter()
-            .map(|a| a.account_name.clone())
+            .map(|a| a.account_name.as_str())
             .collect();
 
         let selection = Select::with_theme(&self.theme)
@@ -229,9 +231,9 @@ impl AccountSettings {
 
         self.term.write_line("修改账户")?;
 
-        let account_names: Vec<String> = self.config.account
+        let account_names: Vec<&str> = self.config.account
             .iter()
-            .map(|a| a.account_name.clone())
+            .map(|a| a.account_name.as_str())
             .collect();
 
         let selection = Select::with_theme(&self.theme)
@@ -296,3 +298,5 @@ impl AccountSettings {
         Ok(())
     }
 }
+
+impl_settings!(AccountSettings);

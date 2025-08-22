@@ -3,7 +3,8 @@ use console::Term;
 use anyhow::Result;
 use regex::Regex;
 use std::path::PathBuf;
-use crate::{Config, Resolve, clear_screen};
+use crate::{Config, Resolve, clear_screen, Settings, impl_settings};
+
 
 pub struct ResolveSettings {
     config_path: PathBuf,
@@ -15,13 +16,15 @@ pub struct ResolveSettings {
 
 impl ResolveSettings {
     pub fn new(config_path: PathBuf) -> Result<Self> {
-        Ok(ResolveSettings {
-            config: Config::load(&config_path)?,
-            config_path,
+        let mut settings = ResolveSettings {
+            config_path: config_path.clone(),
+            config: Config::default(),
             theme: ColorfulTheme::default(),
             term: Term::stdout(),
-            domain_regex: Regex::new(r"^[a-zA-Z0-9\u{4e00}-\u{9fa5}.-]+$").unwrap(),
-        })
+            domain_regex: Regex::new(r"^[a-zA-Z0-9\u{4e00}-\u{9fa5}.\-]+$").unwrap(),
+        };
+        settings.load_config()?;
+        Ok(settings)
     }
 
     pub fn run(&mut self) -> Result<()> {
@@ -401,51 +404,50 @@ impl ResolveSettings {
     }
 
     fn delete_resolve(&mut self) -> Result<()> {
-        if self.config.resolve.is_none() || self.config.resolve.as_ref().unwrap().is_empty() {
-            self.term.write_line("没有可删除的解析！")?;
-            self.term.read_line()?;
-            return Ok(());
-        }
+        let name_to_delete = {
+            if self.config.resolve.is_none() || self.config.resolve.as_ref().unwrap().is_empty() {
+                self.term.write_line("没有可删除的解析！")?;
+                self.term.read_line()?;
+                return Ok(());
+            }
 
-        self.term.write_line("")?;
+            self.term.write_line("")?;
 
-        // 显示现有解析
-        let resolves = self.config.resolve.as_mut().unwrap();
-        let resolve_items: Vec<String> = resolves.iter().map(|r| {
-            format!("账户组：{} | 解析组：{}", r.add_ddns, r.ddns_name)
-        }).collect();
+            // 显示现有解析
+            let resolve_names = self.config.resolve.as_ref().unwrap().iter().map(|r| r.ddns_name.as_str()).collect::<Vec<&str>>();
 
-        clear_screen()?;
+            clear_screen()?;
 
-        let selection = Select::with_theme(&self.theme)
-            .with_prompt("选择要删除的解析组（按ESC返回上级）")
-            .items(&resolve_items)
-            .default(0)
-            .interact_opt()?;
+            let selection = Select::with_theme(&self.theme)
+                .with_prompt("选择要删除的解析组（按ESC返回上级）")
+                .items(&resolve_names)
+                .default(0)
+                .interact_opt()?;
 
-        // 如果用户按ESC返回，则直接返回
-        let selection = match selection {
-            Some(value) => value,
-            None => return Ok(()),
+            // 如果用户按ESC返回，则直接返回
+            let selection = match selection {
+                Some(value) => value,
+                None => return Ok(()),
+            };
+
+            resolve_names[selection].to_string()
         };
 
-        let resolve_name = resolves[selection].ddns_name.clone();
-        let name = resolve_name.clone();
-
         let confirm = Select::with_theme(&self.theme)
-            .with_prompt(&format!("确认删除解析组 {} 吗？", name))
+            .with_prompt(&format!("确认删除解析组 {} 吗？", name_to_delete))
             .items(&["是", "否"])
             .default(1)
             .interact()?;
 
         if confirm == 0 {
-            resolves.retain(|r| r.ddns_name != resolve_name);
+            let resolves = self.config.resolve.as_mut().unwrap();
+            resolves.retain(|r| r.ddns_name != name_to_delete);
             // 如果没有剩余的解析组，删除 resolve 键
             if resolves.is_empty() {
                 self.config.resolve = None;
             }
             self.config.save(&self.config_path)?;
-            self.term.write_line(&format!("解析组 {} 已成功删除！", name))?;
+            self.term.write_line(&format!("解析组 {} 已成功删除！", name_to_delete))?;
         } else {
             self.term.write_line("已取消删除操作。")?;
         }
@@ -502,3 +504,5 @@ impl ResolveSettings {
         Ok(())
     }
 }
+
+impl_settings!(ResolveSettings);

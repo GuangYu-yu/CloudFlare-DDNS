@@ -33,18 +33,16 @@ impl Start {
         })
     }
 
-  fn generate_informlog_content(&self, domain_ip_map: &std::collections::HashMap<String, Vec<String>>) -> String {
-        let mut informlog_content = String::new();
-        
-        for (domain, ips) in domain_ip_map {
-            informlog_content += &format!("{}={}\n", domain, ips.join(","));
-        }
-        
-        informlog_content
+    fn generate_informlog_content(&self, domain_ip_map: &std::collections::HashMap<String, Vec<String>>) -> String {
+        domain_ip_map.iter()
+            .map(|(domain, ips)| format!("{}={}", domain, ips.join(",")))
+            .collect::<Vec<String>>()
+            .join("\n")
     }
 
     /// 执行消息推送的统一封装
-    fn execute_push(&self, 
+    fn execute_push(
+        &self, 
         push_mod: &str, 
         hostnames: &str, 
         v4_num: u32, 
@@ -52,10 +50,9 @@ impl Start {
         ip_type: &str, 
         ddns_name: &str, 
         domain_ip_map: &std::collections::HashMap<String, Vec<String>>,
-        ips: &[String], // 添加ips参数
+        ips: &[String],
     ) -> Result<()> {
         if !push_mod.is_empty() && push_mod != "不设置" {
-            // 直接使用传入的ips生成推送内容
             let informlog_content = if !ips.is_empty() {
                 format!("未指定={}\n", ips.join(","))
             } else {
@@ -77,7 +74,13 @@ impl Start {
     }
 
     // 获取并过滤IP地址
-    fn fetch_and_filter_ips(&self, url: &str, max_count: u32, ip_type: &str, output_file: Option<&str>) -> Result<Vec<String>> {
+    fn fetch_and_filter_ips(
+        &self, 
+        url: &str, 
+        max_count: u32, 
+        ip_type: &str, 
+        output_file: Option<&str>
+    ) -> Result<Vec<String>> {
         println!("获取{}地址...", ip_type);
         
         if url.is_empty() {
@@ -88,43 +91,10 @@ impl Start {
         let max_retries = 5;
         let retry_delay = Duration::from_secs(2);
         
-        let mut attempt = 1;
-        let mut response_text = String::new();
-        
-        while attempt <= max_retries {
-            let output = Command::new("curl")
-                .arg("-s")
-                .arg("--max-time")
-                .arg("3")
-                .arg(url)
-                .output();
-                
-            match output {
-                Ok(output) => {
-                    if output.status.success() {
-                        response_text = String::from_utf8_lossy(&output.stdout).to_string();
-                        break;
-                    } else {
-                        println!("获取{}地址失败, 重试 {} 次...", 
-                                 ip_type, attempt);
-                    }
-                },
-                Err(e) => {
-                    println!("获取{}地址失败，错误: {}, 重试 {} 次...", 
-                             ip_type, e, attempt);
-                }
-            }
-            
-            attempt += 1;
-            std::thread::sleep(retry_delay);
-        }
-        
-        if attempt > max_retries {
-            return Err(anyhow::anyhow!("获取{}地址失败，已达到最大重试次数", ip_type));
-        }
+        let response_text = self.fetch_with_retry(url, max_retries, retry_delay, ip_type)?;
         
         // 过滤IP地址
-        let filtered_ips: Vec<String> = response_text
+        let mut filtered_ips: Vec<String> = response_text
             .lines()
             .map(|line| line.trim())
             .filter(|line| !line.is_empty())
@@ -138,7 +108,6 @@ impl Start {
         
         // 选择前max_count个IP
         let max_count = max_count as usize;
-        let mut filtered_ips = filtered_ips;
         if filtered_ips.len() > max_count {
             filtered_ips.truncate(max_count);
         }
@@ -153,6 +122,44 @@ impl Start {
         Ok(filtered_ips)
     }
     
+    // 带重试的获取函数
+    fn fetch_with_retry(
+        &self,
+        url: &str,
+        max_retries: u32,
+        retry_delay: Duration,
+        ip_type: &str
+    ) -> Result<String> {
+        let mut attempt = 1;
+        
+        while attempt <= max_retries {
+            let output = Command::new("curl")
+                .arg("-s")
+                .arg("--max-time")
+                .arg("3")
+                .arg(url)
+                .output();
+                
+            match output {
+                Ok(output) => {
+                    if output.status.success() {
+                        return Ok(String::from_utf8_lossy(&output.stdout).to_string());
+                    } else {
+                        println!("获取{}地址失败, 重试 {} 次...", ip_type, attempt);
+                    }
+                },
+                Err(e) => {
+                    println!("获取{}地址失败，错误: {}, 重试 {} 次...", ip_type, e, attempt);
+                }
+            }
+            
+            attempt += 1;
+            std::thread::sleep(retry_delay);
+        }
+        
+        Err(anyhow::anyhow!("获取{}地址失败，已达到最大重试次数", ip_type))
+    }
+    
     // 验证Cloudflare账户
     fn validate_cloudflare_account(&self, x_email: &str, api_key: &str, zone_id: &str) -> Result<()> {
         println!("开始验证 Cloudflare 账号...");
@@ -163,8 +170,7 @@ impl Start {
         
         let url = format!("https://api.cloudflare.com/client/v4/zones/{}", zone_id);
         
-        let mut attempt = 1;
-        while attempt <= max_retries {
+        for attempt in 1..=max_retries {
             println!("正在进行第 {} 次登录尝试...", attempt);
             
             let output = Command::new("curl")
@@ -187,9 +193,8 @@ impl Start {
                     if output.status.success() {
                         let response_text = String::from_utf8_lossy(&output.stdout);
                         let json: Value = serde_json::from_str(&response_text)?;
-                        let success = json["success"].as_bool().unwrap_or(false);
                         
-                        if success {
+                        if json["success"].as_bool().unwrap_or(false) {
                             println!("Cloudflare 账号验证成功");
                             return Ok(());
                         } else {
@@ -211,27 +216,30 @@ impl Start {
             if attempt < max_retries {
                 println!("等待 {} 秒后重试...", retry_delay.as_secs());
                 std::thread::sleep(retry_delay);
-            } else {
-                return Err(anyhow::anyhow!("登录失败，已达到最大重试次数 {}", max_retries));
             }
-            
-            attempt += 1;
         }
         
-        Err(anyhow::anyhow!("验证 Cloudflare 账号失败"))
+        Err(anyhow::anyhow!("登录失败，已达到最大重试次数 {}", max_retries))
     }
     
     // 获取DNS记录
-    fn get_dns_records(&self, x_email: &str, api_key: &str, zone_id: &str, domain: &str, record_type: Option<&str>) -> Result<Vec<DnsRecord>> {
+    fn get_dns_records(
+        &self, 
+        x_email: &str, 
+        api_key: &str, 
+        zone_id: &str, 
+        domain: &str, 
+        record_type: Option<&str>
+    ) -> Result<Vec<DnsRecord>> {
         let url = if let Some(rt) = record_type {
             format!(
-                "https://api.cloudflare.com/client/v4/zones/{}/dns_records?type={}&name={}"
-                , zone_id, rt, domain
+                "https://api.cloudflare.com/client/v4/zones/{}/dns_records?type={}&name={}",
+                zone_id, rt, domain
             )
         } else {
             format!(
-                "https://api.cloudflare.com/client/v4/zones/{}/dns_records?name={}"
-                , zone_id, domain
+                "https://api.cloudflare.com/client/v4/zones/{}/dns_records?name={}",
+                zone_id, domain
             )
         };
         
@@ -253,43 +261,45 @@ impl Start {
         
         let response_text = String::from_utf8_lossy(&output.stdout);
         let json: Value = serde_json::from_str(&response_text)?;
-        let success = json["success"].as_bool().unwrap_or(false);
         
-        if !success {
+        if !json["success"].as_bool().unwrap_or(false) {
             let error_message = json["errors"][0]["message"].as_str().unwrap_or("未知错误");
             return Err(anyhow::anyhow!("获取DNS记录失败: {}", error_message));
         }
         
-        let mut records = Vec::new();
-        let result = &json["result"];
-        
-        if let Some(array) = result.as_array() {
-            for item in array {
-                let id = item["id"].as_str().unwrap_or("").to_string();
-                let content = item["content"].as_str().unwrap_or("").to_string();
-                
-                records.push(DnsRecord { id, content });
-            }
-        }
+        let records: Vec<DnsRecord> = json["result"]
+            .as_array()
+            .unwrap_or(&Vec::new())
+            .iter()
+            .filter_map(|item| {
+                let id = item["id"].as_str()?.to_string();
+                let content = item["content"].as_str()?.to_string();
+                Some(DnsRecord { id, content })
+            })
+            .collect();
         
         Ok(records)
     }
     
     // 解析 cf_command 获取 -f 参数指定的文件路径
     fn parse_cf_command_for_output_file(cf_command: &str) -> Option<String> {
-        let args: Vec<&str> = cf_command.split_whitespace().collect();
-        let mut i = 0;
-        while i < args.len() {
-            if args[i] == "-f" && i + 1 < args.len() {
-                return Some(args[i + 1].to_string());
-            }
-            i += 1;
-        }
-        None
+        cf_command.split_whitespace()
+            .collect::<Vec<&str>>()
+            .windows(2)
+            .find(|window| window[0] == "-f")
+            .and_then(|window| window.get(1))
+            .map(|&s| s.to_string())
     }
     
     // 删除DNS记录
-    fn delete_dns_record(&self, x_email: &str, api_key: &str, zone_id: &str, record_type: &str, record_id: &str) -> Result<()> {
+    fn delete_dns_record(
+        &self, 
+        x_email: &str, 
+        api_key: &str, 
+        zone_id: &str, 
+        record_type: &str, 
+        record_id: &str
+    ) -> Result<()> {
         println!("删除旧 {} 记录...", record_type);
         
         let url = format!(
@@ -333,9 +343,7 @@ impl Start {
             }
         };
         
-        let success = json["success"].as_bool().unwrap_or(false);
-        
-        if success {
+        if json["success"].as_bool().unwrap_or(false) {
             println!("成功删除DNS记录");
         } else {
             let error_message = json["errors"][0]["message"].as_str().unwrap_or("未知错误");
@@ -346,7 +354,15 @@ impl Start {
     }
     
     // 创建DNS记录
-    fn create_dns_record(&self, x_email: &str, api_key: &str, zone_id: &str, domain: &str, record_type: &str, ip: &str) -> Result<bool> {
+    fn create_dns_record(
+        &self, 
+        x_email: &str, 
+        api_key: &str, 
+        zone_id: &str, 
+        domain: &str, 
+        record_type: &str, 
+        ip: &str
+    ) -> Result<bool> {
         println!("添加 {} 到 {}...", ip, domain);
         
         let url = format!(
@@ -441,7 +457,7 @@ impl Start {
                 break;
             }
 
-            let items: Vec<String> = resolves.iter().map(|r| format!("{}", r.ddns_name)).collect();
+            let items: Vec<String> = resolves.iter().map(|r| r.ddns_name.clone()).collect();
             let items_ref: Vec<&str> = items.iter().map(|s| s.as_str()).collect();
 
             let selection = Select::with_theme(&self.theme)
@@ -468,10 +484,7 @@ impl Start {
     }
 
     fn get_resolves(&self) -> Result<Vec<Resolve>> {
-        let resolves = self.config.resolve.as_ref()
-            .map(|v| v.clone())
-            .unwrap_or_default();
-        Ok(resolves)
+        Ok(self.config.resolve.as_ref().cloned().unwrap_or_default())
     }
 
     fn execute_resolve_by_name(&mut self, ddns_name: &str) -> Result<()> {
@@ -499,7 +512,7 @@ impl Start {
         // 获取插件配置
         let default_clien = "未指定".to_string();
         let clien = self.config.plugin.as_ref()
-            .map(|p| &p.clien)
+            .map(|p| p.clien.as_str())
             .unwrap_or(&default_clien);
 
         // 直接执行DDNS更新逻辑
@@ -541,7 +554,13 @@ impl Start {
     ) -> Result<(Vec<String>, std::collections::HashMap<String, Vec<String>>)> {
         let mut ips = Vec::new();
         let mut domain_ip_map = std::collections::HashMap::new();
-        let record_type = if ip_type.is_empty() { None } else if ip_type == "IPv4" { Some("A") } else { Some("AAAA") };
+        let record_type = if ip_type.is_empty() { 
+            None 
+        } else if ip_type == "IPv4" { 
+            Some("A") 
+        } else { 
+            Some("AAAA") 
+        };
         
         // 下载IP地址
         if output_file.is_some() && !url.is_empty() {
@@ -566,24 +585,19 @@ impl Start {
         // 读取测速结果
         if std::path::Path::new("result.csv").exists() {
             let content = fs::read_to_string("result.csv")?;
-            let lines: Vec<&str> = content.lines().collect();
             
-            if lines.len() > 1 {
-                // 跳过标题行，读取结果
-                for line in lines.iter().skip(1) {
+            ips = content.lines()
+                .skip(1) // 跳过标题行
+                .filter_map(|line| {
                     let fields: Vec<&str> = line.split(',').collect();
-                    if fields.len() >= 1 {
-                        let ip = fields[0].to_string();
-                        let is_ipv4 = ip.contains('.');
-                        
-                        if ip_type.is_empty() || (ip_type == "IPv4" && is_ipv4) || (ip_type == "IPv6" && !is_ipv4) {
-                            if num == 0 || ips.len() < num as usize {
-                                ips.push(ip);
-                            }
-                        }
-                    }
-                }
-            }
+                    fields.first().map(|&ip| ip.to_string())
+                })
+                .filter(|ip| {
+                    let is_ipv4 = ip.contains('.');
+                    ip_type.is_empty() || (ip_type == "IPv4" && is_ipv4) || (ip_type == "IPv6" && !is_ipv4)
+                })
+                .take(if num == 0 { usize::MAX } else { num as usize })
+                .collect();
         }
         
         // 处理DNS记录
@@ -632,26 +646,18 @@ impl Start {
             
             // 添加新记录
             let domain_count = domains.len();
-            let ip_count = ips.len();
-            let mut ip_index = 0;
-            let mut domain_index = 0;
             
-            while ip_index < ip_count {
+            for (i, ip) in ips.iter().enumerate() {
+                let domain_index = i % domain_count;
                 let current_domain = &domains[domain_index];
-                let current_ip = &ips[ip_index];
                 
                 // 根据IP地址内容确定记录类型
-                let record_type = if current_ip.contains('.') { "A" } else { "AAAA" };
-                let res = self.create_dns_record(x_email, api_key, zone_id, current_domain, record_type, current_ip)?;
+                let record_type = if ip.contains('.') { "A" } else { "AAAA" };
+                let res = self.create_dns_record(x_email, api_key, zone_id, current_domain, record_type, ip)?;
                 if res {
-                    domain_ip_map.entry(current_domain.clone()).or_insert_with(Vec::new).push(current_ip.clone());
-                }
-                
-                ip_index += 1;
-                domain_index += 1;
-                
-                if domain_index >= domain_count {
-                    domain_index = 0;
+                    domain_ip_map.entry(current_domain.clone())
+                        .or_insert_with(Vec::new)
+                        .push(ip.clone());
                 }
             }
         }
@@ -680,21 +686,18 @@ impl Start {
         if v4_num == 0 && v6_num == 0 {
             println!("IPv4和IPv6所需数量不能同时设为0");
             std::process::exit(0);
-
         }
 
         // ========== 构造域名 ==========
-
-        let mut domains = Vec::new();
-        let hostnames = if add_ddns != "未指定" {
-            for sub in hostname2.split_whitespace() {
-                let full = format!("{}.{}", sub, hostname1);
-                domains.push(full.clone());
-            }
-            domains.join(" ")
+        let domains: Vec<String> = if add_ddns != "未指定" {
+            hostname2.split_whitespace()
+                .map(|sub| format!("{}.{}", sub, hostname1))
+                .collect()
         } else {
-            String::new()
+            Vec::new()
         };
+
+        let hostnames = domains.join(" ");
 
         // ========== 插件控制：停止 ==========
         let plugin_status = if clien != "未指定" && !clien.is_empty() {
@@ -718,8 +721,8 @@ impl Start {
         let output_file = Self::parse_cf_command_for_output_file(cf_command);
         
         let mut all_domain_ip_map = std::collections::HashMap::new();
-//        let mut has_update = false;
         
+        // 通用IP处理函数
         let process_ip = |ip_type: &str, url: &str, num: u32| -> Result<(Vec<String>, std::collections::HashMap<String, Vec<String>>)> {
             self.process_ip_type(
                 ip_type,
@@ -742,11 +745,19 @@ impl Start {
             let (v4_ips, v4_domain_ip_map) = process_ip("IPv4", v4_url, v4_num)?;
             
             if !v4_ips.is_empty() {
-//                has_update = true;
                 all_domain_ip_map.extend(v4_domain_ip_map);
                 
                 // IPv4消息推送
-                self.execute_push(push_mod, &hostnames, v4_num, v6_num, "IPv4", ddns_name, &all_domain_ip_map, &v4_ips)?
+                self.execute_push(
+                    push_mod, 
+                    &hostnames, 
+                    v4_num, 
+                    v6_num, 
+                    "IPv4", 
+                    ddns_name, 
+                    &all_domain_ip_map, 
+                    &v4_ips
+                )?;
             }
         } else {
             println!("根据设置，跳过 IPv4 测速");
@@ -757,35 +768,25 @@ impl Start {
             let (v6_ips, v6_domain_ip_map) = process_ip("IPv6", v6_url, v6_num)?;
             
             if !v6_ips.is_empty() {
-//                has_update = true;
                 all_domain_ip_map.extend(v6_domain_ip_map);
                 
                 // IPv6消息推送
-                self.execute_push(push_mod, &hostnames, v4_num, v6_num, "IPv6", ddns_name, &all_domain_ip_map, &v6_ips)?
+                self.execute_push(
+                    push_mod, 
+                    &hostnames, 
+                    v4_num, 
+                    v6_num, 
+                    "IPv6", 
+                    ddns_name, 
+                    &all_domain_ip_map, 
+                    &v6_ips
+                )?;
             }
         } else {
             println!("根据设置，跳过 IPv6 测速");
         }
-        
-/*
-        // 当v4_num和v6_num都为0时，直接测速、处理DNS、推送
-        if v4_num == 0 && v6_num == 0 {
-            let (ips, domain_ip_map) = process_ip("", "", 0)?;
-            
-            if !ips.is_empty() {
-                has_update = true;
-                all_domain_ip_map.extend(domain_ip_map);
-            }
-            
-            // 综合消息推送
-            if has_update {
-                self.execute_push(push_mod, &hostnames, v4_num, v6_num, "IP", ddns_name, &all_domain_ip_map, add_ddns)?;
-            }
-        }
-*/
 
         // ========== 插件控制：恢复 ==========
-
         if clien != "未指定" && !clien.is_empty() {
             if let Some("stopped") = plugin_status {
                 println!("正在恢复插件 {}", clien);

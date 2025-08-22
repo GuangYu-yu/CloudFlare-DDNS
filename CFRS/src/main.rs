@@ -32,6 +32,10 @@ use start::Start;
 // -- 推送 --
 mod push;
 
+// -- 通用设置trait --
+mod settings_trait;
+use settings_trait::Settings;
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Account {
     pub account_name: String,
@@ -110,18 +114,17 @@ impl Config {
 }
 
 fn main() -> Result<()> {
-    let args: Vec<String> = env::args().collect();
-
+    let mut args = env::args();
+    
     // 处理命令行参数
-    if args.len() > 1 {
-        let ddns_name = &args[1];
+    if let Some(ddns_name) = args.nth(1) {
         let config_path = PathBuf::from(CONFIG_FILE);
         let mut start = Start::new(config_path)?;
-        start.run(Some(ddns_name.to_string()))?;
+        start.run(Some(ddns_name))?;
         return Ok(());
     }
 
-    let items = vec![
+    const MENU_ITEMS: &[&str] = &[
         "账户设置",
         "解析设置",
         "推送设置",
@@ -133,7 +136,7 @@ fn main() -> Result<()> {
         clear_screen()?;
         let selection = Select::with_theme(&ColorfulTheme::default())
             .with_prompt("请选择菜单项（按ESC退出）")
-            .items(&items)
+            .items(MENU_ITEMS)
             .default(0)
             .interact_opt()?;
 
