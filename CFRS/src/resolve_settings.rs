@@ -406,6 +406,7 @@ impl ResolveSettings {
         let name_to_delete = {
             if self.config.resolve.is_none() || self.config.resolve.as_ref().unwrap().is_empty() {
                 self.ui.show_message("没有可删除的解析！")?;
+                self.ui.pause("按回车键继续...")?;
                 clear_screen()?;
                 return Ok(());
             }
@@ -462,6 +463,7 @@ impl ResolveSettings {
     fn modify_resolve(&mut self) -> Result<()> {
         if self.config.resolve.is_none() || self.config.resolve.as_ref().unwrap().is_empty() {
             self.ui.show_message("没有可修改的解析！")?;
+            self.ui.pause("按回车键继续...")?;
             clear_screen()?;
             return Ok(());
         }
