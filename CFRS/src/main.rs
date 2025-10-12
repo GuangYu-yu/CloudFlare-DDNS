@@ -1,9 +1,8 @@
 use anyhow::Result;
-use dialoguer::{theme::ColorfulTheme, Select};
-use std::env;
-use std::path::PathBuf;
-use std::fs;
 use serde::{Deserialize, Serialize};
+use std::env;
+use std::fs;
+use std::path::PathBuf;
 
 // 全局常量
 pub const CONFIG_FILE: &str = "cf.yaml";
@@ -35,6 +34,10 @@ mod push;
 // -- 通用设置trait --
 mod settings_trait;
 use settings_trait::Settings;
+
+// -- UI组件 --
+mod ui_components;
+pub use ui_components::UIComponents;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Account {
@@ -115,7 +118,7 @@ impl Config {
 
 fn main() -> Result<()> {
     let mut args = env::args();
-    
+
     // 处理命令行参数
     if let Some(ddns_name) = args.nth(1) {
         let config_path = PathBuf::from(CONFIG_FILE);
@@ -124,21 +127,13 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    const MENU_ITEMS: &[&str] = &[
-        "账户设置",
-        "解析设置",
-        "推送设置",
-        "执行解析",
-        "插件设置",
-    ];
+    const MENU_ITEMS: &[&str] = &["账户设置", "解析设置", "推送设置", "执行解析", "插件设置"];
+
+    let ui = UIComponents::new();
 
     loop {
         clear_screen()?;
-        let selection = Select::with_theme(&ColorfulTheme::default())
-            .with_prompt("请选择菜单项（按ESC退出）")
-            .items(MENU_ITEMS)
-            .default(0)
-            .interact_opt()?;
+        let selection = ui.show_menu("请选择菜单项（按ESC退出）", MENU_ITEMS, 0)?;
 
         if let Some(selection) = selection {
             match selection {
@@ -160,9 +155,7 @@ fn main() -> Result<()> {
 #[cfg(target_os = "windows")]
 fn clear_screen() -> std::io::Result<()> {
     use std::process::Command;
-    Command::new("cmd")
-        .args(&["/C", "cls"])
-        .status()?;
+    Command::new("cmd").args(&["/C", "cls"]).status()?;
     Ok(())
 }
 

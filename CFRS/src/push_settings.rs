@@ -1,15 +1,12 @@
+use crate::ui_components::UIComponents;
+use crate::{Config, PushConfig, Settings, clear_screen, impl_settings};
 use anyhow::Result;
-use dialoguer::{theme::ColorfulTheme, Select, Input};
 use std::path::PathBuf;
-use console::Term;
-use crate::{Config, PushConfig, clear_screen, Settings, impl_settings};
-
 
 pub struct PushSettings {
     config_path: PathBuf,
     config: Config,
-    theme: ColorfulTheme,
-    term: Term,
+    ui: UIComponents,
 }
 
 impl PushSettings {
@@ -17,8 +14,7 @@ impl PushSettings {
         let mut settings = PushSettings {
             config_path: config_path.clone(),
             config: Config::default(),
-            theme: ColorfulTheme::default(),
-            term: Term::stdout(),
+            ui: UIComponents::new(),
         };
         settings.load_config()?;
         Ok(settings)
@@ -39,29 +35,20 @@ impl PushSettings {
                 "提交到Github",
             ];
 
-            let selection = Select::with_theme(&self.theme)
-                .with_prompt("推送管理（按ESC返回上级）")
-                .items(&items)
-                .default(0)
-                .interact_opt()?;
-
-            // 如果用户按ESC返回，则直接返回
-            let selection = match selection {
-                Some(value) => value,
-                None => return Ok(()),
-            };
+            let selection = self.ui.show_menu("推送管理（按ESC返回上级）", &items, 0)?;
 
             match selection {
-                0 => self.manage_push("Telegram")?,
-                1 => self.manage_push("PushPlus")?,
-                2 => self.manage_push("Server酱")?,
-                3 => self.manage_push("PushDeer")?,
-                4 => self.manage_push("企业微信")?,
-                5 => self.manage_push("Synology-Chat")?,
-                6 => {
+                Some(0) => self.manage_push("Telegram")?,
+                Some(1) => self.manage_push("PushPlus")?,
+                Some(2) => self.manage_push("Server酱")?,
+                Some(3) => self.manage_push("PushDeer")?,
+                Some(4) => self.manage_push("企业微信")?,
+                Some(5) => self.manage_push("Synology-Chat")?,
+                Some(6) => {
                     // 调用 GitHub 推送设置
                     self.manage_github_push()?;
-                },
+                }
+                None => return Ok(()),
                 _ => unreachable!(),
             }
         }
@@ -81,22 +68,22 @@ impl PushSettings {
                             if let Some(user_id) = &config.telegram_user_id {
                                 info.push_str(&format!("  User ID: {}\n", user_id));
                             }
-                        },
+                        }
                         "PushPlus" => {
                             if let Some(token) = &config.pushplus_token {
                                 info.push_str(&format!("  Token: {}\n", token));
                             }
-                        },
+                        }
                         "Server酱" => {
                             if let Some(sendkey) = &config.server_sendkey {
                                 info.push_str(&format!("  SendKey: {}\n", sendkey));
                             }
-                        },
+                        }
                         "PushDeer" => {
                             if let Some(pushkey) = &config.pushdeer_pushkey {
                                 info.push_str(&format!("  PushKey: {}\n", pushkey));
                             }
-                        },
+                        }
                         "企业微信" => {
                             if let Some(corpid) = &config.wechat_corpid {
                                 info.push_str(&format!("  企业ID: {}\n", corpid));
@@ -110,126 +97,118 @@ impl PushSettings {
                             if let Some(userid) = &config.wechat_userid {
                                 info.push_str(&format!("  接收者ID: {}\n", userid));
                             }
-                        },
+                        }
                         "Synology-Chat" => {
                             if let Some(url) = &config.synology_chat_url {
                                 info.push_str(&format!("  Webhook URL: {}\n", url));
                             }
-                        },
+                        }
                         _ => {}
                     }
                     info
                 })
-                .collect::<Vec<String>>()
-                .join("");
-            self.term.write_line(&push_info)?;
+                .collect::<Vec<String>>();
+
+            self.ui.show_info_list("", &push_info)?;
         } else {
-            self.term.write_line("当前没有设置任何推送配置")?;
-            self.term.write_line("")?;
+            self.ui.show_message("当前没有设置任何推送配置")?;
+            self.ui.show_message("")?;
         }
         Ok(())
     }
 
     fn manage_github_push(&mut self) -> Result<()> {
-        let mut github_push_settings = crate::github_push_settings::GithubPushSettings::new(self.config_path.clone())?;
+        let mut github_push_settings =
+            crate::github_push_settings::GithubPushSettings::new(self.config_path.clone())?;
         github_push_settings.run()
     }
 
     fn manage_push(&mut self, push_name: &str) -> Result<()> {
         loop {
             clear_screen()?;
-            self.term.write_line(&format!("{} 推送管理", push_name))?;
-            
+            self.ui.show_message(&format!("{} 推送管理", push_name))?;
+
             // 显示当前设置
-            let current_config = self.config.push.as_ref()
-                .and_then(|configs| {
-                    configs.iter().find(|c| c.push_name == push_name)
-                });
+            let current_config = self
+                .config
+                .push
+                .as_ref()
+                .and_then(|configs| configs.iter().find(|c| c.push_name == push_name));
 
             if let Some(config) = current_config {
-                self.term.write_line("当前设置：")?;
+                self.ui.show_message("当前设置：")?;
                 match push_name {
                     "Telegram" => {
                         if let Some(token) = &config.telegram_bot_token {
-                            self.term.write_line(&format!("Bot Token：{}", token))?;
+                            self.ui.show_message(&format!("Bot Token：{}", token))?;
                         }
                         if let Some(user_id) = &config.telegram_user_id {
-                            self.term.write_line(&format!("User ID：{}", user_id))?;
+                            self.ui.show_message(&format!("User ID：{}", user_id))?;
                         }
-                    },
+                    }
                     "PushPlus" => {
                         if let Some(token) = &config.pushplus_token {
-                            self.term.write_line(&format!("Token：{}", token))?;
+                            self.ui.show_message(&format!("Token：{}", token))?;
                         }
-                    },
+                    }
                     "Server酱" => {
                         if let Some(sendkey) = &config.server_sendkey {
-                            self.term.write_line(&format!("SendKey：{}", sendkey))?;
+                            self.ui.show_message(&format!("SendKey：{}", sendkey))?;
                         }
-                    },
+                    }
                     "PushDeer" => {
                         if let Some(pushkey) = &config.pushdeer_pushkey {
-                            self.term.write_line(&format!("PushKey：{}", pushkey))?;
+                            self.ui.show_message(&format!("PushKey：{}", pushkey))?;
                         }
-                    },
+                    }
                     "企业微信" => {
                         if let Some(corpid) = &config.wechat_corpid {
-                            self.term.write_line(&format!("企业ID：{}", corpid))?;
+                            self.ui.show_message(&format!("企业ID：{}", corpid))?;
                         }
                         if let Some(secret) = &config.wechat_secret {
-                            self.term.write_line(&format!("应用Secret：{}", secret))?;
+                            self.ui.show_message(&format!("应用Secret：{}", secret))?;
                         }
                         if let Some(agentid) = &config.wechat_agentid {
-                            self.term.write_line(&format!("应用ID：{}", agentid))?;
+                            self.ui.show_message(&format!("应用ID：{}", agentid))?;
                         }
                         if let Some(userid) = &config.wechat_userid {
-                            self.term.write_line(&format!("接收者ID：{}", userid))?;
+                            self.ui.show_message(&format!("接收者ID：{}", userid))?;
                         }
-                    },
+                    }
                     "Synology-Chat" => {
                         if let Some(url) = &config.synology_chat_url {
-                            self.term.write_line(&format!("Webhook URL：{}", url))?;
+                            self.ui.show_message(&format!("Webhook URL：{}", url))?;
                         }
-                    },
+                    }
                     _ => {}
                 }
             } else {
-                self.term.write_line("当前没有设置任何参数")?;
+                self.ui.show_message("当前没有设置任何参数")?;
             }
 
-            let items = [
-                "设置/修改参数",
-                "删除推送",
-            ];
+            let items = ["设置/修改参数", "删除推送"];
 
-            let selection = Select::with_theme(&self.theme)
-                .with_prompt("请选择操作（按ESC返回上级）")
-                .items(&items)
-                .default(0)
-                .interact_opt()?;
-
-            // 如果用户按ESC返回，则直接返回
-            let selection = match selection {
-                Some(value) => value,
-                None => break,
-            };
+            let selection = self
+                .ui
+                .show_menu("请选择操作（按ESC返回上级）", &items, 0)?;
 
             match selection {
-                0 => {
+                Some(0) => {
                     if current_config.is_some() {
                         self.configure_push(push_name, true)?;
                     } else {
                         self.configure_push(push_name, false)?;
                     }
-                },
-                1 => {
+                }
+                Some(1) => {
                     if current_config.is_some() {
                         self.delete_push(push_name)?;
                     } else {
-                        self.term.write_line(&format!("{} 未设置", push_name))?;
-                        self.term.read_line()?;
+                        self.ui.show_message(&format!("{} 未设置", push_name))?;
+                        self.ui.pause("")?;
                     }
-                },
+                }
+                None => break,
                 _ => {}
             }
         }
@@ -238,9 +217,11 @@ impl PushSettings {
 
     fn configure_push(&mut self, push_name: &str, is_modify: bool) -> Result<()> {
         if is_modify {
-            self.term.write_line(&format!("正在修改 {} 推送...", push_name))?;
+            self.ui
+                .show_message(&format!("正在修改 {} 推送...", push_name))?;
         } else {
-            self.term.write_line(&format!("正在设置 {} 推送...", push_name))?;
+            self.ui
+                .show_message(&format!("正在设置 {} 推送...", push_name))?;
         }
 
         let mut new_config = PushConfig {
@@ -259,61 +240,53 @@ impl PushSettings {
 
         match push_name {
             "Telegram" => {
-                let token: String = Input::with_theme(&self.theme)
-                    .with_prompt("请输入 telegram_bot_token")
-                    .interact_text()?;
+                let token = self
+                    .ui
+                    .get_non_empty_input("请输入 telegram_bot_token", "")?;
                 new_config.telegram_bot_token = Some(token);
 
-                let user_id: String = Input::with_theme(&self.theme)
-                    .with_prompt("请输入 telegram_user_id")
-                    .interact_text()?;
+                let user_id = self.ui.get_non_empty_input("请输入 telegram_user_id", "")?;
                 new_config.telegram_user_id = Some(user_id);
-            },
+            }
             "PushPlus" => {
-                let token: String = Input::with_theme(&self.theme)
-                    .with_prompt("请输入 pushplus_token")
-                    .interact_text()?;
+                let token = self.ui.get_non_empty_input("请输入 pushplus_token", "")?;
                 new_config.pushplus_token = Some(token);
-            },
+            }
             "Server酱" => {
-                let sendkey: String = Input::with_theme(&self.theme)
-                    .with_prompt("请输入 server_sendkey")
-                    .interact_text()?;
+                let sendkey = self.ui.get_non_empty_input("请输入 server_sendkey", "")?;
                 new_config.server_sendkey = Some(sendkey);
-            },
+            }
             "PushDeer" => {
-                let pushkey: String = Input::with_theme(&self.theme)
-                    .with_prompt("请输入 pushdeer_pushkey")
-                    .interact_text()?;
+                let pushkey = self.ui.get_non_empty_input("请输入 pushdeer_pushkey", "")?;
                 new_config.pushdeer_pushkey = Some(pushkey);
-            },
+            }
             "企业微信" => {
-                let corpid: String = Input::with_theme(&self.theme)
-                    .with_prompt("请输入 企业ID (wechat_corpid)")
-                    .interact_text()?;
+                let corpid = self
+                    .ui
+                    .get_non_empty_input("请输入 企业ID (wechat_corpid)", "")?;
                 new_config.wechat_corpid = Some(corpid);
 
-                let secret: String = Input::with_theme(&self.theme)
-                    .with_prompt("请输入 应用Secret (wechat_secret)")
-                    .interact_text()?;
+                let secret = self
+                    .ui
+                    .get_non_empty_input("请输入 应用Secret (wechat_secret)", "")?;
                 new_config.wechat_secret = Some(secret);
 
-                let agentid: String = Input::with_theme(&self.theme)
-                    .with_prompt("请输入 应用ID (wechat_agentid)")
-                    .interact_text()?;
+                let agentid = self
+                    .ui
+                    .get_non_empty_input("请输入 应用ID (wechat_agentid)", "")?;
                 new_config.wechat_agentid = Some(agentid);
 
-                let userid: String = Input::with_theme(&self.theme)
-                    .with_prompt("请输入 接收者ID (wechat_userid)")
-                    .interact_text()?;
+                let userid = self
+                    .ui
+                    .get_non_empty_input("请输入 接收者ID (wechat_userid)", "")?;
                 new_config.wechat_userid = Some(userid);
-            },
+            }
             "Synology-Chat" => {
-                let url: String = Input::with_theme(&self.theme)
-                    .with_prompt("请输入 Webhook URL (synology_chat_url)")
-                    .interact_text()?;
+                let url = self
+                    .ui
+                    .get_url_input("请输入 Webhook URL (synology_chat_url)", false)?;
                 new_config.synology_chat_url = Some(url);
-            },
+            }
             _ => {}
         }
 
@@ -334,44 +307,39 @@ impl PushSettings {
         }
 
         self.config.save(&self.config_path)?;
-        self.term.write_line(&format!("{} 参数已设置完成！", push_name))?;
-        self.term.read_line()?;
+        self.ui
+            .show_success(&format!("{} 参数已设置完成！", push_name))?;
         Ok(())
     }
 
     fn delete_push(&mut self, push_name: &str) -> Result<()> {
-        self.term.write_line(&format!("确认删除 {} 的推送设置吗？", push_name))?;
-        
         let items = ["是", "否"];
-        let selection = Select::with_theme(&self.theme)
-            .with_prompt("确认删除推送设置吗？（按ESC返回上级）")
-            .items(&items)
-            .default(1)
-            .interact_opt()?;
+        let selection =
+            self.ui
+                .show_menu(&format!("确认删除 {} 的推送设置吗？", push_name), &items, 1)?;
 
-        // 如果用户按ESC返回，则直接返回
-        let selection = match selection {
-            Some(value) => value,
-            None => return Ok(()),
-        };
+        match selection {
+            Some(0) => {
+                if let Some(push_configs) = &mut self.config.push {
+                    push_configs.retain(|c| c.push_name != push_name);
 
-        if selection == 0 {
-            if let Some(push_configs) = &mut self.config.push {
-                push_configs.retain(|c| c.push_name != push_name);
-                
-                // 如果没有剩余的推送设置，删除 push 键
-                if push_configs.is_empty() {
-                    self.config.push = None;
+                    // 如果没有剩余的推送设置，删除 push 键
+                    if push_configs.is_empty() {
+                        self.config.push = None;
+                    }
+
+                    self.config.save(&self.config_path)?;
+                    self.ui
+                        .show_success(&format!("{} 的推送设置已删除", push_name))?;
                 }
-                
-                self.config.save(&self.config_path)?;
-                self.term.write_line(&format!("{} 的推送设置已删除", push_name))?;
             }
-        } else {
-            self.term.write_line("取消删除操作")?;
+            Some(1) => {
+                self.ui.show_message("取消删除操作")?;
+                self.ui.pause("")?;
+            }
+            None => return Ok(()),
+            _ => {}
         }
-        
-        self.term.read_line()?;
         Ok(())
     }
 }

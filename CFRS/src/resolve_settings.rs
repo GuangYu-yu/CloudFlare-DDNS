@@ -1,16 +1,12 @@
-use dialoguer::{theme::ColorfulTheme, Input, Select, MultiSelect};
-use console::Term;
+use crate::{Config, Resolve, Settings, clear_screen, impl_settings, ui_components::UIComponents};
 use anyhow::Result;
 use regex::Regex;
 use std::path::PathBuf;
-use crate::{Config, Resolve, clear_screen, Settings, impl_settings};
-
 
 pub struct ResolveSettings {
     config_path: PathBuf,
     config: Config,
-    theme: ColorfulTheme,
-    term: Term,
+    ui: UIComponents,
     domain_regex: Regex,
 }
 
@@ -19,8 +15,7 @@ impl ResolveSettings {
         let mut settings = ResolveSettings {
             config_path: config_path.clone(),
             config: Config::default(),
-            theme: ColorfulTheme::default(),
-            term: Term::stdout(),
+            ui: UIComponents::new(),
             domain_regex: Regex::new(r"^[a-zA-Z0-9\u{4e00}-\u{9fa5}.\-]+$").unwrap(),
         };
         settings.load_config()?;
@@ -31,18 +26,9 @@ impl ResolveSettings {
         loop {
             clear_screen()?;
 
-            let items = [
-                "查看解析",
-                "添加解析",
-                "删除解析",
-                "修改解析",
-            ];
+            let items = ["查看解析", "添加解析", "删除解析", "修改解析"];
 
-            let selection = Select::with_theme(&self.theme)
-                .with_prompt("解析设置（按ESC返回上级）")
-                .items(&items)
-                .default(0)
-                .interact_opt()?;
+            let selection = self.ui.show_menu("解析设置（按ESC返回上级）", &items, 0)?;
 
             // 如果用户按ESC返回，则直接返回
             let selection = match selection {
@@ -64,29 +50,26 @@ impl ResolveSettings {
         clear_screen()?;
 
         if let Some(resolves) = &self.config.resolve {
-            for (i, r) in resolves.iter().enumerate() {
-                self.term.write_line(
-                    &format!(
-                        "\n[{}] 账户组：{}\n    解析组：{}\n    一级域名：{}\n    二级域名：{}\n    IPv4数量：{}\n    IPv6数量：{}\n    CloudflareST命令：{}\n    IPv4地址URL：{}\n    IPv6地址URL：{}\n    推送方式：{}",
-                        i + 1, r.add_ddns, r.ddns_name, r.hostname1, r.hostname2, r.v4_num, r.v6_num,
-                        r.cf_command, r.v4_url, r.v6_url, r.push_mod
-                    )
-                )?;
-            }
+            let info_list: Vec<String> = resolves.iter().enumerate().map(|(i, r)| {
+                format!(
+                    "\n[{}] 账户组：{}\n    解析组：{}\n    一级域名：{}\n    二级域名：{}\n    IPv4数量：{}\n    IPv6数量：{}\n    CloudflareST命令：{}\n    IPv4地址URL：{}\n    IPv6地址URL：{}\n    推送方式：{}",
+                    i + 1, r.add_ddns, r.ddns_name, r.hostname1, r.hostname2, r.v4_num, r.v6_num,
+                    r.cf_command, r.v4_url, r.v6_url, r.push_mod
+                )
+            }).collect();
+
+            self.ui.show_info_list("解析组信息", &info_list)?;
         } else {
-            self.term.write_line("当前无解析组配置")?;
+            self.ui.show_message("当前无解析组配置")?;
         }
 
-        self.term.read_line()?;
+        self.ui.pause("按回车键继续...")?;
         clear_screen()?;
         Ok(())
     }
 
     fn look_cfst_rules(&self) -> anyhow::Result<()> {
-        use console::Style;
-        let cyan = Style::new().cyan();
-
-        let lines = [
+        let lines: Vec<String> = [
             "    示例：-n 500 -tll 20 -tl 300 -sl 15 -tp 2053 -t 8 -tlr 0.2",
             "    HTTP  端口  80  8080 2052 2082 2086 2095 8880",
             "    HTTPS 端口  443 8443 2053 2083 2087 2096",
@@ -101,42 +84,48 @@ impl ResolveSettings {
             "    -sl 5       下载速度下限",
             "    -dd         禁用下载测速",
             "    -all4       测速全部的IP",
-        ];
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
 
-        for line in lines.iter() {
-            self.term.write_line(&cyan.apply_to(*line).to_string())?;
-        }
-
+        self.ui.show_info_list("CloudflareST 参数说明", &lines)?;
         Ok(())
     }
 
-    fn get_resolve_input(&mut self, default_values: Option<&Resolve>) -> anyhow::Result<Option<Resolve>> {
+    fn get_resolve_input(
+        &mut self,
+        default_values: Option<&Resolve>,
+    ) -> anyhow::Result<Option<Resolve>> {
         clear_screen()?;
 
         // 显示现有账户
         if self.config.account.is_empty() {
-            self.term.write_line("(无已设置的账户信息)")?;
+            self.ui.show_message("(无已设置的账户信息)")?;
         } else {
-            for acc in &self.config.account {
-                self.term.write_line(&format!("- 账户组: {}", acc.account_name))?;
-            }
+            let account_list: Vec<String> = self
+                .config
+                .account
+                .iter()
+                .map(|acc| format!("- 账户组: {}", acc.account_name))
+                .collect();
+            self.ui.show_info_list("现有账户", &account_list)?;
         }
-        self.term.write_line("")?;
 
         // 账户组输入
         let add_ddns = loop {
-            let input: String = Input::with_theme(&self.theme)
-                .with_prompt("请输入账户组名称（输入0不指定账户组，留空则返回上级）")
-                .allow_empty(true)
-                .interact_text()?;
+            let input = self.ui.get_text_input(
+                "请输入账户组名称（输入0不指定账户组，留空则返回上级）",
+                "",
+                |_| true, // 允许任何输入
+            )?;
 
             if input.trim().is_empty() {
                 return Ok(None); // 返回上级
             } else if input.trim() == "0" {
                 break "未指定".to_string();
             } else if !self.config.account.iter().any(|a| a.account_name == input) {
-                self.term.write_line("账户组不存在")?;
-                self.term.read_line()?;
+                self.ui.show_error("账户组不存在")?;
                 continue;
             } else {
                 break input;
@@ -146,25 +135,24 @@ impl ResolveSettings {
         // 解析组名称输入
         let ddns_name = loop {
             let default_name = default_values.map(|d| d.ddns_name.as_str()).unwrap_or("");
-            let prompt = "请输入自定义解析组名称（只能包含字母、数字和下划线）";
-            
-            let input: String = Input::with_theme(&self.theme)
-                .with_prompt(prompt)
-                .default(default_name.to_string())
-                .interact_text()?;
+
+            let input = self.ui.get_text_input(
+                "请输入自定义解析组名称（只能包含字母、数字和下划线）",
+                default_name,
+                |input| Regex::new(r"^[A-Za-z0-9_]+$").unwrap().is_match(input),
+            )?;
 
             if !Regex::new(r"^[A-Za-z0-9_]+$")?.is_match(&input) {
-                self.term.write_line("只能包含字母、数字和下划线")?;
-                self.term.read_line()?;
+                self.ui.show_error("只能包含字母、数字和下划线")?;
                 continue;
             } else if let Some(resolves) = &self.config.resolve {
                 // 检查名称是否已存在（排除当前正在修改的解析组）
                 let current_ddns_name = default_values.map(|d| &d.ddns_name);
-                if resolves.iter().any(|r| {
-                    r.ddns_name == input && Some(&r.ddns_name) != current_ddns_name
-                }) {
-                    self.term.write_line("已有该解析组名称！")?;
-                    self.term.read_line()?;
+                if resolves
+                    .iter()
+                    .any(|r| r.ddns_name == input && Some(&r.ddns_name) != current_ddns_name)
+                {
+                    self.ui.show_error("已有该解析组名称！")?;
                     continue;
                 }
             }
@@ -177,14 +165,13 @@ impl ResolveSettings {
         } else {
             let hostname1 = loop {
                 let default_hostname1 = default_values.map(|d| d.hostname1.as_str()).unwrap_or("");
-                let prompt = "请输入要解析的一级域名（留空则返回上级）";
-                
-                let input: String = Input::with_theme(&self.theme)
-                    .with_prompt(prompt)
-                    .default(default_hostname1.to_string())
-                    .allow_empty(true)
-                    .interact_text()?;
-                
+
+                let input = self.ui.get_text_input(
+                    "请输入要解析的一级域名（留空则返回上级）",
+                    default_hostname1,
+                    |input| input.trim().is_empty() || self.domain_regex.is_match(input),
+                )?;
+
                 if input.trim().is_empty() && default_values.is_none() {
                     return Ok(None);
                 }
@@ -194,23 +181,28 @@ impl ResolveSettings {
                 if self.domain_regex.is_match(&input) {
                     break input;
                 } else {
-                    self.term.write_line("格式不正确")?;
-                    self.term.read_line()?;
+                    self.ui.show_error("格式不正确")?;
                 }
             };
 
             let hostname2 = loop {
                 let default_hostname2 = default_values.map(|d| d.hostname2.as_str()).unwrap_or("");
-                let prompt = "请输入一个或多个二级域名（不含一级域名，多个则以空格分隔）";
-                
-                let input: String = Input::with_theme(&self.theme)
-                    .with_prompt(prompt)
-                    .default(default_hostname2.to_string())
-                    .interact_text()?;
+
+                let input = self.ui.get_text_input(
+                    "请输入一个或多个二级域名（不含一级域名，多个则以空格分隔）",
+                    default_hostname2,
+                    |input| {
+                        if input.trim().is_empty() && default_values.is_some() {
+                            return true;
+                        }
+                        input
+                            .split_whitespace()
+                            .all(|s| self.domain_regex.is_match(s))
+                    },
+                )?;
 
                 if input.trim().is_empty() && default_values.is_none() {
-                    self.term.write_line("格式不正确")?;
-                    self.term.read_line()?;
+                    self.ui.show_error("格式不正确")?;
                     continue;
                 }
                 if input.trim().is_empty() && default_values.is_some() {
@@ -224,8 +216,7 @@ impl ResolveSettings {
                 if all_valid {
                     break input;
                 } else {
-                    self.term.write_line("格式不正确")?;
-                    self.term.read_line()?;
+                    self.ui.show_error("格式不正确")?;
                 }
             };
 
@@ -234,13 +225,15 @@ impl ResolveSettings {
 
         // IPv4数量
         let v4_num = loop {
-            let default_v4 = default_values.map(|d| d.v4_num.to_string()).unwrap_or_else(|| "0".to_string());
-            let prompt = "请输入IPv4解析数量（可设置为0）";
-            
-            let input: String = Input::with_theme(&self.theme)
-                .with_prompt(prompt)
-                .default(default_v4)
-                .interact_text()?;
+            let default_v4 = default_values
+                .map(|d| d.v4_num.to_string())
+                .unwrap_or_else(|| "0".to_string());
+
+            let input = self.ui.get_text_input(
+                "请输入IPv4解析数量（可设置为0）",
+                &default_v4,
+                |input| input.trim().is_empty() || input.trim().parse::<u32>().is_ok(),
+            )?;
 
             if input.trim().is_empty() && default_values.is_none() {
                 break 0;
@@ -248,20 +241,21 @@ impl ResolveSettings {
             if let Ok(num) = input.trim().parse::<u32>() {
                 break num;
             } else {
-                self.term.write_line("格式不正确")?;
-                self.term.read_line()?;
+                self.ui.show_error("格式不正确")?;
             }
         };
 
         // IPv6数量
         let v6_num = loop {
-            let default_v6 = default_values.map(|d| d.v6_num.to_string()).unwrap_or_else(|| "0".to_string());
-            let prompt = "请输入IPv6解析数量（可设置为0）";
-            
-            let input: String = Input::with_theme(&self.theme)
-                .with_prompt(prompt)
-                .default(default_v6)
-                .interact_text()?;
+            let default_v6 = default_values
+                .map(|d| d.v6_num.to_string())
+                .unwrap_or_else(|| "0".to_string());
+
+            let input = self.ui.get_text_input(
+                "请输入IPv6解析数量（可设置为0）",
+                &default_v6,
+                |input| input.trim().is_empty() || input.trim().parse::<u32>().is_ok(),
+            )?;
 
             if input.trim().is_empty() && default_values.is_none() {
                 break 0;
@@ -269,24 +263,22 @@ impl ResolveSettings {
             if let Ok(num) = input.trim().parse::<u32>() {
                 break num;
             } else {
-                self.term.write_line("格式不正确")?;
-                self.term.read_line()?;
+                self.ui.show_error("格式不正确")?;
             }
         };
 
         // CloudflareST 示例输出
         self.look_cfst_rules()?;
-        self.term.write_line("")?;
-        
+
         // CloudflareST 命令输入
         let cf_command = loop {
             let default_cf = default_values.map(|d| d.cf_command.as_str()).unwrap_or("");
-            let prompt = "请输入CloudflareST传入参数（无需以\"./CloudflareST\"开头）";
-            
-            let input: String = Input::with_theme(&self.theme)
-                .with_prompt(prompt)
-                .default(default_cf.to_string())
-                .interact_text()?;
+
+            let input = self.ui.get_text_input(
+                "请输入CloudflareST传入参数（无需以\"./CloudflareST\"开头）",
+                default_cf,
+                |_| true, // 允许任何输入
+            )?;
 
             if input.trim().is_empty() && default_values.is_none() {
                 break String::new();
@@ -302,41 +294,46 @@ impl ResolveSettings {
 
         // URL 读取 IPv4
         let v4_url = loop {
-            let input: String = Input::with_theme(&self.theme)
-                .with_prompt("从URL链接获取IPv4地址")
-                .allow_empty(true)
-                .interact_text()?;
+            let input = self
+                .ui
+                .get_text_input("从URL链接获取IPv4地址", "", |input| {
+                    input.is_empty() || url_regex.is_match(input)
+                })?;
 
             if input.is_empty() || url_regex.is_match(&input) {
                 break input;
             } else {
-                self.term.write_line("格式不正确")?;
-                self.term.read_key()?;
+                self.ui.show_error("格式不正确")?;
+                continue;
             }
         };
 
         // URL 读取 IPv6
         let v6_url = loop {
-            let input: String = Input::with_theme(&self.theme)
-                .with_prompt("从URL链接获取IPv6地址")
-                .allow_empty(true)
-                .interact_text()?;
+            let input = self
+                .ui
+                .get_text_input("从URL链接获取IPv6地址", "", |input| {
+                    input.is_empty() || url_regex.is_match(input)
+                })?;
 
             if input.is_empty() || url_regex.is_match(&input) {
                 break input;
             } else {
-                self.term.write_line("格式不正确")?;
-                self.term.read_key()?;
+                self.ui.show_error("格式不正确")?;
             }
         };
 
         // 推送方式
         let push_options = [
-            "Telegram", "PushPlus", "Server酱", "PushDeer", "企业微信", "Synology-Chat", "Github",
+            "Telegram",
+            "PushPlus",
+            "Server酱",
+            "PushDeer",
+            "企业微信",
+            "Synology-Chat",
+            "Github",
         ];
 
-        self.term.write_line("使用空格选中所需的推送方式，按回车确认：")?;
-        
         // 设置默认选择
         let default_selections = if let Some(defaults) = default_values {
             let mut selections = vec![false; push_options.len()];
@@ -349,16 +346,18 @@ impl ResolveSettings {
         } else {
             vec![false; push_options.len()]
         };
-        
-        let selections = MultiSelect::with_theme(&self.theme)
-            .items(&push_options)
-            .defaults(&default_selections)
-            .interact()?;
+
+        let selections = self.ui.show_multi_select(
+            "使用空格选中所需的推送方式，按回车确认：",
+            &push_options,
+            &default_selections,
+        )?;
 
         let push_mod = if selections.is_empty() {
             "不设置".to_string()
         } else {
-            let selected_options: Vec<String> = selections.iter()
+            let selected_options: Vec<String> = selections
+                .iter()
                 .map(|i| push_options[*i].to_string())
                 .collect();
             selected_options.join(" ")
@@ -377,18 +376,18 @@ impl ResolveSettings {
             v6_url,
             push_mod,
         };
-        
+
         Ok(Some(resolve))
     }
-    
+
     fn add_resolve(&mut self) -> anyhow::Result<()> {
         clear_screen()?;
-        
+
         let resolve = match self.get_resolve_input(None)? {
             Some(resolve) => resolve,
             None => return Ok(()), // 用户选择返回上级，直接返回
         };
-        
+
         // 添加到配置中
         if let Some(resolves) = &mut self.config.resolve {
             resolves.push(resolve);
@@ -398,31 +397,34 @@ impl ResolveSettings {
 
         // 保存配置
         self.config.save(&self.config_path)?;
-        self.term.write_line("解析条目添加成功！")?;
-        self.term.read_line()?;
+        self.ui.show_success("解析条目添加成功！")?;
+        clear_screen()?;
         Ok(())
     }
 
     fn delete_resolve(&mut self) -> Result<()> {
         let name_to_delete = {
             if self.config.resolve.is_none() || self.config.resolve.as_ref().unwrap().is_empty() {
-                self.term.write_line("没有可删除的解析！")?;
-                self.term.read_line()?;
+                self.ui.show_message("没有可删除的解析！")?;
+                clear_screen()?;
                 return Ok(());
             }
 
-            self.term.write_line("")?;
-
             // 显示现有解析
-            let resolve_names = self.config.resolve.as_ref().unwrap().iter().map(|r| r.ddns_name.as_str()).collect::<Vec<&str>>();
+            let resolve_names = self
+                .config
+                .resolve
+                .as_ref()
+                .unwrap()
+                .iter()
+                .map(|r| r.ddns_name.as_str())
+                .collect::<Vec<&str>>();
 
             clear_screen()?;
 
-            let selection = Select::with_theme(&self.theme)
-                .with_prompt("选择要删除的解析组（按ESC返回上级）")
-                .items(&resolve_names)
-                .default(0)
-                .interact_opt()?;
+            let selection =
+                self.ui
+                    .show_menu("选择要删除的解析组（按ESC返回上级）", &resolve_names, 0)?;
 
             // 如果用户按ESC返回，则直接返回
             let selection = match selection {
@@ -433,13 +435,13 @@ impl ResolveSettings {
             resolve_names[selection].to_string()
         };
 
-        let confirm = Select::with_theme(&self.theme)
-            .with_prompt(&format!("确认删除解析组 {} 吗？", name_to_delete))
-            .items(&["是", "否"])
-            .default(1)
-            .interact()?;
+        let confirm = self.ui.show_menu(
+            &format!("确认删除解析组 {} 吗？", name_to_delete),
+            &["是", "否"],
+            1,
+        )?;
 
-        if confirm == 0 {
+        if confirm == Some(0) {
             let resolves = self.config.resolve.as_mut().unwrap();
             resolves.retain(|r| r.ddns_name != name_to_delete);
             // 如果没有剩余的解析组，删除 resolve 键
@@ -447,34 +449,36 @@ impl ResolveSettings {
                 self.config.resolve = None;
             }
             self.config.save(&self.config_path)?;
-            self.term.write_line(&format!("解析组 {} 已成功删除！", name_to_delete))?;
+            self.ui
+                .show_success(&format!("解析组 {} 已成功删除！", name_to_delete))?;
         } else {
-            self.term.write_line("已取消删除操作。")?;
+            self.ui.show_message("已取消删除操作。")?;
         }
 
-        self.term.read_line()?;
+        clear_screen()?;
         Ok(())
     }
 
     fn modify_resolve(&mut self) -> Result<()> {
         if self.config.resolve.is_none() || self.config.resolve.as_ref().unwrap().is_empty() {
-            self.term.write_line("没有可修改的解析！")?;
-            self.term.read_line()?;
+            self.ui.show_message("没有可修改的解析！")?;
+            clear_screen()?;
             return Ok(());
         }
 
-        self.term.write_line("")?;
-
         // 显示现有解析
-        let resolve_items: Vec<String> = self.config.resolve.as_ref().unwrap().iter().map(|r| {
-            format!("账户组：{} | 解析组：{}", r.add_ddns, r.ddns_name)
-        }).collect();
+        let resolve_items: Vec<String> = self
+            .config
+            .resolve
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|r| format!("账户组：{} | 解析组：{}", r.add_ddns, r.ddns_name))
+            .collect();
 
-        let selection = Select::with_theme(&self.theme)
-            .with_prompt("选择要修改的解析组（按ESC返回上级）")
-            .items(&resolve_items)
-            .default(0)
-            .interact_opt()?;
+        let selection =
+            self.ui
+                .show_menu("选择要修改的解析组（按ESC返回上级）", &resolve_items, 0)?;
 
         // 如果用户按ESC返回，则直接返回
         let selection = match selection {
@@ -490,17 +494,17 @@ impl ResolveSettings {
             Some(resolve) => resolve,
             None => return Ok(()), // 用户选择返回上级，直接返回
         };
-        
+
         // 更新配置
         {
             let resolves = self.config.resolve.as_mut().unwrap();
             resolves[selected_index] = new_resolve;
         }
-        
+
         // 保存配置
         self.config.save(&self.config_path)?;
-        self.term.write_line("解析信息修改成功！")?;
-        self.term.read_line()?;
+        self.ui.show_success("解析信息修改成功！")?;
+        clear_screen()?;
         Ok(())
     }
 }
