@@ -76,7 +76,7 @@ impl GithubPushSettings {
         clear_screen()?;
 
         // 创建解析组选择项
-        let resolve_names: Vec<&String> = resolves.iter().map(|r| &r.ddns_name).collect();
+        let resolve_names: Vec<&str> = resolves.iter().map(|r| r.ddns_name.as_str()).collect();
 
         // 使用Select让用户选择解析组
         let selection = self
@@ -158,10 +158,12 @@ impl GithubPushSettings {
                 )
             })
             .collect();
+        
+        let display_items_refs: Vec<&str> = display_items.iter().map(|s| s.as_str()).collect();
 
         let selection =
             self.ui
-                .show_menu("请选择要删除的推送条目（按ESC返回上级）", &display_items, 0)?;
+                .show_menu("请选择要删除的推送条目（按ESC返回上级）", &display_items_refs, 0)?;
 
         // 如果用户选择空（按下ESC或通过其他方式返回），则直接返回
         let selection = match selection {

@@ -476,9 +476,11 @@ impl ResolveSettings {
             .map(|r| format!("账户组：{} | 解析组：{}", r.add_ddns, r.ddns_name))
             .collect();
 
+        let resolve_items_refs: Vec<&str> = resolve_items.iter().map(|s| s.as_str()).collect();
+
         let selection =
             self.ui
-                .show_menu("选择要修改的解析组（按ESC返回上级）", &resolve_items, 0)?;
+                .show_menu("选择要修改的解析组（按ESC返回上级）", &resolve_items_refs, 0)?;
 
         // 如果用户按ESC返回，则直接返回
         let selection = match selection {

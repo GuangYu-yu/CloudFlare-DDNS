@@ -22,7 +22,17 @@ impl UIComponents {
     }
 
     /// 显示菜单并获取用户选择
-    pub fn show_menu<T: Display>(
+    pub fn show_menu(&self, prompt: &str, items: &[&str], default: usize) -> Result<Option<usize>> {
+        let selection = Select::with_theme(&self.theme)
+            .with_prompt(prompt)
+            .items(items)
+            .default(default)
+            .interact_opt()?;
+
+        Ok(selection)
+    }
+
+    pub fn show_menu_with_display<T: Display>(
         &self,
         prompt: &str,
         items: &[T],
@@ -31,13 +41,7 @@ impl UIComponents {
         let items_str: Vec<String> = items.iter().map(|item| format!("{}", item)).collect();
         let items_ref: Vec<&str> = items_str.iter().map(|s| s.as_str()).collect();
 
-        let selection = Select::with_theme(&self.theme)
-            .with_prompt(prompt)
-            .items(&items_ref)
-            .default(default)
-            .interact_opt()?;
-
-        Ok(selection)
+        self.show_menu(prompt, &items_ref, default)
     }
 
     /// 显示确认对话框
@@ -126,7 +130,18 @@ impl UIComponents {
     }
 
     /// 显示多选菜单
-    pub fn show_multi_select<T: Display>(
+    pub fn show_multi_select(&self, prompt: &str, items: &[&str], defaults: &[bool]) -> Result<Vec<usize>> {
+        let selections = MultiSelect::with_theme(&self.theme)
+            .with_prompt(prompt)
+            .items(items)
+            .defaults(defaults)
+            .interact()?;
+
+        Ok(selections)
+    }
+
+    /// 显示多选菜单
+    pub fn show_multi_select_with_display<T: Display>(
         &self,
         prompt: &str,
         items: &[T],
@@ -135,13 +150,7 @@ impl UIComponents {
         let items_str: Vec<String> = items.iter().map(|item| format!("{}", item)).collect();
         let items_ref: Vec<&str> = items_str.iter().map(|s| s.as_str()).collect();
 
-        let selections = MultiSelect::with_theme(&self.theme)
-            .with_prompt(prompt)
-            .items(&items_ref)
-            .defaults(defaults)
-            .interact()?;
-
-        Ok(selections)
+        self.show_multi_select(prompt, &items_ref, defaults)
     }
 
     /// 显示消息并等待用户按键
