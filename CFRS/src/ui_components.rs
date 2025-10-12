@@ -2,7 +2,6 @@ use anyhow::Result;
 use console::Term;
 use dialoguer::{Input, MultiSelect, Select, theme::ColorfulTheme};
 use regex::Regex;
-use std::fmt::Display;
 
 /// 通用UI组件，提供统一的用户交互界面
 pub struct UIComponents {
@@ -30,18 +29,6 @@ impl UIComponents {
             .interact_opt()?;
 
         Ok(selection)
-    }
-
-    pub fn show_menu_with_display<T: Display>(
-        &self,
-        prompt: &str,
-        items: &[T],
-        default: usize,
-    ) -> Result<Option<usize>> {
-        let items_str: Vec<String> = items.iter().map(|item| format!("{}", item)).collect();
-        let items_ref: Vec<&str> = items_str.iter().map(|s| s.as_str()).collect();
-
-        self.show_menu(prompt, &items_ref, default)
     }
 
     /// 显示确认对话框
@@ -138,19 +125,6 @@ impl UIComponents {
             .interact()?;
 
         Ok(selections)
-    }
-
-    /// 显示多选菜单
-    pub fn show_multi_select_with_display<T: Display>(
-        &self,
-        prompt: &str,
-        items: &[T],
-        defaults: &[bool],
-    ) -> Result<Vec<usize>> {
-        let items_str: Vec<String> = items.iter().map(|item| format!("{}", item)).collect();
-        let items_ref: Vec<&str> = items_str.iter().map(|s| s.as_str()).collect();
-
-        self.show_multi_select(prompt, &items_ref, defaults)
     }
 
     /// 显示消息并等待用户按键
