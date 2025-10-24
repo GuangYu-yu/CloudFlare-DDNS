@@ -1,19 +1,20 @@
 #!/bin/bash
 
 # 检查参数数量
-if [ "$#" -ne 3 ]; then
-    echo "从 https://github.com/<用户名>/<仓库名>/releases/download/latest/<文件名> 获取 .tar.gz 内可执行程序"
-    echo "用法: $0 <用户名> <仓库名> <文件名>"
+if [ "$#" -ne 4 ]; then
+    echo "从 https://github.com/<用户名>/<仓库名>/releases/download/<分支名>/<文件名> 获取 .tar.gz 内可执行程序"
+    echo "用法: $0 <用户名> <仓库名> <分支名> <文件名>"
     exit 1
 fi
 
 # 从命令行参数获取值
 USERNAME="$1"
 PROJECT_NAME="$2"
-FILENAME="$3"
+BRANCH_NAME="$3"
+FILENAME="$4"
 
 # 构建下载URL
-DOWNLOAD_URL="https://github.com/${USERNAME}/${PROJECT_NAME}/releases/download/latest/${FILENAME}"
+DOWNLOAD_URL="https://github.com/${USERNAME}/${PROJECT_NAME}/releases/download/${BRANCH_NAME}/${FILENAME}"
 
 # 如果文件存在，则删除
 if [ -f "$FILENAME" ]; then
