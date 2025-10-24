@@ -4,10 +4,10 @@
 PROJECT_NAMES=("CloudflareST-Rust" "CloudFlare-DDNS")
 
 # 定义每个项目的配置信息
-# 格式: "项目名:用户名:分支名:AMD文件名:ARM文件名:可执行文件名"
+# 格式: "项目名|用户名|分支名|AMD文件名|ARM文件名|可执行文件名"
 FILE_MAPPINGS=(
-    "CloudflareST-Rust:GuangYu-yu:latest:CloudflareST_linux_amd64.tar.gz:CloudflareST_linux_arm64.tar.gz:CloudflareST-Rust"
-    "CloudFlare-DDNS:GuangYu-yu:latest:CFRS_linux_amd64.tar.gz:CFRS_linux_arm64.tar.gz:CFRS"
+    "CloudflareST-Rust|GuangYu-yu|latest|CloudflareST-Rust_linux_amd64.tar.gz|CloudflareST-Rust_linux_arm64.tar.gz|CloudflareST-Rust"
+    "CloudFlare-DDNS|GuangYu-yu|latest|CFRS_linux_amd64.tar.gz|CFRS_linux_arm64.tar.gz|CFRS"
 )
 
 # 获取当前系统架构
@@ -24,7 +24,7 @@ download_project() {
     
     # 查找项目对应的配置信息
     for mapping in "${FILE_MAPPINGS[@]}"; do
-        IFS=':' read -r -a parts <<< "$mapping"
+        IFS='|' read -r -a parts <<< "$mapping"
         if [ "${parts[0]}" = "$PROJECT_NAME" ]; then
             USERNAME="${parts[1]}"
             BRANCH_NAME="${parts[2]}"
