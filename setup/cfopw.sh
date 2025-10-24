@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# GitHub用户名
-USERNAME="GuangYu-yu"
-
 # 定义要下载的项目名称，可以添加更多项目
 PROJECT_NAMES=("CloudflareST-Rust" "CloudFlare-DDNS")
 
