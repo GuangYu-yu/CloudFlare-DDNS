@@ -1,7 +1,17 @@
 #!/bin/bash
 
+# GitHub用户名
+USERNAME="GuangYu-yu"
+
 # 定义要下载的项目名称，可以添加更多项目
-PROJECT_NAMES=("CloudflareST-Rust" "CFRS")
+PROJECT_NAMES=("CloudflareST-Rust" "CloudFlare-DDNS")
+
+# 定义每个项目的AMD和ARM文件名映射
+# 格式: "项目名:AMD文件名:ARM文件名"
+FILE_MAPPINGS=(
+    "CloudflareST-Rust:CloudflareST_linux_amd64.tar.gz:CloudflareST_linux_arm64.tar.gz"
+    "CloudFlare-DDNS:CFRS_linux_amd64.tar.gz:CFRS_linux_arm64.tar.gz"
+)
 
 # 获取当前系统架构
 ARCH=$(uname -m)
@@ -9,16 +19,28 @@ ARCH=$(uname -m)
 # 下载函数
 download_project() {
     local PROJECT_NAME="$1"
+    local AMD_FILENAME=""
+    local ARM_FILENAME=""
+    
+    # 查找项目对应的文件名映射
+    for mapping in "${FILE_MAPPINGS[@]}"; do
+        IFS=':' read -r -a parts <<< "$mapping"
+        if [ "${parts[0]}" = "$PROJECT_NAME" ]; then
+            AMD_FILENAME="${parts[1]}"
+            ARM_FILENAME="${parts[2]}"
+            break
+        fi
+    done
     
     # 根据系统架构选择相应的文件名
     case "$ARCH" in
         x86_64) 
-            FILENAME="${PROJECT_NAME}_linux_amd64.tar.gz"
-            DOWNLOAD_URL="https://github.com/GuangYu-yu/${PROJECT_NAME}/releases/download/latest/${PROJECT_NAME}_linux_amd64.tar.gz"
+            FILENAME="$AMD_FILENAME"
+            DOWNLOAD_URL="https://github.com/${USERNAME}/${PROJECT_NAME}/releases/download/latest/$AMD_FILENAME"
             ;;
         aarch64) 
-            FILENAME="${PROJECT_NAME}_linux_arm64.tar.gz"
-            DOWNLOAD_URL="https://github.com/GuangYu-yu/${PROJECT_NAME}/releases/download/latest/${PROJECT_NAME}_linux_arm64.tar.gz"
+            FILENAME="$ARM_FILENAME"
+            DOWNLOAD_URL="https://github.com/${USERNAME}/${PROJECT_NAME}/releases/download/latest/$ARM_FILENAME"
             ;;
         *)
             echo "不支持的架构: $ARCH"
