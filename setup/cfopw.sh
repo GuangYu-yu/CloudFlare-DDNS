@@ -4,10 +4,10 @@
 PROJECT_NAMES=("CloudflareST-Rust" "CloudFlare-DDNS")
 
 # 定义每个项目的配置信息
-# 格式: "项目名:用户名:分支名:AMD文件名:ARM文件名"
+# 格式: "项目名:用户名:分支名:AMD文件名:ARM文件名:可执行文件名"
 FILE_MAPPINGS=(
-    "CloudflareST-Rust:GuangYu-yu:main-latest:CloudflareST-Rust_linux_amd64.tar.gz:CloudflareST-Rust_linux_arm64.tar.gz"
-    "CloudFlare-DDNS:GuangYu-yu:main-latest:CFRS_linux_amd64.tar.gz:CFRS_linux_arm64.tar.gz"
+    "CloudflareST-Rust:GuangYu-yu:latest:CloudflareST_linux_amd64.tar.gz:CloudflareST_linux_arm64.tar.gz:CloudflareST-Rust"
+    "CloudFlare-DDNS:GuangYu-yu:latest:CFRS_linux_amd64.tar.gz:CFRS_linux_arm64.tar.gz:CFRS"
 )
 
 # 获取当前系统架构
@@ -20,6 +20,7 @@ download_project() {
     local BRANCH_NAME=""
     local AMD_FILENAME=""
     local ARM_FILENAME=""
+    local EXECUTABLE_NAME=""
     
     # 查找项目对应的配置信息
     for mapping in "${FILE_MAPPINGS[@]}"; do
@@ -29,6 +30,7 @@ download_project() {
             BRANCH_NAME="${parts[2]}"
             AMD_FILENAME="${parts[3]}"
             ARM_FILENAME="${parts[4]}"
+            EXECUTABLE_NAME="${parts[5]}"
             break
         fi
     done
@@ -93,9 +95,9 @@ download_project() {
     fi
 
     # 赋予执行权限
-    chmod +x $PROJECT_NAME
+    chmod +x $EXECUTABLE_NAME
 
-    echo "$PROJECT_NAME 获取完成！"
+    echo "$EXECUTABLE_NAME 获取完成！"
 }
 
 # 循环下载所有项目
