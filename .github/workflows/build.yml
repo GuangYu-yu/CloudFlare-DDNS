@@ -18,29 +18,6 @@ on:
         required: true
 
 jobs:
-  cleanup_releases:
-    name: 清理旧版本发布
-    runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.create_release == 'true' }}
-    steps:
-      - name: 删除旧版本
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const { owner, repo } = context.repo;
-            const releases = await github.rest.repos.listReleases({ owner, repo });
-            for (const release of releases.data) {
-              await github.rest.repos.deleteRelease({ owner, repo, release_id: release.id });
-              if (release.tag_name) {
-                try {
-                  await github.rest.git.deleteRef({ owner, repo, ref: `tags/${release.tag_name}` });
-                } catch (e) {
-                  console.log(`Failed to delete tag ${release.tag_name}: ${e}`);
-                }
-              }
-            }
-
   build:
     name: 构建 ${{ matrix.os }}_${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
@@ -81,10 +58,6 @@ jobs:
             binary_name: ${{ github.event.inputs.project_name }}
 
     steps:
-      - name: 等待清理旧版本完成
-        if: ${{ github.event.inputs.create_release == 'true' }}
-        run: echo "等待清理旧版本完成"
-
       - name: 检出代码
         uses: actions/checkout@v4
 
@@ -98,9 +71,16 @@ jobs:
         with:
           version: master
 
+      - name: 安装 MUSL 工具链（仅 Linux）
+        if: startsWith(matrix.os, 'Linux')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          rustup target add ${{ matrix.target }}
+        shell: bash
+
       - name: 尝试 cargo-zigbuild 构建
         run: |
-          cd CFRS
           cargo install --locked cargo-zigbuild
           cargo update
           echo "尝试使用 cargo-zigbuild 构建..."
@@ -108,7 +88,6 @@ jobs:
             echo "cargo-zigbuild 构建失败，使用 cargo build 进行回退..."
             cargo build --release --target ${{ matrix.target }} || exit 1
           fi
-          cd ..
         shell: bash
 
       - name: 创建二进制目录
@@ -117,7 +96,7 @@ jobs:
 
       - name: 复制二进制文件
         run: |
-          cp CFRS/target/${{ matrix.target }}/release/${{ matrix.binary_name }} binaries/${{ matrix.os }}_${{ matrix.arch }}/
+          cp target/${{ matrix.target }}/release/${{ matrix.binary_name }} binaries/${{ matrix.os }}_${{ matrix.arch }}/
         shell: bash
 
       - name: 上传构建产物
@@ -182,15 +161,40 @@ jobs:
         with:
           commit_message: "自动构建: 添加所有平台二进制文件"
           file_pattern: 'binaries/*'
+          push_options: '--force'
 
   create_release:
     name: 创建发布版本
-    needs: [strip_binaries, cleanup_releases]
+    needs: [strip_binaries]
     runs-on: ubuntu-latest
     if: ${{ github.event.inputs.create_release == 'true' }}
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+
+      - name: 删除当前分支的旧版本
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const currentBranch = context.ref.replace('refs/heads/', '');
+            const targetTag = `${currentBranch}-latest`;
+            
+            // 获取所有发布版本
+            const releases = await github.rest.repos.listReleases({ owner, repo });
+            
+            // 只删除当前分支对应的发布版本
+            for (const release of releases.data) {
+              if (release.tag_name === targetTag) {
+                await github.rest.repos.deleteRelease({ owner, repo, release_id: release.id });
+                try {
+                  await github.rest.git.deleteRef({ owner, repo, ref: `tags/${release.tag_name}` });
+                } catch (e) {
+                  console.log(`Failed to delete tag ${release.tag_name}: ${e}`);
+                }
+              }
+            }
 
       - name: 下载所有构建产物
         uses: actions/download-artifact@v4
@@ -221,7 +225,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           name: "${{ github.event.inputs.project_name }} 最新版本"
-          tag_name: "latest"
+          tag_name: "${{ github.ref_name }}-latest"
           files: release/*
           draft: false
           prerelease: false
