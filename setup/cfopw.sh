@@ -6,11 +6,11 @@ USERNAME="GuangYu-yu"
 # 定义要下载的项目名称，可以添加更多项目
 PROJECT_NAMES=("CloudflareST-Rust" "CloudFlare-DDNS")
 
-# 定义每个项目的AMD和ARM文件名映射
-# 格式: "项目名:AMD文件名:ARM文件名"
+# 定义每个项目的配置信息
+# 格式: "项目名:用户名:分支名:AMD文件名:ARM文件名"
 FILE_MAPPINGS=(
-    "CloudflareST-Rust:CloudflareST_linux_amd64.tar.gz:CloudflareST_linux_arm64.tar.gz"
-    "CloudFlare-DDNS:CFRS_linux_amd64.tar.gz:CFRS_linux_arm64.tar.gz"
+    "CloudflareST-Rust:GuangYu-yu:main-latest:CloudflareST_linux_amd64.tar.gz:CloudflareST_linux_arm64.tar.gz"
+    "CloudFlare-DDNS:GuangYu-yu:main-latest:CFRS_linux_amd64.tar.gz:CFRS_linux_arm64.tar.gz"
 )
 
 # 获取当前系统架构
@@ -19,15 +19,19 @@ ARCH=$(uname -m)
 # 下载函数
 download_project() {
     local PROJECT_NAME="$1"
+    local USERNAME=""
+    local BRANCH_NAME=""
     local AMD_FILENAME=""
     local ARM_FILENAME=""
     
-    # 查找项目对应的文件名映射
+    # 查找项目对应的配置信息
     for mapping in "${FILE_MAPPINGS[@]}"; do
         IFS=':' read -r -a parts <<< "$mapping"
         if [ "${parts[0]}" = "$PROJECT_NAME" ]; then
-            AMD_FILENAME="${parts[1]}"
-            ARM_FILENAME="${parts[2]}"
+            USERNAME="${parts[1]}"
+            BRANCH_NAME="${parts[2]}"
+            AMD_FILENAME="${parts[3]}"
+            ARM_FILENAME="${parts[4]}"
             break
         fi
     done
@@ -36,11 +40,11 @@ download_project() {
     case "$ARCH" in
         x86_64) 
             FILENAME="$AMD_FILENAME"
-            DOWNLOAD_URL="https://github.com/${USERNAME}/${PROJECT_NAME}/releases/download/latest/$AMD_FILENAME"
+            DOWNLOAD_URL="https://github.com/${USERNAME}/${PROJECT_NAME}/releases/download/${BRANCH_NAME}/$AMD_FILENAME"
             ;;
         aarch64) 
             FILENAME="$ARM_FILENAME"
-            DOWNLOAD_URL="https://github.com/${USERNAME}/${PROJECT_NAME}/releases/download/latest/$ARM_FILENAME"
+            DOWNLOAD_URL="https://github.com/${USERNAME}/${PROJECT_NAME}/releases/download/${BRANCH_NAME}/$ARM_FILENAME"
             ;;
         *)
             echo "不支持的架构: $ARCH"
