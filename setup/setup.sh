@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # 检查参数数量
-if [ "$#" -ne 4 ]; then
+if [ "$#" -ne 5 ]; then
     echo "从 https://github.com/<用户名>/<仓库名>/releases/download/<分支名>/<文件名> 获取 .tar.gz 内可执行程序"
-    echo "用法: $0 <用户名> <仓库名> <分支名> <文件名>"
+    echo "用法: $0 <用户名> <仓库名> <分支名> <文件名> <可执行程序文件名>"
     exit 1
 fi
 
@@ -12,6 +12,7 @@ USERNAME="$1"
 PROJECT_NAME="$2"
 BRANCH_NAME="$3"
 FILENAME="$4"
+EXECUTABLE_NAME="$5"
 
 # 构建下载URL
 DOWNLOAD_URL="https://github.com/${USERNAME}/${PROJECT_NAME}/releases/download/${BRANCH_NAME}/${FILENAME}"
@@ -61,6 +62,6 @@ else
 fi
 
 # 赋予执行权限
-chmod +x $PROJECT_NAME
+chmod +x $EXECUTABLE_NAME
 
-echo "$PROJECT_NAME 获取完成！"
+echo "$EXECUTABLE_NAME 获取完成！"
