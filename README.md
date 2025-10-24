@@ -34,7 +34,7 @@ curl -ksSL https://raw.githubusercontent.com/GuangYu-yu/CloudFlare-DDNS/main/set
 ```
 
 ```bash
-https://github.com/GuangYu-yu/CloudFlare-DDNS/releases/download/setup/cfopw.sh | bash
+curl -ksSL https://github.com/GuangYu-yu/CloudFlare-DDNS/releases/download/setup/cfopw.sh | bash
 ```
 
 #### 镜像源
