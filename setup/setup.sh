@@ -1,25 +1,19 @@
 #!/bin/bash
 
-# 项目名称，必须通过命令行参数指定
-PROJECT_NAME="$1"
+# 检查参数数量
+if [ "$#" -ne 3 ]; then
+    echo "从 https://github.com/<用户名>/<仓库名>/releases/download/latest/<文件名> 获取 .tar.gz 内可执行程序"
+    echo "用法: $0 <用户名> <仓库名> <文件名>"
+    exit 1
+fi
 
-# 获取当前系统架构
-ARCH=$(uname -m)
+# 从命令行参数获取值
+USERNAME="$1"
+PROJECT_NAME="$2"
+FILENAME="$3"
 
-# 根据系统架构选择相应的文件名
-case "$ARCH" in
-    x86_64) 
-        FILENAME="${PROJECT_NAME}_linux_amd64.tar.gz"
-        DOWNLOAD_URL="https://github.com/GuangYu-yu/${PROJECT_NAME}/releases/download/latest/${PROJECT_NAME}_linux_amd64.tar.gz"
-        ;;
-    aarch64) 
-        FILENAME="${PROJECT_NAME}_linux_arm64.tar.gz"
-        DOWNLOAD_URL="https://github.com/GuangYu-yu/${PROJECT_NAME}/releases/download/latest/${PROJECT_NAME}_linux_arm64.tar.gz"
-        ;;
-    *)
-        echo "不支持的架构: $ARCH"
-        exit 1 ;;
-esac
+# 构建下载URL
+DOWNLOAD_URL="https://github.com/${USERNAME}/${PROJECT_NAME}/releases/download/latest/${FILENAME}"
 
 # 如果文件存在，则删除
 if [ -f "$FILENAME" ]; then
