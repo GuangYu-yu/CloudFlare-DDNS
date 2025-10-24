@@ -6,7 +6,7 @@ PROJECT_NAMES=("CloudflareST-Rust" "CloudFlare-DDNS")
 # 定义每个项目的配置信息
 # 格式: "项目名:用户名:分支名:AMD文件名:ARM文件名"
 FILE_MAPPINGS=(
-    "CloudflareST-Rust:GuangYu-yu:main-latest:CloudflareST_linux_amd64.tar.gz:CloudflareST_linux_arm64.tar.gz"
+    "CloudflareST-Rust:GuangYu-yu:main-latest:CloudflareST-Rust_linux_amd64.tar.gz:CloudflareST-Rust_linux_arm64.tar.gz"
     "CloudFlare-DDNS:GuangYu-yu:main-latest:CFRS_linux_amd64.tar.gz:CFRS_linux_arm64.tar.gz"
 )
 
