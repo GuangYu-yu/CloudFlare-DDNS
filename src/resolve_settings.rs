@@ -275,7 +275,11 @@ impl ResolveSettings {
             let default_cf = default_values.map(|d| d.cf_command.as_str()).unwrap_or("");
 
             let input = self.ui.get_text_input(
-                "请输入CloudflareST传入参数（无需以\"./CloudflareST\"开头）",
+                #[cfg(target_os = "windows")]
+                "请输入CloudflareST传入参数（无需以\".\\CloudflareST-Rust.exe\"开头）",
+
+                #[cfg(any(target_os = "linux", target_os = "macos"))]
+                "请输入CloudflareST传入参数（无需以\"./CloudflareST-Rust\"开头）",
                 default_cf,
                 |_| true, // 允许任何输入
             )?;

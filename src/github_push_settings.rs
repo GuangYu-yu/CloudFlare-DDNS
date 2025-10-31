@@ -110,6 +110,13 @@ impl GithubPushSettings {
             .ui
             .get_text_input_simple("请输入IPv6备注（留空则不设置）", "")?;
 
+        // 验证至少设置一项备注
+        if remark.is_empty() && remark6.is_empty() {
+            self.ui.show_error("必须设置其中一项备注（IPv4或IPv6）")?;
+            self.ui.pause("")?;
+            return Ok(());
+        }
+
         // 创建新的配置
         let new_config = GithubPushConfig {
             ddns_push,

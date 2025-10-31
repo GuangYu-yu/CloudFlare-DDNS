@@ -515,6 +515,8 @@ impl Start {
         };
 
         // 获取插件配置
+        #[cfg(target_os = "linux")]
+        {
         let default_clien = "未指定".to_string();
         let clien = self
             .config
@@ -522,6 +524,7 @@ impl Start {
             .as_ref()
             .map(|p| p.clien.as_str())
             .unwrap_or(&default_clien);
+        }
 
         // 直接执行DDNS更新逻辑
         self.run_start_ddns(
@@ -538,7 +541,10 @@ impl Start {
             &resolve.v4_url,
             &resolve.v6_url,
             &resolve.push_mod,
+
+            #[cfg(target_os = "linux")]
             clien,
+
         )?;
 
         Ok(())
@@ -583,8 +589,13 @@ impl Start {
         api_key: &str,
         domains: &[String],
         output_file: Option<&str>,
+
+        #[cfg(target_os = "linux")]
         plugin_status: Option<&str>,
+
+        #[cfg(target_os = "linux")]
         clien: &str,
+
     ) -> Result<(Vec<String>, std::collections::HashMap<String, Vec<String>>)> {
         let mut ips = Vec::new();
         let mut domain_ip_map = std::collections::HashMap::new();
@@ -602,9 +613,17 @@ impl Start {
         }
 
         // 打印将要执行的命令
+        #[cfg(target_os = "windows")]
+        println!(".\\CloudflareST-Rust.exe {}", cf_command);
+        
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
         println!("./CloudflareST-Rust {}", cf_command);
 
         // 执行测速
+        #[cfg(target_os = "windows")]
+        let mut cmd = Command::new(".\\CloudflareST-Rust.exe");
+
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
         let mut cmd = Command::new("./CloudflareST-Rust");
         cmd.args(cf_command.split_whitespace());
 
@@ -647,17 +666,25 @@ impl Start {
             self.validate_cloudflare_account(x_email, api_key, zone_id)?;
 
             // 重启插件
-            if !clien.is_empty() && clien != "未指定" && plugin_status == Some("stopped") {
-                println!("正在重启插件 {}", clien);
-                let status = Command::new(format!("/etc/init.d/{}", clien))
-                    .arg("restart")
-                    .status()?;
-                if status.success() {
-                    println!("已重启插件 {}", clien);
-                    std::thread::sleep(std::time::Duration::from_secs(10));
-                } else {
-                    eprintln!("重启插件 {} 失败", clien);
+            #[cfg(target_os = "linux")]
+            {
+                if !clien.is_empty() && clien != "未指定" && plugin_status == Some("stopped") {
+                    println!("正在重启插件 {}", clien);
+                    let status = Command::new(format!("/etc/init.d/{}", clien))
+                        .arg("restart")
+                        .status()?;
+                    if status.success() {
+                        println!("已重启插件 {}", clien);
+                        std::thread::sleep(std::time::Duration::from_secs(10));
+                    } else {
+                        eprintln!("重启插件 {} 失败", clien);
+                    }
                 }
+            }
+
+            #[cfg(not(target_os = "linux"))]
+            {
+                println!("当前系统不需要重启插件");
             }
 
             // 删除旧记录
@@ -738,7 +765,10 @@ impl Start {
         v4_url: &str,
         v6_url: &str,
         push_mod: &str,
+
+        #[cfg(target_os = "linux")]
         clien: &str,
+
     ) -> Result<()> {
         // ========== 构造域名 ==========
         let domains: Vec<String> = if add_ddns != "未指定" {
@@ -753,6 +783,7 @@ impl Start {
         let hostnames = domains.join(" ");
 
         // ========== 插件控制：停止 ==========
+        #[cfg(target_os = "linux")]
         let plugin_status = if clien != "未指定" && !clien.is_empty() {
             println!("正在停止插件 {}", clien);
             let status = Command::new(format!("/etc/init.d/{}", clien))
@@ -792,8 +823,13 @@ impl Start {
                     api_key,
                     &domains,
                     output_file.as_ref().map(|f| f.as_str()),
+
+                    #[cfg(target_os = "linux")]
                     plugin_status.as_deref(),
+
+                    #[cfg(target_os = "linux")]
                     clien,
+
                 )
             };
 
@@ -844,6 +880,7 @@ impl Start {
         }
 
         // ========== 插件控制：恢复 ==========
+        #[cfg(target_os = "linux")]
         if clien != "未指定" && !clien.is_empty() {
             if let Some("stopped") = plugin_status {
                 println!("正在恢复插件 {}", clien);

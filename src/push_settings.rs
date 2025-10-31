@@ -38,18 +38,15 @@ impl PushSettings {
             let selection = self.ui.show_menu("推送管理（按ESC返回上级）", &items, 0)?;
 
             match selection {
-                Some(0) => self.manage_push("Telegram")?,
-                Some(1) => self.manage_push("PushPlus")?,
-                Some(2) => self.manage_push("Server酱")?,
-                Some(3) => self.manage_push("PushDeer")?,
-                Some(4) => self.manage_push("企业微信")?,
-                Some(5) => self.manage_push("Synology-Chat")?,
-                Some(6) => {
-                    // 调用 GitHub 推送设置
-                    self.manage_github_push()?;
+                Some(idx) => {
+                    if idx < items.len() - 1 { // 减1因为最后一个是"提交到Github"
+                        self.manage_push(items[idx])?;
+                    } else if idx == items.len() - 1 {
+                        // 调用 GitHub 推送设置
+                        self.manage_github_push()?;
+                    }
                 }
                 None => return Ok(()),
-                _ => unreachable!(),
             }
         }
     }

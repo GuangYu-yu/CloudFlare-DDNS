@@ -159,7 +159,7 @@ fn clear_screen() -> std::io::Result<()> {
     Ok(())
 }
 
-#[cfg(unix)]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn clear_screen() -> std::io::Result<()> {
     use std::io::Write;
     print!("\x1Bc");
