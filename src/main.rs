@@ -7,6 +7,13 @@ use std::path::PathBuf;
 // 全局常量
 pub const CONFIG_FILE: &str = "cf.yaml";
 
+// CloudflareST-Rust 全局常量，根据平台不同设置不同的值
+#[cfg(target_os = "windows")]
+pub const CLOUDFLAREST_RUST: &str = "CloudflareST-Rust.exe";
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+pub const CLOUDFLAREST_RUST: &str = "CloudflareST-Rust";
+
 // -- 账户管理 --
 mod account_settings;
 use account_settings::AccountSettings;

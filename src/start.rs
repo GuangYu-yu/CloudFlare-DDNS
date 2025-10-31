@@ -1,5 +1,5 @@
 use crate::push::PushService;
-use crate::{Config, Resolve, Settings, UIComponents, clear_screen, impl_settings};
+use crate::{Config, Resolve, Settings, UIComponents, clear_screen, impl_settings, CLOUDFLAREST_RUST};
 use anyhow::Result;
 use serde::Deserialize;
 use serde_json::Value;
@@ -614,17 +614,17 @@ impl Start {
 
         // 打印将要执行的命令
         #[cfg(target_os = "windows")]
-        println!(".\\CloudflareST-Rust.exe {}", cf_command);
+        println!(".\\{} {}", CLOUDFLAREST_RUST, cf_command);
         
         #[cfg(any(target_os = "linux", target_os = "macos"))]
-        println!("./CloudflareST-Rust {}", cf_command);
+        println!("./{} {}", CLOUDFLAREST_RUST, cf_command);
 
         // 执行测速
         #[cfg(target_os = "windows")]
-        let mut cmd = Command::new(".\\CloudflareST-Rust.exe");
+        let mut cmd = Command::new(format!(".\\{}", CLOUDFLAREST_RUST));
 
         #[cfg(any(target_os = "linux", target_os = "macos"))]
-        let mut cmd = Command::new("./CloudflareST-Rust");
+        let mut cmd = Command::new(format!("./{}", CLOUDFLAREST_RUST));
         cmd.args(cf_command.split_whitespace());
 
         if num > 0 {
@@ -635,7 +635,7 @@ impl Start {
 
         let status = cmd.status()?;
         if !status.success() {
-            return Err(anyhow::anyhow!("CloudflareST-Rust 执行失败"));
+            return Err(anyhow::anyhow!("{} 执行失败", CLOUDFLAREST_RUST));
         }
 
         // 读取测速结果

@@ -1,4 +1,4 @@
-use crate::{Config, Resolve, Settings, clear_screen, impl_settings, ui_components::UIComponents};
+use crate::{Config, Resolve, Settings, clear_screen, impl_settings, ui_components::UIComponents, CLOUDFLAREST_RUST};
 use anyhow::Result;
 use regex::Regex;
 use std::path::PathBuf;
@@ -276,10 +276,10 @@ impl ResolveSettings {
 
             let input = self.ui.get_text_input(
                 #[cfg(target_os = "windows")]
-                "请输入CloudflareST传入参数（无需以\".\\CloudflareST-Rust.exe\"开头）",
+                &format!("请输入CloudflareST传入参数（无需以\".\\{}\"开头）", CLOUDFLAREST_RUST),
 
                 #[cfg(any(target_os = "linux", target_os = "macos"))]
-                "请输入CloudflareST传入参数（无需以\"./CloudflareST-Rust\"开头）",
+                &format!("请输入CloudflareST传入参数（无需以\"./{}\"开头）", CLOUDFLAREST_RUST),
                 default_cf,
                 |_| true, // 允许任何输入
             )?;
