@@ -516,15 +516,15 @@ impl Start {
 
         // 获取插件配置
         #[cfg(target_os = "linux")]
-        {
         let default_clien = "未指定".to_string();
+        
+        #[cfg(target_os = "linux")]
         let clien = self
             .config
             .plugin
             .as_ref()
             .map(|p| p.clien.as_str())
             .unwrap_or(&default_clien);
-        }
 
         // 直接执行DDNS更新逻辑
         self.run_start_ddns(
