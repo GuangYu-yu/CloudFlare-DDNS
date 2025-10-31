@@ -1,6 +1,7 @@
 use crate::{Config, GithubPushConfig, Settings, impl_settings};
 use anyhow::Result;
 use base64::{Engine as _, engine::general_purpose};
+use colored::Colorize;
 use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
@@ -37,14 +38,14 @@ impl PushService {
         let has_valid_push_mode = push_modes.iter().any(|&mode| mode != "不设置");
 
         if has_valid_push_mode {
-            println!("正在执行推送任务...");
+            info_println!("正在执行推送任务...");
         } else {
-            println!("根据配置跳过推送");
+            info_println!("根据配置跳过推送");
         }
 
         // 检查是否有更新信息
         if domain_ip_mapping.is_empty() {
-            println!("没有更新信息，跳过推送");
+            info_println!("没有更新信息，跳过推送");
             return Ok(());
         }
 
@@ -76,13 +77,13 @@ impl PushService {
                     self.push_github(ddns_name, domain_ip_mapping)?;
                 }
                 _ => {
-                    println!("未知的推送模式: {}", mode);
+                    warning_println!("未知的推送模式: {}", mode);
                 }
             }
         }
 
         if has_valid_push_mode {
-            println!("推送任务完成!");
+            info_println!("推送任务完成!");
         }
         Ok(())
     }
@@ -310,13 +311,13 @@ impl PushService {
                         if success {
                             if let Ok(json) = serde_json::from_str::<Value>(&response_text) {
                                 if json["ok"].as_bool().unwrap_or(false) {
-                                    println!("Telegram 推送成功");
+                                    info_println!("Telegram 推送成功");
                                 } else {
-                                    println!("Telegram 推送失败");
+                                    error_println!("Telegram 推送失败");
                                 }
                             }
                         } else {
-                            println!("Telegram 推送失败");
+                            error_println!("Telegram 推送失败");
                         }
                     }
                 }
@@ -348,14 +349,14 @@ impl PushService {
                         if success {
                             if let Ok(json) = serde_json::from_str::<Value>(&response_text) {
                                 if json["code"].as_i64().unwrap_or(-1) == 200 {
-                                    println!("PushPlus 推送成功");
+                                    info_println!("PushPlus 推送成功");
                                 } else {
                                     let msg = json["msg"].as_str().unwrap_or("未知错误");
-                                    println!("PushPlus 推送失败：{}", msg);
+                                    error_println!("PushPlus 推送失败：{}", msg);
                                 }
                             }
                         } else {
-                            println!("PushPlus 推送失败");
+                            error_println!("PushPlus 推送失败");
                         }
                     }
                 }
@@ -384,14 +385,14 @@ impl PushService {
                         if success {
                             if let Ok(json) = serde_json::from_str::<Value>(&response_text) {
                                 if json["code"].as_i64().unwrap_or(-1) == 0 {
-                                    println!("Server酱 推送成功");
+                                    info_println!("Server酱 推送成功");
                                 } else {
                                     let msg = json["message"].as_str().unwrap_or("未知错误");
-                                    println!("Server酱 推送失败：{}", msg);
+                                    error_println!("Server酱 推送失败：{}", msg);
                                 }
                             }
                         } else {
-                            println!("Server酱 推送失败");
+                            error_println!("Server酱 推送失败");
                         }
                     }
                 }
@@ -419,14 +420,14 @@ impl PushService {
                         if success {
                             if let Ok(json) = serde_json::from_str::<Value>(&response_text) {
                                 if json["code"].as_i64().unwrap_or(-1) == 0 {
-                                    println!("PushDeer 推送成功");
+                                    info_println!("PushDeer 推送成功");
                                 } else {
                                     let error = json["error"].as_str().unwrap_or("未知错误");
-                                    println!("PushDeer 推送失败：{}", error);
+                                    error_println!("PushDeer 推送失败：{}", error);
                                 }
                             }
                         } else {
-                            println!("PushDeer 推送失败");
+                            error_println!("PushDeer 推送失败");
                         }
                     }
                 }
@@ -482,34 +483,34 @@ impl PushService {
                                             serde_json::from_str::<Value>(&send_response_text)
                                         {
                                             match send_json["errcode"].as_i64().unwrap_or(-1) {
-                                                0 => println!("企业微信推送成功"),
-                                                81013 => println!(
+                                                0 => info_println!("企业微信推送成功"),
+                                                81013 => error_println!(
                                                     "企业微信 USERID 填写错误，请检查后重试"
                                                 ),
-                                                60020 => println!(
+                                                60020 => error_println!(
                                                     "企业微信应用未配置本机IP地址，请在企业微信后台添加IP白名单"
                                                 ),
                                                 _ => {
                                                     let errmsg = send_json["errmsg"]
                                                         .as_str()
                                                         .unwrap_or("未知错误");
-                                                    println!("企业微信推送失败：{}", errmsg);
+                                                    error_println!("企业微信推送失败：{}", errmsg);
                                                 }
                                             }
                                         }
                                     } else {
-                                        println!("企业微信发送消息失败");
+                                        error_println!("企业微信发送消息失败");
                                     }
                                 } else {
                                     let errmsg = json["errmsg"].as_str().unwrap_or("未知错误");
-                                    println!(
+                                    error_println!(
                                         "access_token 获取失败，请检查 CORPID 和 SECRET: {}",
                                         errmsg
                                     );
                                 }
                             }
                         } else {
-                            println!("企业微信获取Token失败");
+                            error_println!("企业微信获取Token失败");
                         }
                     }
                 }
@@ -534,14 +535,14 @@ impl PushService {
                         if success {
                             if let Ok(json) = serde_json::from_str::<Value>(&response_text) {
                                 if json["success"].as_bool().unwrap_or(false) {
-                                    println!("Synology-Chat 推送成功");
+                                    info_println!("Synology-Chat 推送成功");
                                 } else {
                                     let error = json["error"].as_str().unwrap_or("未知错误");
-                                    println!("Synology-Chat 推送失败：{}", error);
+                                    error_println!("Synology-Chat 推送失败：{}", error);
                                 }
                             }
                         } else {
-                            println!("Synology-Chat 推送失败");
+                            error_println!("Synology-Chat 推送失败");
                         }
                     }
                 }
@@ -633,9 +634,9 @@ impl PushService {
                             )?;
 
                             if create_success && create_response_text.contains("\"commit\"") {
-                                println!("Github 推送成功");
+                                info_println!("Github 推送成功");
                             } else {
-                                println!("Github 创建文件失败，返回内容：{}", create_response_text);
+                                error_println!("Github 创建文件失败，返回内容：{}", create_response_text);
                             }
                         } else if check_success {
                             // 文件存在，更新文件
@@ -691,16 +692,16 @@ impl PushService {
                                 )?;
 
                                 if update_success && update_response_text.contains("\"commit\"") {
-                                    println!("Github 推送成功");
+                                    info_println!("Github 推送成功");
                                 } else {
-                                    println!("Github 更新文件失败");
+                                    error_println!("Github 更新文件失败");
                                 }
                             }
                         } else {
-                            println!("Github 检查文件失败");
+                            error_println!("Github 检查文件失败");
                         }
                     } else {
-                        println!("参数错误");
+                        error_println!("参数错误");
                     }
                 }
             }

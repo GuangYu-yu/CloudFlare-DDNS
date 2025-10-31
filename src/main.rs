@@ -4,6 +4,25 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
+// 定义统一的错误、信息和警告输出宏
+macro_rules! error_println {
+    ($($arg:tt)*) => {
+        eprintln!("{} {}", "[错误]".red().bold(), format!($($arg)*))
+    };
+}
+
+macro_rules! info_println {
+    ($($arg:tt)*) => {
+        println!("{} {}", "[信息]".cyan().bold(), format!($($arg)*))
+    };
+}
+
+macro_rules! warning_println {
+    ($($arg:tt)*) => {
+        println!("{} {}", "[警告]".yellow().bold(), format!($($arg)*))
+    };
+}
+
 // 全局常量
 pub const CONFIG_FILE: &str = "cf.yaml";
 
