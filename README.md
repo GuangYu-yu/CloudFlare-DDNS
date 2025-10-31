@@ -28,15 +28,15 @@
 ### 🔧 安装方式
 
 
-#### GitHub
-
+#### CloudflareST-Rust + CFRS
 ```bash
 curl -ksSL https://github.com/GuangYu-yu/CloudFlare-DDNS/releases/download/setup/cfopw.sh | bash
 ```
 
-#### 镜像源
+#### CFRS
+
 ```bash
-curl -ksSL https://ghproxy.cc/https://raw.githubusercontent.com/GuangYu-yu/CloudFlare-DDNS/main/setup/cfopw.sh | bash
+bash -c 'ARCH=$(uname -m); FILENAME="CFRS_linux_$([ "$ARCH" = "x86_64" ] && echo "amd64" || echo "arm64").tar.gz"; curl -ksSL https://github.com/GuangYu-yu/CloudFlare-DDNS/releases/download/setup/setup.sh | bash -s -- GuangYu-yu CloudFlare-DDNS main-latest "$FILENAME" CFRS'
 ```
 
 ## 📄 配置文件结构 (`cf.yaml`)
