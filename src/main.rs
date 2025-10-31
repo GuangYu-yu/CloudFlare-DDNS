@@ -3,24 +3,19 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use colored::Colorize;
 
-// 定义统一的错误、信息和警告输出宏
-macro_rules! error_println {
-    ($($arg:tt)*) => {
-        eprintln!("{} {}", "[错误]".red().bold(), format!($($arg)*))
-    };
+// 定义统一的错误、信息和警告输出函数
+pub fn error_println(args: std::fmt::Arguments<'_>) {
+    eprintln!("{} {}", "[错误]".red().bold(), args);
 }
 
-macro_rules! info_println {
-    ($($arg:tt)*) => {
-        println!("{} {}", "[信息]".cyan().bold(), format!($($arg)*))
-    };
+pub fn info_println(args: std::fmt::Arguments<'_>) {
+    println!("{} {}", "[信息]".cyan().bold(), args);
 }
 
-macro_rules! warning_println {
-    ($($arg:tt)*) => {
-        println!("{} {}", "[警告]".yellow().bold(), format!($($arg)*))
-    };
+pub fn warning_println(args: std::fmt::Arguments<'_>) {
+    println!("{} {}", "[警告]".yellow().bold(), args);
 }
 
 // 全局常量

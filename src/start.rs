@@ -1,7 +1,6 @@
 use crate::push::PushService;
-use crate::{Config, Resolve, Settings, UIComponents, clear_screen, impl_settings, CLOUDFLAREST_RUST};
+use crate::{Config, Resolve, Settings, UIComponents, clear_screen, impl_settings, CLOUDFLAREST_RUST, error_println, info_println, warning_println};
 use anyhow::Result;
-use colored::Colorize;
 use serde::Deserialize;
 use serde_json::Value;
 use std::fs;
@@ -71,10 +70,10 @@ impl Start {
         ip_type: &str,
         output_file: Option<&str>,
     ) -> Result<Vec<String>> {
-        info_println!("获取{}地址...", ip_type);
+        info_println(format_args!("获取{}地址...", ip_type));
 
         if url.is_empty() {
-            warning_println!("URL为空，跳过{}地址下载", ip_type);
+            warning_println(format_args!("URL为空，跳过{}地址下载", ip_type));
             return Ok(Vec::new());
         }
 
@@ -106,7 +105,7 @@ impl Start {
         if let Some(file_path) = output_file {
             let content = filtered_ips.join("\n");
             std::fs::write(file_path, content)?;
-            info_println!("地址获取成功");
+            info_println(format_args!("地址获取成功"));
         }
 
         Ok(filtered_ips)
@@ -135,13 +134,15 @@ impl Start {
                     if output.status.success() {
                         return Ok(String::from_utf8_lossy(&output.stdout).to_string());
                     } else {
-                        warning_println!("获取{}地址失败, 重试 {} 次...", ip_type, attempt);
+                        warning_println(format_args!("获取{}地址失败, 重试 {} 次...", ip_type, attempt));
                     }
                 }
                 Err(e) => {
-                    warning_println!(
-                        "获取{}地址失败，错误: {}, 重试 {} 次...",
-                        ip_type, e, attempt
+                    warning_println(
+                        format_args!(
+                            "获取{}地址失败，错误: {}, 重试 {} 次...",
+                            ip_type, e, attempt
+                        )
                     );
                 }
             }
@@ -163,7 +164,7 @@ impl Start {
         api_key: &str,
         zone_id: &str,
     ) -> Result<()> {
-        info_println!("开始验证 Cloudflare 账号...");
+        info_println(format_args!("开始验证 Cloudflare 账号..."));
 
         let max_retries = 10;
         let retry_delay = Duration::from_secs(2);
@@ -172,7 +173,7 @@ impl Start {
         let url = format!("https://api.cloudflare.com/client/v4/zones/{}", zone_id);
 
         for attempt in 1..=max_retries {
-            info_println!("正在进行第 {} 次登录尝试...", attempt);
+            info_println(format_args!("正在进行第 {} 次登录尝试...", attempt));
 
             let output = Command::new("curl")
                 .arg("-s")
@@ -189,34 +190,34 @@ impl Start {
 
             match output {
                 Ok(output) => {
-                    info_println!("收到 Cloudflare 响应");
+                    info_println(format_args!("收到 Cloudflare 响应"));
 
                     if output.status.success() {
                         let response_text = String::from_utf8_lossy(&output.stdout);
                         let json: Value = serde_json::from_str(&response_text)?;
 
                         if json["success"].as_bool().unwrap_or(false) {
-                            info_println!("Cloudflare 账号验证成功");
+                            info_println(format_args!("Cloudflare 账号验证成功"));
                             return Ok(());
                         } else {
                             let error_message =
                                 json["errors"][0]["message"].as_str().unwrap_or("未知错误");
-                            error_println!("第 {} / {} 次登录失败", attempt, max_retries);
-                            error_println!("错误信息: {}", error_message);
+                            error_println(format_args!("第 {} / {} 次登录失败", attempt, max_retries));
+                            error_println(format_args!("错误信息: {}", error_message));
                         }
                     } else {
                         let stderr = String::from_utf8_lossy(&output.stderr);
-                        error_println!("登录尝试失败，错误: {}", stderr);
+                        error_println(format_args!("登录尝试失败，错误: {}", stderr));
                     }
                 }
 
                 Err(e) => {
-                    error_println!("登录尝试失败，错误: {}", e);
+                    error_println(format_args!("登录尝试失败，错误: {}", e));
                 }
             }
 
             if attempt < max_retries {
-                warning_println!("等待 {} 秒后重试...", retry_delay.as_secs());
+                warning_println(format_args!("等待 {} 秒后重试...", retry_delay.as_secs()));
                 std::thread::sleep(retry_delay);
             }
         }
@@ -306,7 +307,7 @@ impl Start {
         record_type: &str,
         record_id: &str,
     ) -> Result<()> {
-        info_println!("删除旧 {} 记录...", record_type);
+        info_println(format_args!("删除旧 {} 记录...", record_type));
 
         let url = format!(
             "https://api.cloudflare.com/client/v4/zones/{}/dns_records/{}",
@@ -329,14 +330,14 @@ impl Start {
         let output = match output {
             Ok(out) => out,
             Err(e) => {
-                error_println!("删除DNS记录失败: {}", e);
+                error_println(format_args!("删除DNS记录失败: {}", e));
                 return Ok(());
             }
         };
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            error_println!("删除DNS记录失败: {}", stderr);
+            error_println(format_args!("删除DNS记录失败: {}", stderr));
             return Ok(());
         }
 
@@ -344,16 +345,16 @@ impl Start {
         let json: Value = match serde_json::from_str(&response_text) {
             Ok(j) => j,
             Err(e) => {
-                error_println!("解析响应JSON失败: {}", e);
+                error_println(format_args!("解析响应JSON失败: {}", e));
                 return Ok(());
             }
         };
 
         if json["success"].as_bool().unwrap_or(false) {
-            info_println!("成功删除DNS记录");
+            info_println(format_args!("成功删除DNS记录"));
         } else {
             let error_message = json["errors"][0]["message"].as_str().unwrap_or("未知错误");
-            error_println!("删除DNS记录失败: {}", error_message);
+            error_println(format_args!("删除DNS记录失败: {}", error_message));
         }
 
         Ok(())
@@ -369,7 +370,7 @@ impl Start {
         record_type: &str,
         ip: &str,
     ) -> Result<bool> {
-        info_println!("添加 {} 到 {}...", ip, domain);
+        info_println(format_args!("添加 {} 到 {}...", ip, domain));
 
         let url = format!(
             "https://api.cloudflare.com/client/v4/zones/{}/dns_records",
@@ -403,14 +404,14 @@ impl Start {
         let output = match output {
             Ok(out) => out,
             Err(e) => {
-                error_println!("创建DNS记录失败: {}", e);
+                error_println(format_args!("创建DNS记录失败: {}", e));
                 return Ok(false);
             }
         };
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            error_println!("创建DNS记录失败: {}", stderr);
+            error_println(format_args!("创建DNS记录失败: {}", stderr));
             return Ok(false);
         }
 
@@ -418,7 +419,7 @@ impl Start {
         let json: Value = match serde_json::from_str(&response_text) {
             Ok(j) => j,
             Err(e) => {
-                error_println!("解析响应JSON失败: {}", e);
+                error_println(format_args!("解析响应JSON失败: {}", e));
                 return Ok(false);
             }
         };
@@ -426,7 +427,7 @@ impl Start {
         let success = json["success"].as_bool().unwrap_or(false);
 
         if success {
-            info_println!("成功添加 {}", ip);
+            info_println(format_args!("成功添加 {}", ip));
             return Ok(true);
         } else {
             let code = json["errors"][0]["code"].as_i64().unwrap_or(0);
@@ -434,12 +435,12 @@ impl Start {
 
             // 如果出现错误代码 81057，表示已有相同记录，不需要更新
             if code == 81057 {
-                warning_println!("已有 [{}] IP 记录，不做更新", ip);
+                warning_println(format_args!("已有 [{}] IP 记录，不做更新", ip));
                 return Ok(false);
             } else {
-                error_println!("添加 {} 到 {} 失败", ip, domain);
-                error_println!("错误代码: {}", code);
-                error_println!("错误信息: {}", error_message);
+                error_println(format_args!("添加 {} 到 {} 失败", ip, domain));
+                error_println(format_args!("错误代码: {}", code));
+                error_println(format_args!("错误信息: {}", error_message));
                 return Ok(false);
             }
         }
@@ -458,7 +459,7 @@ impl Start {
 
             let resolves = self.get_resolves()?;
             if resolves.is_empty() {
-                error_println!("未找到任何解析配置");
+                error_println(format_args!("未找到任何解析配置"));
                 self.ui.pause("")?;
                 break;
             }
@@ -615,10 +616,10 @@ impl Start {
 
         // 打印将要执行的命令
         #[cfg(target_os = "windows")]
-        info_println!(".\\{} {}", CLOUDFLAREST_RUST, cf_command);
+        println!("[运行] .\\{} {}", CLOUDFLAREST_RUST, cf_command);
         
         #[cfg(any(target_os = "linux", target_os = "macos"))]
-        info_println!("./{} {}", CLOUDFLAREST_RUST, cf_command);
+        println!("[运行] ./{} {}", CLOUDFLAREST_RUST, cf_command);
 
         // 执行测速
         #[cfg(target_os = "windows")]
@@ -670,22 +671,22 @@ impl Start {
             #[cfg(target_os = "linux")]
             {
                 if !clien.is_empty() && clien != "未指定" && plugin_status == Some("stopped") {
-                    info_println!("正在重启插件 {}", clien);
+                    info_println(format_args!("正在重启插件 {}", clien));
                     let status = Command::new(format!("/etc/init.d/{}", clien))
                         .arg("restart")
                         .status()?;
                     if status.success() {
-                        info_println!("已重启插件 {}", clien);
+                        info_println(format_args!("已重启插件 {}", clien));
                         std::thread::sleep(std::time::Duration::from_secs(10));
                     } else {
-                        error_println!("重启插件 {} 失败", clien);
+                        error_println(format_args!("重启插件 {} 失败", clien));
                     }
                 }
             }
 
             #[cfg(not(target_os = "linux"))]
             {
-                info_println!("当前系统不需要重启插件");
+                info_println(format_args!("当前系统不需要重启插件"));
             }
 
             // 删除旧记录
@@ -786,19 +787,19 @@ impl Start {
         // ========== 插件控制：停止 ==========
         #[cfg(target_os = "linux")]
         let plugin_status = if clien != "未指定" && !clien.is_empty() {
-            info_println!("正在停止插件 {}", clien);
+            info_println(format_args!("正在停止插件 {}", clien));
             let status = Command::new(format!("/etc/init.d/{}", clien))
                 .arg("stop")
                 .status()?;
             if status.success() {
-                info_println!("已停止插件 {}", clien);
+                info_println(format_args!("已停止插件 {}", clien));
                 Some("stopped")
             } else {
-                error_println!("停止插件 {} 失败", clien);
+                error_println(format_args!("停止插件 {} 失败", clien));
                 None
             }
         } else {
-            info_println!("按配置不停止插件");
+            info_println(format_args!("按配置不停止插件"));
             None
         };
 
@@ -847,7 +848,7 @@ impl Start {
 
         // 处理IPv4和IPv6都为0的情况
         if v4_num == 0 && v6_num == 0 {
-            info_println!("IPv4和IPv6所需数量都设为0，跳过测速并直接推送消息");
+            info_println(format_args!("IPv4和IPv6所需数量都设为0，跳过测速并直接推送消息"));
 
             // 读取所有IPv4地址
             let v4_ips = Self::read_ips_from_csv("IPv4", 0, cf_command)?;
@@ -866,7 +867,7 @@ impl Start {
                 all_domain_ip_map.extend(v4_domain_ip_map);
                 execute_push_for_ip("IPv4", &v4_ips)?;
             } else {
-                info_println!("根据设置，跳过 IPv4 测速");
+                info_println(format_args!("根据设置，跳过 IPv4 测速"));
             }
 
             // 处理IPv6
@@ -876,7 +877,7 @@ impl Start {
                 all_domain_ip_map.extend(v6_domain_ip_map);
                 execute_push_for_ip("IPv6", &v6_ips)?;
             } else {
-                info_println!("根据设置，跳过 IPv6 测速");
+                info_println(format_args!("根据设置，跳过 IPv6 测速"));
             }
         }
 
@@ -884,14 +885,14 @@ impl Start {
         #[cfg(target_os = "linux")]
         if clien != "未指定" && !clien.is_empty() {
             if let Some("stopped") = plugin_status {
-                info_println!("正在恢复插件 {}", clien);
+                info_println(format_args!("正在恢复插件 {}", clien));
                 let status = Command::new(format!("/etc/init.d/{}", clien))
                     .arg("start")
                     .status();
                 if status.is_ok() && status.unwrap().success() {
-                    info_println!("已恢复插件 {}", clien);
+                    info_println(format_args!("已恢复插件 {}", clien));
                 } else {
-                    error_println!("恢复插件 {} 失败", clien);
+                    error_println(format_args!("恢复插件 {} 失败", clien));
                 }
             }
         }
