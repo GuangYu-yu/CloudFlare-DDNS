@@ -29,9 +29,6 @@
 
 
 #### GitHub
-```bash
-curl -ksSL https://raw.githubusercontent.com/GuangYu-yu/CloudFlare-DDNS/main/setup/cfopw.sh | bash
-```
 
 ```bash
 curl -ksSL https://github.com/GuangYu-yu/CloudFlare-DDNS/releases/download/setup/cfopw.sh | bash
