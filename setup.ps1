@@ -62,15 +62,12 @@ function Download-Release {
 $jobs = @()
 
 for ($i = 0; $i -le $Args.Count - 5; $i += 5) {
-    $U = $Args[$i]
-    $P = $Args[$i+1]
-    $B = $Args[$i+2]
-    $F = $Args[$i+3]
-    $E = $Args[$i+4]
+    $U = $Args[$i]; $P = $Args[$i+1]; $B = $Args[$i+2]; $F = $Args[$i+3]; $E = $Args[$i+4]
 
+    # 每个后台作业重新定义函数
     $scriptBlock = {
         param($U,$P,$B,$F,$E)
-        
+
         function Download-Release {
             param($User,$Repo,$Branch,$File,$Exe)
             Write-Host "下载 $Exe ..."
@@ -96,14 +93,13 @@ for ($i = 0; $i -le $Args.Count - 5; $i += 5) {
             Write-Host "$Exe 获取成功！"
         }
 
-        Download-Release -User $U -Repo $P -Branch $B -File $F -Exe $E | Out-Null
+        Download-Release -User $U -Repo $P -Branch $B -File $F -Exe $E
     }
 
     $jobs += Start-Job -ScriptBlock $scriptBlock -ArgumentList $U,$P,$B,$F,$E
 }
 
-# 等待所有后台作业完成
+# 等待所有任务完成并获取结果
 $jobs | Wait-Job
-
-# 删除后台作业
+$jobs | Receive-Job
 $jobs | Remove-Job
