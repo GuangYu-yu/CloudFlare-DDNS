@@ -350,7 +350,7 @@ impl Start {
 
         if json["success"].as_bool().unwrap_or(false) {
             print!("  "); // 缩进
-            success_println(format_args!("{} → {}", domain, ip));
+            success_println(format_args!("{} → - {}", domain, ip));
             return Ok(true);
         } else {
             let error_message = json["errors"][0]["message"].as_str().unwrap_or("未知错误");
@@ -425,7 +425,7 @@ impl Start {
 
         if success {
             print!("  "); // 缩进
-            success_println(format_args!("{} → {}", ip, domain));
+            success_println(format_args!("{} → + {}", ip, domain));
             return Ok(true);
         } else {
             let code = json["errors"][0]["code"].as_i64().unwrap_or(0);
@@ -436,9 +436,7 @@ impl Start {
                 warning_println(format_args!("已有 [{}] IP 记录，不做更新", ip));
                 return Ok(false);
             } else {
-                error_println(format_args!("{} → {} 添加失败", ip, domain));
-                error_println(format_args!("错误代码: {}", code));
-                error_println(format_args!("错误信息: {}", error_message));
+                error_println(format_args!("添加DNS记录失败: {}", error_message));
                 return Ok(false);
             }
         }
