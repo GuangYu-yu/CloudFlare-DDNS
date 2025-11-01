@@ -8,54 +8,6 @@ if ($Args.Count -lt 5) {
     exit 1
 }
 
-# 下载并解压函数
-function Download-Release {
-    param(
-        [string]$User,
-        [string]$Repo,
-        [string]$Branch,
-        [string]$File,
-        [string]$Exe
-    )
-
-    Write-Host "下载 $Exe ..."
-
-    $maxRetries = 3
-    $retryCount = 0
-    $success = $false
-
-    while ($retryCount -lt $maxRetries -and -not $success) {
-        try {
-            Invoke-WebRequest -Uri "https://github.com/$User/$Repo/releases/download/$Branch/$File" -OutFile $File -UseBasicParsing
-            if ((Test-Path $File) -and ((Get-Item $File).Length -gt 0)) {
-                $success = $true
-            } else {
-                throw "文件为空"
-            }
-        } catch {
-            $retryCount++
-            Write-Host "下载失败，重试 $retryCount/$maxRetries..."
-            Start-Sleep -Seconds 2
-        }
-    }
-
-    if (-not $success) {
-        Write-Host "下载 $File 失败，跳过 $Exe"
-        return
-    }
-
-    try {
-        if ($File -match '\.zip$') {
-            Expand-Archive -Path $File -DestinationPath . -Force
-        }
-        Remove-Item $File
-    } catch {
-        Write-Host "解压 $File 失败: $_"
-    }
-
-    Write-Host "$Exe 获取成功！"
-}
-
 # 当前目录
 $cwd = Get-Location
 
@@ -66,7 +18,10 @@ for ($i = 0; $i -le $Args.Count - 5; $i += 5) {
     $U = $Args[$i]; $P = $Args[$i+1]; $B = $Args[$i+2]; $F = $Args[$i+3]; $E = $Args[$i+4]
 
     $scriptBlock = {
-        param($U,$P,$B,$F,$E)
+        param($U,$P,$B,$F,$E,$cwd)
+
+        # 切换到当前目录
+        Set-Location $cwd
 
         function Download-Release {
             param($User,$Repo,$Branch,$File,$Exe)
@@ -104,7 +59,8 @@ for ($i = 0; $i -le $Args.Count - 5; $i += 5) {
         Download-Release -User $U -Repo $P -Branch $B -File $F -Exe $E
     }
 
-    $jobs += Start-Job -ScriptBlock $scriptBlock -ArgumentList $U,$P,$B,$F,$E -WorkingDirectory $cwd
+    # 将 $cwd 也传入后台作业
+    $jobs += Start-Job -ScriptBlock $scriptBlock -ArgumentList $U,$P,$B,$F,$E,$cwd
 }
 
 # 等待所有任务完成并获取结果
