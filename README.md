@@ -25,10 +25,11 @@
 | 📊 **数据管理** | • 支持GitHub提交（需要令牌）<br> |
 | ⚙️ **灵活配置** | • YAML配置文件<br>• 多账户支持<br>• 可直接传入解析组来执行<br> |
 
-### 🔧 安装方式
+<img width="820" height="852" alt="image" src="https://github.com/user-attachments/assets/b3e6d851-a647-4310-bfe2-094f8edefa58" />
 
+## 🔧 安装方式
 
-#### CloudflareST-Rust + CFRS
+### CloudflareST-Rust + CFRS
 ```bash
 curl -ksSL https://github.com/GuangYu-yu/CloudFlare-DDNS/releases/download/setup/cfopw.sh | bash
 ```
@@ -39,7 +40,7 @@ curl -ksSL https://github.com/GuangYu-yu/CloudFlare-DDNS/releases/download/setup
 bash -c 'ARCH=$( [ "$(uname -m)" = x86_64 ] && echo amd64 || echo arm64 ); curl -fsSL https://github.com/GuangYu-yu/CloudFlare-DDNS/releases/download/setup/setup.sh | bash -s -- GuangYu-yu CloudflareST-Rust main-latest CloudflareST-Rust_linux_$ARCH.tar.gz CloudflareST-Rust GuangYu-yu CloudFlare-DDNS main-latest CFRS_linux_$ARCH.tar.gz CFRS'
 ```
 
-#### CFRS
+### CFRS
 
 ```bash
 bash -c 'ARCH=$( [ "$(uname -m)" = x86_64 ] && echo amd64 || echo arm64 ); curl -fsSL https://github.com/GuangYu-yu/CloudFlare-DDNS/releases/download/setup/setup.sh | bash -s -- GuangYu-yu CloudFlare-DDNS main-latest CFRS_linux_$ARCH.tar.gz CFRS'
