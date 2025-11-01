@@ -45,9 +45,7 @@ function Download-Release {
     }
 
     try {
-        if ($File -match '\.tar\.gz$') {
-            tar -xzf $File
-        } elseif ($File -match '\.zip$') {
+        if ($File -match '\.zip$') {
             Expand-Archive -Path $File -DestinationPath . -Force
         }
         Remove-Item $File
@@ -58,22 +56,26 @@ function Download-Release {
     Write-Host "$Exe 获取成功！"
 }
 
+# 当前目录
+$cwd = Get-Location
+
 # 并行任务数组
 $jobs = @()
 
 for ($i = 0; $i -le $Args.Count - 5; $i += 5) {
     $U = $Args[$i]; $P = $Args[$i+1]; $B = $Args[$i+2]; $F = $Args[$i+3]; $E = $Args[$i+4]
 
-    # 每个后台作业重新定义函数
     $scriptBlock = {
         param($U,$P,$B,$F,$E)
 
         function Download-Release {
             param($User,$Repo,$Branch,$File,$Exe)
             Write-Host "下载 $Exe ..."
+
             $maxRetries = 3
             $retryCount = 0
             $success = $false
+
             while ($retryCount -lt $maxRetries -and -not $success) {
                 try {
                     Invoke-WebRequest -Uri "https://github.com/$User/$Repo/releases/download/$Branch/$File" -OutFile $File -UseBasicParsing
@@ -84,19 +86,25 @@ for ($i = 0; $i -le $Args.Count - 5; $i += 5) {
                     Start-Sleep -Seconds 2
                 }
             }
+
             if (-not $success) { Write-Host "下载 $File 失败，跳过 $Exe"; return }
+
             try {
-                if ($File -match '\.tar\.gz$') { tar -xzf $File } 
-                elseif ($File -match '\.zip$') { Expand-Archive -Path $File -DestinationPath . -Force }
+                if ($File -match '\.zip$') {
+                    Expand-Archive -Path $File -DestinationPath . -Force
+                }
                 Remove-Item $File
-            } catch { Write-Host "解压 $File 失败: $_" }
+            } catch {
+                Write-Host "解压 $File 失败: $_"
+            }
+
             Write-Host "$Exe 获取成功！"
         }
 
         Download-Release -User $U -Repo $P -Branch $B -File $F -Exe $E
     }
 
-    $jobs += Start-Job -ScriptBlock $scriptBlock -ArgumentList $U,$P,$B,$F,$E
+    $jobs += Start-Job -ScriptBlock $scriptBlock -ArgumentList $U,$P,$B,$F,$E -WorkingDirectory $cwd
 }
 
 # 等待所有任务完成并获取结果
