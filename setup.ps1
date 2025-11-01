@@ -62,11 +62,15 @@ function Download-Release {
 $jobs = @()
 
 for ($i = 0; $i -le $Args.Count - 5; $i += 5) {
-    $U = $Args[$i]; $P = $Args[$i+1]; $B = $Args[$i+2]; $F = $Args[$i+3]; $E = $Args[$i+4]
+    $U = $Args[$i]
+    $P = $Args[$i+1]
+    $B = $Args[$i+2]
+    $F = $Args[$i+3]
+    $E = $Args[$i+4]
 
     $scriptBlock = {
         param($U,$P,$B,$F,$E)
-
+        
         function Download-Release {
             param($User,$Repo,$Branch,$File,$Exe)
             Write-Host "下载 $Exe ..."
@@ -92,18 +96,14 @@ for ($i = 0; $i -le $Args.Count - 5; $i += 5) {
             Write-Host "$Exe 获取成功！"
         }
 
-        # 调用函数，并且不返回任何值，避免表格
         Download-Release -User $U -Repo $P -Branch $B -File $F -Exe $E | Out-Null
     }
 
     $jobs += Start-Job -ScriptBlock $scriptBlock -ArgumentList $U,$P,$B,$F,$E
 }
 
-# 等待所有任务完成
+# 等待所有后台作业完成
 $jobs | Wait-Job
-
-# 只显示作业内打印日志，不返回对象
-$jobs | ForEach-Object { Receive-Job -Job $_ | Out-String | Write-Host }
 
 # 删除后台作业
 $jobs | Remove-Job
