@@ -8,6 +8,7 @@ pub struct UIComponents {
     pub theme: ColorfulTheme,
     pub term: Term,
     pub email_regex: Regex,
+    pub url_regex: Regex,
 }
 
 impl UIComponents {
@@ -17,6 +18,7 @@ impl UIComponents {
             theme: ColorfulTheme::default(),
             term: Term::stderr(),
             email_regex: Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap(),
+            url_regex: Regex::new(r"^https?://").unwrap(),
         }
     }
 
@@ -92,8 +94,6 @@ impl UIComponents {
 
     /// 获取URL输入，验证URL格式
     pub fn get_url_input(&self, prompt: &str, allow_empty: bool) -> Result<String> {
-        let url_regex = Regex::new(r"^https?://").unwrap();
-
         loop {
             let input: String = if allow_empty {
                 Input::with_theme(&self.theme)
@@ -106,7 +106,7 @@ impl UIComponents {
                     .interact_text()?
             };
 
-            if (input.is_empty() && allow_empty) || url_regex.is_match(&input) {
+            if (input.is_empty() && allow_empty) || self.url_regex.is_match(&input) {
                 return Ok(input);
             } else {
                 self.term

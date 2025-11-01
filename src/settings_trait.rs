@@ -22,12 +22,12 @@ pub trait Settings {
 #[macro_export]
 macro_rules! impl_settings {
     ($struct_name:ident) => {
-        impl Settings for $struct_name {
-            fn config_path(&self) -> &PathBuf {
+        impl $crate::settings_trait::Settings for $struct_name {
+            fn config_path(&self) -> &std::path::PathBuf {
                 &self.config_path
             }
 
-            fn config_mut(&mut self) -> &mut Config {
+            fn config_mut(&mut self) -> &mut $crate::Config {
                 &mut self.config
             }
         }

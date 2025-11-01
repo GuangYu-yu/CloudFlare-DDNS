@@ -95,18 +95,28 @@ pub struct Plugin {
     pub clien: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct PushConfig {
     pub push_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub telegram_bot_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub telegram_user_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub pushplus_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub server_sendkey: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub pushdeer_pushkey: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub wechat_corpid: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub wechat_secret: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub wechat_agentid: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub wechat_userid: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub synology_chat_url: Option<String>,
 }
 

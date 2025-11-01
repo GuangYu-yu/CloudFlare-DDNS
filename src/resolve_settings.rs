@@ -8,6 +8,7 @@ pub struct ResolveSettings {
     config: Config,
     ui: UIComponents,
     domain_regex: Regex,
+    name_regex: Regex,
 }
 
 impl ResolveSettings {
@@ -17,6 +18,7 @@ impl ResolveSettings {
             config: Config::default(),
             ui: UIComponents::new(),
             domain_regex: Regex::new(r"^[a-zA-Z0-9\u{4e00}-\u{9fa5}.\-]+$").unwrap(),
+            name_regex: Regex::new(r"^[A-Za-z0-9_]+$").unwrap(),
         };
         settings.load_config()?;
         Ok(settings)
@@ -139,10 +141,10 @@ impl ResolveSettings {
             let input = self.ui.get_text_input(
                 "请输入自定义解析组名称（只能包含字母、数字和下划线）",
                 default_name,
-                |input| Regex::new(r"^[A-Za-z0-9_]+$").unwrap().is_match(input),
+                |input| self.name_regex.is_match(input),
             )?;
 
-            if !Regex::new(r"^[A-Za-z0-9_]+$")?.is_match(&input) {
+            if !self.name_regex.is_match(&input) {
                 self.ui.show_error("只能包含字母、数字和下划线")?;
                 continue;
             } else if let Some(resolves) = &self.config.resolve {
@@ -294,17 +296,15 @@ impl ResolveSettings {
             }
         };
 
-        let url_regex = Regex::new(r"^https?://").unwrap();
-
         // URL 读取 IPv4
         let v4_url = loop {
             let input = self
                 .ui
                 .get_text_input("从URL链接获取IPv4地址", "", |input| {
-                    input.is_empty() || url_regex.is_match(input)
+                    input.is_empty() || self.ui.url_regex.is_match(input)
                 })?;
 
-            if input.is_empty() || url_regex.is_match(&input) {
+            if input.is_empty() || self.ui.url_regex.is_match(&input) {
                 break input;
             } else {
                 self.ui.show_error("格式不正确")?;
@@ -317,10 +317,10 @@ impl ResolveSettings {
             let input = self
                 .ui
                 .get_text_input("从URL链接获取IPv6地址", "", |input| {
-                    input.is_empty() || url_regex.is_match(input)
+                    input.is_empty() || self.ui.url_regex.is_match(input)
                 })?;
 
-            if input.is_empty() || url_regex.is_match(&input) {
+            if input.is_empty() || self.ui.url_regex.is_match(&input) {
                 break input;
             } else {
                 self.ui.show_error("格式不正确")?;
