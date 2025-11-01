@@ -102,8 +102,8 @@ for ($i = 0; $i -le $Args.Count - 5; $i += 5) {
 # 等待所有任务完成
 $jobs | Wait-Job
 
-# 获取后台作业输出，同时避免显示表格
-$jobs | ForEach-Object { Receive-Job -Job $_ | ForEach-Object { $_ } }
+# 只显示作业内打印日志，不返回对象
+$jobs | ForEach-Object { Receive-Job -Job $_ | Out-String | Write-Host }
 
 # 删除后台作业
 $jobs | Remove-Job
