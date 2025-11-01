@@ -25,7 +25,7 @@
 | 📊 **数据管理** | • 支持GitHub提交（需要令牌）<br> |
 | ⚙️ **灵活配置** | • YAML配置文件<br>• 多账户支持<br>• 可直接传入解析组来执行<br> |
 
-<img width="820" height="852" alt="image" src="https://github.com/user-attachments/assets/b3e6d851-a647-4310-bfe2-094f8edefa58" />
+<img width="1298" height="855" alt="QQ_1762018750906" src="https://github.com/user-attachments/assets/3c09ba35-a5e1-49bc-a864-fe204f7629a0" />
 
 ## 🔧 安装方式
 
