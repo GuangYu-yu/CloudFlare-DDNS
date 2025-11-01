@@ -64,7 +64,6 @@ $jobs = @()
 for ($i = 0; $i -le $Args.Count - 5; $i += 5) {
     $U = $Args[$i]; $P = $Args[$i+1]; $B = $Args[$i+2]; $F = $Args[$i+3]; $E = $Args[$i+4]
 
-    # 每个后台作业重新定义函数
     $scriptBlock = {
         param($U,$P,$B,$F,$E)
 
@@ -93,13 +92,18 @@ for ($i = 0; $i -le $Args.Count - 5; $i += 5) {
             Write-Host "$Exe 获取成功！"
         }
 
-        Download-Release -User $U -Repo $P -Branch $B -File $F -Exe $E
+        # 调用函数，并且不返回任何值，避免表格
+        Download-Release -User $U -Repo $P -Branch $B -File $F -Exe $E | Out-Null
     }
 
     $jobs += Start-Job -ScriptBlock $scriptBlock -ArgumentList $U,$P,$B,$F,$E
 }
 
-# 等待所有任务完成并获取结果
+# 等待所有任务完成
 $jobs | Wait-Job
-$jobs | Receive-Job
+
+# 获取后台作业输出，同时避免显示表格
+$jobs | ForEach-Object { Receive-Job -Job $_ | ForEach-Object { $_ } }
+
+# 删除后台作业
 $jobs | Remove-Job
