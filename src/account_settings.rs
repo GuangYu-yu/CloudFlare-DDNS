@@ -9,9 +9,9 @@ pub struct AccountSettings {
 }
 
 impl AccountSettings {
-    pub fn new(config_path: PathBuf) -> Result<Self> {
+    pub fn new(config_path: &PathBuf) -> Result<Self> {
         let mut settings = AccountSettings {
-            config_path: config_path.clone(),
+            config_path: config_path.to_path_buf(),
             config: Config::default(),
             ui: UIComponents::new(),
         };
@@ -220,21 +220,35 @@ impl AccountSettings {
                 None => return Ok(()),
             };
 
-        let current = self.config.account[selection].clone();
-
+        let selection_index = selection;
+        let current_account_name = self.config.account[selection_index].account_name.clone();
+        
         self.ui.show_message("当前账户信息：")?;
         self.ui
-            .show_message(&format!("账户组: {}", current.account_name))?;
+            .show_message(&format!("账户组: {}", self.config.account[selection_index].account_name))?;
         self.ui
-            .show_message(&format!("邮箱: {}", current.x_email))?;
+            .show_message(&format!("邮箱: {}", self.config.account[selection_index].x_email))?;
         self.ui
-            .show_message(&format!("区域ID: {}", current.zone_id))?;
+            .show_message(&format!("区域ID: {}", self.config.account[selection_index].zone_id))?;
         self.ui
-            .show_message(&format!("API Key: {}", current.api_key))?;
+            .show_message(&format!("API Key: {}", self.config.account[selection_index].api_key))?;
         self.ui.show_message("")?;
         clear_screen()?;
 
-        let account = match self.get_account_input(Some(&current))? {
+        // 只克隆需要的字段，而不是整个结构体
+        let account_name = self.config.account[selection_index].account_name.clone();
+        let x_email = self.config.account[selection_index].x_email.clone();
+        let zone_id = self.config.account[selection_index].zone_id.clone();
+        let api_key = self.config.account[selection_index].api_key.clone();
+        
+        let current_account = Account {
+            account_name,
+            x_email,
+            zone_id,
+            api_key,
+        };
+        
+        let account = match self.get_account_input(Some(&current_account))? {
             Some(acc) => acc,
             None => return Ok(()),
         };
@@ -242,18 +256,18 @@ impl AccountSettings {
         // 保存新的账户组名称
         let new_account_name = account.account_name;
 
-        let account_ref = &mut self.config.account[selection];
-        account_ref.account_name = new_account_name.clone();
+        let account_ref = &mut self.config.account[selection_index];
+        account_ref.account_name = new_account_name.to_string();
         account_ref.x_email = account.x_email;
         account_ref.zone_id = account.zone_id;
         account_ref.api_key = account.api_key;
 
         // 如果账户组名称已更改，则更新所有相关的解析组
-        if new_account_name != current.account_name {
+        if new_account_name != current_account_name {
             if let Some(resolves) = &mut self.config.resolve {
                 for resolve in resolves {
-                    if resolve.add_ddns == current.account_name {
-                        resolve.add_ddns = new_account_name.clone();
+                    if resolve.add_ddns == current_account_name {
+                        resolve.add_ddns = new_account_name.to_string();
                     }
                 }
             }

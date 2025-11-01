@@ -10,9 +10,9 @@ pub struct PluginSettings {
 }
 
 impl PluginSettings {
-    pub fn new(config_path: PathBuf) -> Result<Self> {
+    pub fn new(config_path: &PathBuf) -> Result<Self> {
         let mut settings = PluginSettings {
-            config_path: config_path.clone(),
+            config_path: config_path.to_path_buf(),
             config: Config::default(),
             ui: UIComponents::new(),
         };
@@ -43,8 +43,7 @@ impl PluginSettings {
         self.config
             .plugin
             .as_ref()
-            .map(|p| p.clien.clone())
-            .unwrap_or_else(|| "未指定".to_string())
+            .map_or_else(|| "未指定".to_string(), |p| p.clien.to_string())
     }
 
     fn set_plugin(&mut self) -> Result<bool> {

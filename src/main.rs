@@ -18,6 +18,14 @@ pub fn warning_println(args: std::fmt::Arguments<'_>) {
     println!("{} {}", "[警告]".yellow().bold(), args);
 }
 
+pub fn success_println(args: std::fmt::Arguments<'_>) {
+    println!("{} {}", "[成功]".green().bold(), args);
+}
+
+pub fn print_section_header(title: &str) {
+    println!("{}", format!("\n>>> {} <<<", title).bright_blue().bold());
+}
+
 // 全局常量
 pub const CONFIG_FILE: &str = "cf.yaml";
 
@@ -191,19 +199,19 @@ fn clear_screen() -> std::io::Result<()> {
 // 各个菜单项函数
 fn account_settings() -> Result<()> {
     let config_path = PathBuf::from(CONFIG_FILE);
-    let mut account_settings = AccountSettings::new(config_path)?;
+    let mut account_settings = AccountSettings::new(&config_path)?;
     account_settings.run()
 }
 
 fn resolve_settings() -> Result<()> {
     let config_path = PathBuf::from(CONFIG_FILE);
-    let mut resolve_settings = ResolveSettings::new(config_path)?;
+    let mut resolve_settings = ResolveSettings::new(&config_path)?;
     resolve_settings.run()
 }
 
 fn push_settings() -> Result<()> {
     let config_path = PathBuf::from(CONFIG_FILE);
-    let mut push_settings = PushSettings::new(config_path)?;
+    let mut push_settings = PushSettings::new(&config_path)?;
     push_settings.run()?;
     Ok(())
 }
@@ -217,6 +225,6 @@ fn execute_resolve() -> Result<()> {
 
 fn write_plugin_settings() -> Result<()> {
     let config_path = PathBuf::from(CONFIG_FILE);
-    let mut plugin_settings = PluginSettings::new(config_path)?;
+    let mut plugin_settings = PluginSettings::new(&config_path)?;
     plugin_settings.run()
 }

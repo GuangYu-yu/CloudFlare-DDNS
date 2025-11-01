@@ -1,4 +1,4 @@
-use crate::{Config, GithubPushConfig, Settings, impl_settings, error_println, info_println, warning_println};
+use crate::{Config, GithubPushConfig, Settings, impl_settings, error_println, info_println, warning_println, success_println, print_section_header};
 use anyhow::Result;
 use base64::{Engine as _, engine::general_purpose};
 use serde_json::Value;
@@ -12,9 +12,9 @@ pub struct PushService {
 }
 
 impl PushService {
-    pub fn new(config_path: PathBuf) -> Result<Self> {
+    pub fn new(config_path: &PathBuf) -> Result<Self> {
         let mut settings = PushService {
-            config_path: config_path.clone(),
+            config_path: config_path.to_path_buf(),
             config: Config::default(),
         };
         settings.load_config()?;
@@ -37,9 +37,10 @@ impl PushService {
         let has_valid_push_mode = push_modes.iter().any(|&mode| mode != "不设置");
 
         if has_valid_push_mode {
-            info_println(format_args!("正在执行推送任务..."));
+            print_section_header("推送任务");
         } else {
             info_println(format_args!("根据配置跳过推送"));
+            return Ok(());
         }
 
         // 检查是否有更新信息
@@ -56,24 +57,31 @@ impl PushService {
             match mode {
                 "Telegram" => {
                     self.push_telegram(&ip_info)?;
+                    success_println(format_args!("Telegram"));
                 }
                 "PushPlus" => {
                     self.push_pushplus(&ip_info)?;
+                    success_println(format_args!("PushPlus"));
                 }
                 "Server酱" => {
                     self.push_server_chan(&ip_info)?;
+                    success_println(format_args!("Server酱"));
                 }
                 "PushDeer" => {
                     self.push_pushdeer(&ip_info)?;
+                    success_println(format_args!("PushDeer"));
                 }
                 "企业微信" => {
                     self.push_wechat_work(&ip_info)?;
+                    success_println(format_args!("企业微信"));
                 }
                 "Synology-Chat" => {
                     self.push_synology_chat(&ip_info)?;
+                    success_println(format_args!("Synology-Chat"));
                 }
                 "Github" => {
                     self.push_github(ddns_name, domain_ip_mapping)?;
+                    success_println(format_args!("Github"));
                 }
                 _ => {
                     warning_println(format_args!("未知的推送模式: {}", mode));
@@ -82,7 +90,7 @@ impl PushService {
         }
 
         if has_valid_push_mode {
-            info_println(format_args!("推送任务完成!"));
+            info_println(format_args!("推送任务完成"));
         }
         Ok(())
     }
@@ -123,7 +131,7 @@ impl PushService {
             .filter(|fields| fields.len() >= 7)
             .collect();
 
-        let ips: Vec<String> = csv_data.iter().map(|fields| fields[0].clone()).collect();
+        let ips: Vec<String> = csv_data.iter().map(|fields| fields[0].to_string()).collect();
 
         let latency: Vec<String> = csv_data
             .iter()
@@ -142,7 +150,7 @@ impl PushService {
             })
             .collect();
 
-        let datacenter: Vec<String> = csv_data.iter().map(|fields| fields[6].clone()).collect();
+        let datacenter: Vec<String> = csv_data.iter().map(|fields| fields[6].to_string()).collect();
 
         // 输出IP地址
         for ip in &ips {
@@ -309,9 +317,7 @@ impl PushService {
 
                         if success {
                             if let Ok(json) = serde_json::from_str::<Value>(&response_text) {
-                                if json["ok"].as_bool().unwrap_or(false) {
-                                    info_println(format_args!("Telegram 推送成功"));
-                                } else {
+                                if !json["ok"].as_bool().unwrap_or(false) {
                                     error_println(format_args!("Telegram 推送失败"));
                                 }
                             }
@@ -347,9 +353,7 @@ impl PushService {
 
                         if success {
                             if let Ok(json) = serde_json::from_str::<Value>(&response_text) {
-                                if json["code"].as_i64().unwrap_or(-1) == 200 {
-                                    info_println(format_args!("PushPlus 推送成功"));
-                                } else {
+                                if json["code"].as_i64().unwrap_or(-1) != 200 {
                                     let msg = json["msg"].as_str().unwrap_or("未知错误");
                                     error_println(format_args!("PushPlus 推送失败：{}", msg));
                                 }
@@ -383,9 +387,7 @@ impl PushService {
 
                         if success {
                             if let Ok(json) = serde_json::from_str::<Value>(&response_text) {
-                                if json["code"].as_i64().unwrap_or(-1) == 0 {
-                                    info_println(format_args!("Server酱 推送成功"));
-                                } else {
+                                if json["code"].as_i64().unwrap_or(-1) != 0 {
                                     let msg = json["message"].as_str().unwrap_or("未知错误");
                                     error_println(format_args!("Server酱 推送失败：{}", msg));
                                 }
@@ -418,9 +420,7 @@ impl PushService {
 
                         if success {
                             if let Ok(json) = serde_json::from_str::<Value>(&response_text) {
-                                if json["code"].as_i64().unwrap_or(-1) == 0 {
-                                    info_println(format_args!("PushDeer 推送成功"));
-                                } else {
+                                if json["code"].as_i64().unwrap_or(-1) != 0 {
                                     let error = json["error"].as_str().unwrap_or("未知错误");
                                     error_println(format_args!("PushDeer 推送失败：{}", error));
                                 }
@@ -482,7 +482,6 @@ impl PushService {
                                             serde_json::from_str::<Value>(&send_response_text)
                                         {
                                             match send_json["errcode"].as_i64().unwrap_or(-1) {
-                                                0 => info_println(format_args!("企业微信推送成功")),
                                                 81013 => error_println(format_args!(
                                                     "企业微信 USERID 填写错误，请检查后重试"
                                                 )),
@@ -533,9 +532,7 @@ impl PushService {
 
                         if success {
                             if let Ok(json) = serde_json::from_str::<Value>(&response_text) {
-                                if json["success"].as_bool().unwrap_or(false) {
-                                    info_println(format_args!("Synology-Chat 推送成功"));
-                                } else {
+                                if !json["success"].as_bool().unwrap_or(false) {
                                     let error = json["error"].as_str().unwrap_or("未知错误");
                                     error_println(format_args!("Synology-Chat 推送失败：{}", error));
                                 }
@@ -592,7 +589,7 @@ impl PushService {
                             .collect();
                         let unique_lines: Vec<&str> = lines
                             .iter()
-                            .cloned()
+                            .copied()
                             .collect::<std::collections::HashSet<_>>()
                             .into_iter()
                             .collect();
@@ -632,9 +629,8 @@ impl PushService {
                                 20,
                             )?;
 
-                            if create_success && create_response_text.contains("\"commit\"") {
-                                info_println(format_args!("Github 推送成功"));
-                            } else {
+                            // 只有在创建失败时才输出错误信息
+                            if !create_success || !create_response_text.contains("\"commit\"") {
                                 error_println(format_args!("Github 创建文件失败，返回内容：{}", create_response_text));
                             }
                         } else if check_success {
@@ -690,9 +686,8 @@ impl PushService {
                                     20,
                                 )?;
 
-                                if update_success && update_response_text.contains("\"commit\"") {
-                                    info_println(format_args!("Github 推送成功"));
-                                } else {
+                                // 只有在更新失败时才输出错误信息
+                                if !update_success || !update_response_text.contains("\"commit\"") {
                                     error_println(format_args!("Github 更新文件失败"));
                                 }
                             }

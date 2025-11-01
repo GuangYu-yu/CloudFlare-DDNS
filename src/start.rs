@@ -1,5 +1,5 @@
 use crate::push::PushService;
-use crate::{Config, Resolve, Settings, UIComponents, clear_screen, impl_settings, CLOUDFLAREST_RUST, error_println, info_println, warning_println};
+use crate::{Config, Resolve, Settings, UIComponents, clear_screen, impl_settings, CLOUDFLAREST_RUST, error_println, info_println, warning_println, print_section_header, success_println};
 use anyhow::Result;
 use serde::Deserialize;
 use serde_json::Value;
@@ -23,7 +23,7 @@ struct DnsRecord {
 impl Start {
     pub fn new(config_path: PathBuf) -> Result<Self> {
         let mut settings = Start {
-            config_path: config_path.clone(),
+            config_path: config_path.to_path_buf(),
             config: Config::default(),
             ui: UIComponents::new(),
         };
@@ -164,7 +164,7 @@ impl Start {
         api_key: &str,
         zone_id: &str,
     ) -> Result<()> {
-        info_println(format_args!("开始验证 Cloudflare 账号..."));
+        print_section_header("Cloudflare 账号验证");
 
         let max_retries = 10;
         let retry_delay = Duration::from_secs(2);
@@ -173,7 +173,7 @@ impl Start {
         let url = format!("https://api.cloudflare.com/client/v4/zones/{}", zone_id);
 
         for attempt in 1..=max_retries {
-            info_println(format_args!("正在进行第 {} 次登录尝试...", attempt));
+            info_println(format_args!("第 {} 次登录尝试 ", attempt));
 
             let output = Command::new("curl")
                 .arg("-s")
@@ -197,7 +197,7 @@ impl Start {
                         let json: Value = serde_json::from_str(&response_text)?;
 
                         if json["success"].as_bool().unwrap_or(false) {
-                            info_println(format_args!("Cloudflare 账号验证成功"));
+                            success_println(format_args!("Cloudflare 账号验证成功"));
                             return Ok(());
                         } else {
                             let error_message =
@@ -227,7 +227,6 @@ impl Start {
             max_retries
         ))
     }
-
     // 获取DNS记录
     fn get_dns_records(
         &self,
@@ -304,11 +303,10 @@ impl Start {
         x_email: &str,
         api_key: &str,
         zone_id: &str,
-        record_type: &str,
         record_id: &str,
-    ) -> Result<()> {
-        info_println(format_args!("删除旧 {} 记录...", record_type));
-
+        domain: &str,
+        ip: &str,
+    ) -> Result<bool> {
         let url = format!(
             "https://api.cloudflare.com/client/v4/zones/{}/dns_records/{}",
             zone_id, record_id
@@ -331,14 +329,14 @@ impl Start {
             Ok(out) => out,
             Err(e) => {
                 error_println(format_args!("删除DNS记录失败: {}", e));
-                return Ok(());
+                return Ok(false);
             }
         };
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             error_println(format_args!("删除DNS记录失败: {}", stderr));
-            return Ok(());
+            return Ok(false);
         }
 
         let response_text = String::from_utf8_lossy(&output.stdout);
@@ -346,18 +344,19 @@ impl Start {
             Ok(j) => j,
             Err(e) => {
                 error_println(format_args!("解析响应JSON失败: {}", e));
-                return Ok(());
+                return Ok(false);
             }
         };
 
         if json["success"].as_bool().unwrap_or(false) {
-            info_println(format_args!("成功删除DNS记录"));
+            print!("  "); // 缩进
+            success_println(format_args!("{} → {}", domain, ip));
+            return Ok(true);
         } else {
             let error_message = json["errors"][0]["message"].as_str().unwrap_or("未知错误");
             error_println(format_args!("删除DNS记录失败: {}", error_message));
+            return Ok(false);
         }
-
-        Ok(())
     }
 
     // 创建DNS记录
@@ -370,8 +369,6 @@ impl Start {
         record_type: &str,
         ip: &str,
     ) -> Result<bool> {
-        info_println(format_args!("添加 {} 到 {}...", ip, domain));
-
         let url = format!(
             "https://api.cloudflare.com/client/v4/zones/{}/dns_records",
             zone_id
@@ -427,7 +424,8 @@ impl Start {
         let success = json["success"].as_bool().unwrap_or(false);
 
         if success {
-            info_println(format_args!("成功添加 {}", ip));
+            print!("  "); // 缩进
+            success_println(format_args!("{} → {}", ip, domain));
             return Ok(true);
         } else {
             let code = json["errors"][0]["code"].as_i64().unwrap_or(0);
@@ -438,7 +436,7 @@ impl Start {
                 warning_println(format_args!("已有 [{}] IP 记录，不做更新", ip));
                 return Ok(false);
             } else {
-                error_println(format_args!("添加 {} 到 {} 失败", ip, domain));
+                error_println(format_args!("{} → {} 添加失败", ip, domain));
                 error_println(format_args!("错误代码: {}", code));
                 error_println(format_args!("错误信息: {}", error_message));
                 return Ok(false);
@@ -464,7 +462,7 @@ impl Start {
                 break;
             }
 
-            let items: Vec<String> = resolves.iter().map(|r| r.ddns_name.clone()).collect();
+            let items: Vec<String> = resolves.iter().map(|r| r.ddns_name.to_string()).collect();
             let items_ref: Vec<&str> = items.iter().map(|s| s.as_str()).collect();
 
             let selection =
@@ -614,12 +612,14 @@ impl Start {
             self.fetch_and_filter_ips(url, num, ip_type, output_file)?;
         }
 
+        print_section_header("运行测速程序");
+        
         // 打印将要执行的命令
         #[cfg(target_os = "windows")]
-        println!("[运行] .\\{} {}", CLOUDFLAREST_RUST, cf_command);
+        println!("[执行] .\\{} {}\n", CLOUDFLAREST_RUST, cf_command);
         
         #[cfg(any(target_os = "linux", target_os = "macos"))]
-        println!("[运行] ./{} {}", CLOUDFLAREST_RUST, cf_command);
+        println!("[执行] ./{} {}\n", CLOUDFLAREST_RUST, cf_command);
 
         // 执行测速
         #[cfg(target_os = "windows")]
@@ -671,6 +671,7 @@ impl Start {
             #[cfg(target_os = "linux")]
             {
                 if !clien.is_empty() && clien != "未指定" && plugin_status == Some("stopped") {
+                    print_section_header("插件重启");
                     info_println(format_args!("正在重启插件 {}", clien));
                     let status = Command::new(format!("/etc/init.d/{}", clien))
                         .arg("restart")
@@ -684,12 +685,10 @@ impl Start {
                 }
             }
 
-            #[cfg(not(target_os = "linux"))]
-            {
-                info_println(format_args!("当前系统不需要重启插件"));
-            }
-
             // 删除旧记录
+            let mut records_to_delete = Vec::new();
+            
+            // 收集所有需要删除的记录
             for domain in domains {
                 if ip_type.is_empty() {
                     // 当ip_type为空时，获取并删除所有类型的记录
@@ -704,13 +703,7 @@ impl Start {
                             } else {
                                 "AAAA"
                             };
-                            let _ = self.delete_dns_record(
-                                x_email,
-                                api_key,
-                                zone_id,
-                                record_type,
-                                &record.id,
-                            );
+                            records_to_delete.push((domain.to_string(), record.content.to_string(), record_type.to_string(), record.id.to_string()));
                         }
                     }
                 } else {
@@ -720,33 +713,50 @@ impl Start {
                     let exclude_set: std::collections::HashSet<_> = ips.iter().cloned().collect();
                     for record in &existing_records {
                         if !exclude_set.contains(&record.content) {
-                            let _ = self.delete_dns_record(
-                                x_email,
-                                api_key,
-                                zone_id,
-                                record_type.unwrap(),
-                                &record.id,
-                            );
+                            records_to_delete.push((domain.to_string(), record.content.to_string(), record_type.unwrap().to_string(), record.id.to_string()));
                         }
                     }
                 }
+            }
+            
+            // 如果有需要删除的记录，则显示删除节点章节标题并执行删除
+            if !records_to_delete.is_empty() {
+                print_section_header("删除节点");
+                info_println(format_args!("开始删除 {} 个节点:", records_to_delete.len()));
+                
+                let mut delete_success_count = 0;
+                for (domain, ip, _record_type, record_id) in records_to_delete {
+                    if self.delete_dns_record(x_email, api_key, zone_id, &record_id, &domain, &ip)? {
+                        delete_success_count += 1;
+                    }
+                }
+                
+                info_println(format_args!("总共删除了 {} 个节点", delete_success_count));
             }
 
             // 创建域名和IP的映射关系
             let domain_ip_mapping = Self::create_domain_ip_mapping(&ips, &domains, add_ddns);
 
+            // 打印添加节点章节标题
+            print_section_header("添加节点");
+            info_println(format_args!("开始添加 {} 个节点:", domain_ip_mapping.len()));
+
+            let mut success_count = 0;
             for (domain, ip) in domain_ip_mapping {
                 // 根据IP地址内容确定记录类型
                 let record_type = if ip.contains('.') { "A" } else { "AAAA" };
                 let res =
                     self.create_dns_record(x_email, api_key, zone_id, &domain, record_type, &ip)?;
                 if res {
+                    success_count += 1;
                     domain_ip_map
-                        .entry(domain.clone())
+                        .entry(domain)
                         .or_insert_with(Vec::new)
-                        .push(ip.clone());
+                        .push(ip);
                 }
             }
+
+            info_println(format_args!("总共添加了 {} 个节点", success_count));
         }
 
         Ok((ips, domain_ip_map))
@@ -784,6 +794,8 @@ impl Start {
 
         let hostnames = domains.join(" ");
 
+        print_section_header("插件暂停");
+
         // ========== 插件控制：停止 ==========
         #[cfg(target_os = "linux")]
         let plugin_status = if clien != "未指定" && !clien.is_empty() {
@@ -802,6 +814,11 @@ impl Start {
             info_println(format_args!("按配置不停止插件"));
             None
         };
+
+        #[cfg(not(target_os = "linux"))]
+        {
+            info_println(format_args!("当前系统不需要处理插件"));
+        }
 
         // 解析 cf_command 获取 -f 参数指定的文件路径
         let output_file = Self::parse_cf_command_for_file(cf_command, "-f");
@@ -885,6 +902,7 @@ impl Start {
         #[cfg(target_os = "linux")]
         if clien != "未指定" && !clien.is_empty() {
             if let Some("stopped") = plugin_status {
+                print_section_header("插件恢复");
                 info_println(format_args!("正在恢复插件 {}", clien));
                 let status = Command::new(format!("/etc/init.d/{}", clien))
                     .arg("start")
@@ -912,7 +930,7 @@ impl Start {
         ddns_name: &str,
         domain_ip_mapping: &[(String, String)],
     ) -> Result<()> {
-        let push_service = PushService::new(self.config_path.clone())?;
+        let push_service = PushService::new(&self.config_path)?;
         push_service.run_push(
             push_mod,
             hostnames,
@@ -939,15 +957,15 @@ impl Start {
         if add_ddns == "未指定" || domains.is_empty() {
             // 未指定域名时，所有IP都映射到空域名
             for ip in ips {
-                mapping.push((String::new(), ip.clone()));
+                mapping.push((String::new(), ip.to_string()));
             }
         } else {
             // 循环分配IP到域名
             let domain_count = domains.len();
             for (i, ip) in ips.iter().enumerate() {
                 let domain_index = i % domain_count;
-                let current_domain = domains[domain_index].clone();
-                mapping.push((current_domain, ip.clone()));
+                let current_domain = domains[domain_index].to_string();
+                mapping.push((current_domain, ip.to_string()));
             }
         }
 

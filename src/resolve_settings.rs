@@ -11,9 +11,9 @@ pub struct ResolveSettings {
 }
 
 impl ResolveSettings {
-    pub fn new(config_path: PathBuf) -> Result<Self> {
+    pub fn new(config_path: &PathBuf) -> Result<Self> {
         let mut settings = ResolveSettings {
-            config_path: config_path.clone(),
+            config_path: config_path.to_path_buf(),
             config: Config::default(),
             ui: UIComponents::new(),
             domain_regex: Regex::new(r"^[a-zA-Z0-9\u{4e00}-\u{9fa5}.\-]+$").unwrap(),
@@ -370,7 +370,7 @@ impl ResolveSettings {
         // 创建解析配置
         let resolve = Resolve {
             add_ddns,
-            ddns_name: ddns_name.clone(),
+            ddns_name: ddns_name.to_string(),
             hostname1,
             hostname2,
             v4_num,
@@ -495,10 +495,35 @@ impl ResolveSettings {
         };
 
         let selected_index = selection;
-        let current_resolve = &self.config.resolve.as_ref().unwrap()[selected_index].clone();
-
+        
+        // 只克隆需要的字段，而不是整个结构体
+        let resolves = self.config.resolve.as_ref().unwrap();
+        let add_ddns = resolves[selected_index].add_ddns.clone();
+        let ddns_name = resolves[selected_index].ddns_name.clone();
+        let hostname1 = resolves[selected_index].hostname1.clone();
+        let hostname2 = resolves[selected_index].hostname2.clone();
+        let v4_num = resolves[selected_index].v4_num;
+        let v6_num = resolves[selected_index].v6_num;
+        let cf_command = resolves[selected_index].cf_command.clone();
+        let v4_url = resolves[selected_index].v4_url.clone();
+        let v6_url = resolves[selected_index].v6_url.clone();
+        let push_mod = resolves[selected_index].push_mod.clone();
+        
+        let current_resolve = Resolve {
+            add_ddns,
+            ddns_name,
+            hostname1,
+            hostname2,
+            v4_num,
+            v6_num,
+            cf_command,
+            v4_url,
+            v6_url,
+            push_mod,
+        };
+        
         // 使用通用函数获取新的解析配置
-        let new_resolve = match self.get_resolve_input(Some(current_resolve))? {
+        let new_resolve = match self.get_resolve_input(Some(&current_resolve))? {
             Some(resolve) => resolve,
             None => return Ok(()), // 用户选择返回上级，直接返回
         };

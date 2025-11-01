@@ -10,9 +10,9 @@ pub struct PushSettings {
 }
 
 impl PushSettings {
-    pub fn new(config_path: PathBuf) -> Result<Self> {
+    pub fn new(config_path: &PathBuf) -> Result<Self> {
         let mut settings = PushSettings {
-            config_path: config_path.clone(),
+            config_path: config_path.to_path_buf(),
             config: Config::default(),
             ui: UIComponents::new(),
         };
@@ -116,7 +116,7 @@ impl PushSettings {
 
     fn manage_github_push(&mut self) -> Result<()> {
         let mut github_push_settings =
-            crate::github_push_settings::GithubPushSettings::new(self.config_path.clone())?;
+            crate::github_push_settings::GithubPushSettings::new(&self.config_path)?;
         github_push_settings.run()
     }
 

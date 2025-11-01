@@ -10,10 +10,10 @@ pub struct GithubPushSettings {
 }
 
 impl GithubPushSettings {
-    pub fn new(config_path: PathBuf) -> Result<Self> {
+    pub fn new(config_path: &PathBuf) -> Result<Self> {
         let mut settings = GithubPushSettings {
             config: Config::default(),
-            config_path,
+            config_path: config_path.to_path_buf(),
             ui: UIComponents::new(),
         };
         settings.load_config()?;
@@ -40,7 +40,7 @@ impl GithubPushSettings {
                         )
                     })
                     .collect::<Vec<_>>()
-                    .join("");
+                    .join("\n");  // 使用换行符分隔不同的配置
                 self.ui.show_message(&config_str)?;
             } else {
                 self.ui.show_message("暂无配置")?;
@@ -90,7 +90,7 @@ impl GithubPushSettings {
         };
 
         // 获取选中的解析组名称
-        let ddns_push = resolves[selection].ddns_name.clone();
+        let ddns_push = resolves[selection].ddns_name.to_string();
 
         let file_url = self.ui.get_url_input("请输入文件URL", false)?;
 
@@ -102,20 +102,25 @@ impl GithubPushSettings {
             input.chars().all(|c| c.is_ascii_digit())
         })?;
 
-        let remark = self
-            .ui
-            .get_text_input_simple("请输入IPv4备注（留空则不设置）", "")?;
+        // 循环获取备注，直到至少设置一项
+        let (remark, remark6) = loop {
+            let remark = self
+                .ui
+                .get_text_input_simple("请输入IPv4备注（留空则不设置）", "")?;
 
-        let remark6 = self
-            .ui
-            .get_text_input_simple("请输入IPv6备注（留空则不设置）", "")?;
+            let remark6 = self
+                .ui
+                .get_text_input_simple("请输入IPv6备注（留空则不设置）", "")?;
 
-        // 验证至少设置一项备注
-        if remark.is_empty() && remark6.is_empty() {
-            self.ui.show_error("必须设置其中一项备注（IPv4或IPv6）")?;
-            self.ui.pause("")?;
-            return Ok(());
-        }
+            // 验证至少设置一项备注
+            if remark.is_empty() && remark6.is_empty() {
+                self.ui.show_error("必须设置其中一项备注（IPv4或IPv6）")?;
+                // 继续循环，重新输入
+                continue;
+            } else {
+                break (remark, remark6);
+            }
+        };
 
         // 创建新的配置
         let new_config = GithubPushConfig {
@@ -141,22 +146,17 @@ impl GithubPushSettings {
     fn delete_github_push(&mut self) -> Result<()> {
         self.ui.show_message("删除 Github 推送")?;
 
-        // 收集所有 Github 推送配置
-        let github_configs = if let Some(configs) = &self.config.github_push {
-            configs.clone()
-        } else {
-            Vec::new()
-        };
-        clear_screen()?;
-
-        if github_configs.is_empty() {
+        // 检查是否有 Github 推送配置
+        if self.config.github_push.is_none() || self.config.github_push.as_ref().unwrap().is_empty() {
             self.ui.show_message("暂无配置")?;
             self.ui.pause("")?;
             return Ok(());
         }
+        
+        clear_screen()?;
 
         // 创建显示项
-        let display_items: Vec<String> = github_configs
+        let display_items: Vec<String> = self.config.github_push.as_ref().unwrap()
             .iter()
             .map(|config| {
                 format!(
@@ -179,15 +179,13 @@ impl GithubPushSettings {
         };
 
         // 确认删除
-        let config_to_delete = &github_configs[selection];
-        let confirm = self.ui.show_menu(
-            &format!(
-                "确认删除解析组 {} 的推送配置吗？（按ESC返回上级）",
-                config_to_delete.ddns_push
-            ),
-            &["是", "否"],
-            1,
-        )?;
+        let selection_index = selection;
+        let confirm_msg = format!(
+            "确认删除解析组 {} 的推送配置吗？（按ESC返回上级）",
+            self.config.github_push.as_ref().unwrap()[selection_index].ddns_push
+        );
+        
+        let confirm = self.ui.show_menu(&confirm_msg, &["是", "否"], 1)?;
 
         // 如果用户按ESC返回，则直接返回
         let confirm = match confirm {
@@ -197,14 +195,8 @@ impl GithubPushSettings {
 
         if confirm == 0 {
             if let Some(github_configs) = &mut self.config.github_push {
-                // 删除匹配的配置（基于所有字段完全匹配）
-                github_configs.retain(|c| {
-                    !(c.ddns_push == config_to_delete.ddns_push
-                        && c.file_url == config_to_delete.file_url
-                        && c.port == config_to_delete.port
-                        && c.remark == config_to_delete.remark
-                        && c.remark6 == config_to_delete.remark6)
-                });
+                // 直接使用索引删除配置
+                github_configs.remove(selection_index);
 
                 self.config.save(&self.config_path)?;
                 self.ui.show_success("Github 推送配置已删除！")?;
@@ -213,7 +205,6 @@ impl GithubPushSettings {
             self.ui.show_message("取消删除操作")?;
         }
 
-        self.ui.pause("")?;
         Ok(())
     }
 }
