@@ -65,8 +65,8 @@ resolve:
     v4_num: 2                       # IPv4优选IP数量
     v6_num: 1                       # IPv6优选IP数量
     cf_command: "-n 500 -tll 20 -tl 300 -sl 15 -tp 2053 -t 8 -tlr 0.2"  # 测速参数
-    v4_url: "https://ipv4.icanhazip.com"    # IPv4地址获取接口
-    v6_url: "https://ipv6.icanhazip.com"    # IPv6地址获取接口
+    v4_url: "https://example.com"    # IPv4地址获取
+    v6_url: "https://example.com"    # IPv6地址获取
     push_mod: "Telegram"             # 推送方式
 # 插件
 plugin:
@@ -74,16 +74,7 @@ plugin:
 # 推送
 push:
 - push_name: PushPlus
-  telegram_bot_token: null
-  telegram_user_id: null
-  pushplus_token: null
-  server_sendkey: null
-  pushdeer_pushkey: null
-  wechat_corpid: null
-  wechat_secret: null
-  wechat_agentid: null
-  wechat_userid: null
-  synology_chat_url: null
+  pushplus_token: xxxxxxxxxxxx
 github_push:
 - push_name: Github
   ddns_push: www
