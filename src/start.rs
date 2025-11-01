@@ -304,8 +304,6 @@ impl Start {
         api_key: &str,
         zone_id: &str,
         record_id: &str,
-        domain: &str,
-        ip: &str,
     ) -> Result<bool> {
         let url = format!(
             "https://api.cloudflare.com/client/v4/zones/{}/dns_records/{}",
@@ -349,8 +347,6 @@ impl Start {
         };
 
         if json["success"].as_bool().unwrap_or(false) {
-            print!("  "); // 缩进
-            success_println(format_args!("{} → - {}", domain, ip));
             return Ok(true);
         } else {
             let error_message = json["errors"][0]["message"].as_str().unwrap_or("未知错误");
@@ -424,8 +420,6 @@ impl Start {
         let success = json["success"].as_bool().unwrap_or(false);
 
         if success {
-            print!("  "); // 缩进
-            success_println(format_args!("{} → + {}", ip, domain));
             return Ok(true);
         } else {
             let code = json["errors"][0]["code"].as_i64().unwrap_or(0);
@@ -716,7 +710,18 @@ impl Start {
                     }
                 }
             }
+
+            // 统一的格式化函数，用于处理"→ -"和"→ +"的显示，实现自适应左对齐
+            fn format_dns_operation(left: &str, arrow: &str, right: &str, max_left_width: usize) -> String {
+                format!("{:<width$} {} {}", left, arrow, right, width = max_left_width)
+            }
             
+            // 创建域名和IP的映射关系
+            let domain_ip_mapping = Self::create_domain_ip_mapping(&ips, &domains, add_ddns);
+
+            let max_delete_width = records_to_delete.iter().map(|(d, _, _, _)| d.len()).max().unwrap_or(0);
+            let max_add_width = domain_ip_mapping.iter().map(|(_, i)| i.len()).max().unwrap_or(0);
+
             // 如果有需要删除的记录，则显示删除节点章节标题并执行删除
             if !records_to_delete.is_empty() {
                 print_section_header("删除节点");
@@ -724,16 +729,17 @@ impl Start {
                 
                 let mut delete_success_count = 0;
                 for (domain, ip, _record_type, record_id) in records_to_delete {
-                    if self.delete_dns_record(x_email, api_key, zone_id, &record_id, &domain, &ip)? {
+                    if self.delete_dns_record(x_email, api_key, zone_id, &record_id)? {
+                        // 在这里集中处理删除记录的格式化输出
+                        print!("  "); // 缩进
+                        let formatted_output = format_dns_operation(&domain, "→ -", &ip, max_delete_width);
+                        success_println(format_args!("{}", formatted_output));
                         delete_success_count += 1;
                     }
                 }
                 
                 info_println(format_args!("总共删除了 {} 个节点", delete_success_count));
             }
-
-            // 创建域名和IP的映射关系
-            let domain_ip_mapping = Self::create_domain_ip_mapping(&ips, &domains, add_ddns);
 
             // 打印添加节点章节标题
             print_section_header("添加节点");
@@ -746,6 +752,10 @@ impl Start {
                 let res =
                     self.create_dns_record(x_email, api_key, zone_id, &domain, record_type, &ip)?;
                 if res {
+                    // 在这里集中处理添加记录的格式化输出
+                    print!("  "); // 缩进
+                    let formatted_output = format_dns_operation(&ip, "→ +", &domain, max_add_width);
+                    success_println(format_args!("{}", formatted_output));
                     success_count += 1;
                     domain_ip_map
                         .entry(domain)
