@@ -353,7 +353,7 @@ impl IpOperations for super::start_struct::Start {
                 if res {
                     // 在这里集中处理添加记录的格式化输出
                     print!("  "); // 缩进
-                    let formatted_output = format_dns_operation(&ip, "→ +", &domain, max_add_width);
+                    let formatted_output = format_dns_operation(&domain, "→ +", &ip, max_add_width);
                     crate::success_println(format_args!("{}", formatted_output));
                     success_count += 1;
                     domain_ip_map

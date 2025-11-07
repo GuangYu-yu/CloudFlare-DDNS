@@ -2,11 +2,18 @@ use anyhow::Result;
 use serde::Deserialize;
 use serde_json::Value;
 use std::process::Command;
+use std::fmt::Arguments;
 
 #[derive(Debug, Deserialize)]
 pub struct DnsRecord {
     pub id: String,
     pub content: String,
+}
+
+// 带缩进的错误打印函数，用于统一处理缩进和错误消息
+fn indented_error_println(args: Arguments) {
+    print!("  ");
+    crate::error_println(args);
 }
 
 pub trait DnsOperations {
@@ -128,14 +135,14 @@ impl DnsOperations for super::start_struct::Start {
         let output = match output {
             Ok(out) => out,
             Err(e) => {
-                crate::error_println(format_args!("删除DNS记录失败: {}", e));
+                indented_error_println(format_args!("删除DNS记录失败: {}", e));
                 return Ok(false);
             }
         };
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            crate::error_println(format_args!("删除DNS记录失败: {}", stderr));
+            indented_error_println(format_args!("删除DNS记录失败: {}", stderr));
             return Ok(false);
         }
 
@@ -143,7 +150,7 @@ impl DnsOperations for super::start_struct::Start {
         let json: Value = match serde_json::from_str(&response_text) {
             Ok(j) => j,
             Err(e) => {
-                crate::error_println(format_args!("解析响应JSON失败: {}", e));
+                indented_error_println(format_args!("解析响应JSON失败: {}", e));
                 return Ok(false);
             }
         };
@@ -152,7 +159,7 @@ impl DnsOperations for super::start_struct::Start {
             return Ok(true);
         } else {
             let error_message = json["errors"][0]["message"].as_str().unwrap_or("未知错误");
-            crate::error_println(format_args!("删除DNS记录失败: {}", error_message));
+            indented_error_println(format_args!("删除DNS记录失败: {}", error_message));
             return Ok(false);
         }
     }
@@ -198,14 +205,14 @@ impl DnsOperations for super::start_struct::Start {
         let output = match output {
             Ok(out) => out,
             Err(e) => {
-                crate::error_println(format_args!("创建DNS记录失败: {}", e));
+                indented_error_println(format_args!("创建DNS记录失败: {}", e));
                 return Ok(false);
             }
         };
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            crate::error_println(format_args!("创建DNS记录失败: {}", stderr));
+            indented_error_println(format_args!("创建DNS记录失败: {}", stderr));
             return Ok(false);
         }
 
@@ -213,7 +220,7 @@ impl DnsOperations for super::start_struct::Start {
         let json: Value = match serde_json::from_str(&response_text) {
             Ok(j) => j,
             Err(e) => {
-                crate::error_println(format_args!("解析响应JSON失败: {}", e));
+                indented_error_println(format_args!("解析响应JSON失败: {}", e));
                 return Ok(false);
             }
         };
@@ -228,10 +235,11 @@ impl DnsOperations for super::start_struct::Start {
 
             // 如果出现错误代码 81057，表示已有相同记录，不需要更新
             if code == 81057 {
-                crate::warning_println(format_args!("已有 [{}] IP 记录，不做更新", ip));
+                print!("  ");
+                crate::warning_println(format_args!("已有 {} 的记录，不做更新", ip));
                 return Ok(false);
             } else {
-                crate::error_println(format_args!("添加DNS记录失败: {}", error_message));
+                indented_error_println(format_args!("添加DNS记录失败: {}", error_message));
                 return Ok(false);
             }
         }
