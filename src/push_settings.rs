@@ -3,6 +3,83 @@ use crate::{Config, PushConfig, Settings, clear_screen, impl_settings};
 use anyhow::Result;
 use std::path::PathBuf;
 
+// 独立函数，用于获取推送配置
+pub fn get_push_config(
+    ui: &UIComponents,
+    name: &str,
+    current: Option<&PushConfig>,
+) -> Result<PushConfig> {
+    use PushConfig as P;
+    Ok(match name {
+        "Telegram" => P {
+            push_name: name.into(),
+            telegram_bot_token: Some(ui.get_non_empty_input_with_default(
+                "请输入 TELEGRAM_BOT_TOKEN", 
+                current.and_then(|c| c.telegram_bot_token.as_deref()).unwrap_or("")
+            )?),
+            telegram_user_id: Some(ui.get_non_empty_input_with_default(
+                "请输入 TELEGRAM_USER_ID", 
+                current.and_then(|c| c.telegram_user_id.as_deref()).unwrap_or("")
+            )?),
+            ..Default::default()
+        },
+        "PushPlus" => P {
+            push_name: name.into(),
+            pushplus_token: Some(ui.get_non_empty_input_with_default(
+                "请输入 PUSHPLUS_TOKEN", 
+                current.and_then(|c| c.pushplus_token.as_deref()).unwrap_or("")
+            )?),
+            ..Default::default()
+        },
+        "Server酱" => P {
+            push_name: name.into(),
+            server_sendkey: Some(ui.get_non_empty_input_with_default(
+                "请输入 SERVER_SENDKEY", 
+                current.and_then(|c| c.server_sendkey.as_deref()).unwrap_or("")
+            )?),
+            ..Default::default()
+        },
+        "PushDeer" => P {
+            push_name: name.into(),
+            pushdeer_pushkey: Some(ui.get_non_empty_input_with_default(
+                "请输入 PUSHDEER_PUSHKEY", 
+                current.and_then(|c| c.pushdeer_pushkey.as_deref()).unwrap_or("")
+            )?),
+            ..Default::default()
+        },
+        "企业微信" => P {
+            push_name: name.into(),
+            wechat_corpid: Some(ui.get_non_empty_input_with_default(
+                "请输入 企业ID (WECHAT_CORPID)", 
+                current.and_then(|c| c.wechat_corpid.as_deref()).unwrap_or("")
+            )?),
+            wechat_secret: Some(ui.get_non_empty_input_with_default(
+                "请输入 应用Secret (WECHAT_SECRET)", 
+                current.and_then(|c| c.wechat_secret.as_deref()).unwrap_or("")
+            )?),
+            wechat_agentid: Some(ui.get_non_empty_input_with_default(
+                "请输入 应用ID (WECHAT_AGENTID)", 
+                current.and_then(|c| c.wechat_agentid.as_deref()).unwrap_or("")
+            )?),
+            wechat_userid: Some(ui.get_non_empty_input_with_default(
+                "请输入 接收者ID (WECHAT_USERID)", 
+                current.and_then(|c| c.wechat_userid.as_deref()).unwrap_or("")
+            )?),
+            ..Default::default()
+        },
+        "Synology-Chat" => P {
+            push_name: name.into(),
+            synology_chat_url: Some(ui.get_url_input_with_default(
+                "请输入 Webhook URL (synology_chat_url)", 
+                false, 
+                current.and_then(|c| c.synology_chat_url.as_deref()).unwrap_or("")
+            )?),
+            ..Default::default()
+        },
+        _ => P { push_name: name.into(), ..Default::default() },
+    })
+}
+
 pub struct PushSettings {
     config_path: PathBuf,
     config: Config,
@@ -84,8 +161,7 @@ impl PushSettings {
             self.ui.show_message(&format!("{} 推送管理", push_name))?;
 
             let current = self.config.push.as_ref()
-                .and_then(|v| v.iter().find(|c| c.push_name == push_name))
-                .cloned();
+                .and_then(|v| v.iter().find(|c| c.push_name == push_name));
 
             if let Some(ref cfg) = current {
                 self.ui.show_message("当前设置：")?;
@@ -97,7 +173,7 @@ impl PushSettings {
             let menu = ["设置/修改参数", "删除推送"];
             match self.ui.show_menu("请选择操作（按ESC返回上级）", &menu, 0)? {
                 Some(0) => {
-                    let new_cfg = self.get_push_config(push_name)?;
+                    let new_cfg = get_push_config(&self.ui, push_name, current)?;
                     self.save_push_config(push_name, new_cfg, current.is_some())?;
                 }
                 Some(1) => {
@@ -113,47 +189,6 @@ impl PushSettings {
             }
         }
         Ok(())
-    }
-
-    fn get_push_config(&mut self, name: &str) -> Result<PushConfig> {
-        use PushConfig as P;
-        Ok(match name {
-            "Telegram" => P {
-                push_name: name.into(),
-                telegram_bot_token: Some(self.ui.get_non_empty_input("请输入 telegram_bot_token", "")?),
-                telegram_user_id: Some(self.ui.get_non_empty_input("请输入 telegram_user_id", "")?),
-                ..Default::default()
-            },
-            "PushPlus" => P {
-                push_name: name.into(),
-                pushplus_token: Some(self.ui.get_non_empty_input("请输入 pushplus_token", "")?),
-                ..Default::default()
-            },
-            "Server酱" => P {
-                push_name: name.into(),
-                server_sendkey: Some(self.ui.get_non_empty_input("请输入 server_sendkey", "")?),
-                ..Default::default()
-            },
-            "PushDeer" => P {
-                push_name: name.into(),
-                pushdeer_pushkey: Some(self.ui.get_non_empty_input("请输入 pushdeer_pushkey", "")?),
-                ..Default::default()
-            },
-            "企业微信" => P {
-                push_name: name.into(),
-                wechat_corpid: Some(self.ui.get_non_empty_input("请输入 企业ID (wechat_corpid)", "")?),
-                wechat_secret: Some(self.ui.get_non_empty_input("请输入 应用Secret (wechat_secret)", "")?),
-                wechat_agentid: Some(self.ui.get_non_empty_input("请输入 应用ID (wechat_agentid)", "")?),
-                wechat_userid: Some(self.ui.get_non_empty_input("请输入 接收者ID (wechat_userid)", "")?),
-                ..Default::default()
-            },
-            "Synology-Chat" => P {
-                push_name: name.into(),
-                synology_chat_url: Some(self.ui.get_url_input("请输入 Webhook URL (synology_chat_url)", false)?),
-                ..Default::default()
-            },
-            _ => P { push_name: name.into(), ..Default::default() },
-        })
     }
 
     fn save_push_config(&mut self, name: &str, cfg: PushConfig, modify: bool) -> Result<()> {

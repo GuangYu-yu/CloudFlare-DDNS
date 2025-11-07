@@ -92,6 +92,11 @@ impl UIComponents {
         self.get_text_input(prompt, default, |input| !input.trim().is_empty())
     }
 
+    /// 获取非空输入，支持默认值
+    pub fn get_non_empty_input_with_default(&self, prompt: &str, default: &str) -> Result<String> {
+        self.get_text_input(prompt, default, |input| !input.trim().is_empty())
+    }
+
     /// 获取URL输入，验证URL格式
     pub fn get_url_input(&self, prompt: &str, allow_empty: bool) -> Result<String> {
         loop {
@@ -103,6 +108,32 @@ impl UIComponents {
             } else {
                 Input::with_theme(&self.theme)
                     .with_prompt(prompt)
+                    .interact_text()?
+            };
+
+            if (input.is_empty() && allow_empty) || self.url_regex.is_match(&input) {
+                return Ok(input);
+            } else {
+                self.term
+                    .write_line("URL格式不正确，必须以http://或https://开头")?;
+                self.term.read_key()?;
+            }
+        }
+    }
+
+    /// 获取URL输入，验证URL格式，支持默认值
+    pub fn get_url_input_with_default(&self, prompt: &str, allow_empty: bool, default: &str) -> Result<String> {
+        loop {
+            let input: String = if allow_empty {
+                Input::with_theme(&self.theme)
+                    .with_prompt(prompt)
+                    .default(default.to_string())
+                    .allow_empty(true)
+                    .interact_text()?
+            } else {
+                Input::with_theme(&self.theme)
+                    .with_prompt(prompt)
+                    .default(default.to_string())
                     .interact_text()?
             };
 

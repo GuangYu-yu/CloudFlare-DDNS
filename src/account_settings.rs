@@ -2,6 +2,89 @@ use crate::{Account, Config, Settings, UIComponents, clear_screen, impl_settings
 use anyhow::Result;
 use std::path::PathBuf;
 
+// 独立函数，用于获取账户输入
+pub fn get_account_input(
+    ui: &UIComponents,
+    config: &Config,
+    default_values: Option<&Account>,
+) -> Result<Option<Account>> {
+    clear_screen()?;
+
+    // 输入账户组名称
+    let account_name: String = if let Some(defaults) = default_values {
+        loop {
+            let name = ui.get_text_input(
+                "请输入新的账户组名称",
+                &defaults.account_name,
+                |input| !input.trim().is_empty(),
+            )?;
+
+            // 如果名称没有改变，直接使用
+            if name == defaults.account_name {
+                break name;
+            }
+
+            // 检查账户组名称是否已存在
+            if config.account.iter().any(|a| a.account_name == name) {
+                ui.show_error("已有该账户组名称！请重新输入。")?;
+                continue;
+            }
+
+            break name;
+        }
+    } else {
+        let name = ui.get_text_input(
+            "请输入自定义账户组名称（留空返回上级）",
+            "",
+            |input| {
+                if input.trim().is_empty() {
+                    return true; // 允许空输入，由调用方处理
+                }
+                if input == "0" {
+                    return false; // 不允许设置为0
+                }
+                if !input.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                    return false; // 只允许字母、数字和下划线
+                }
+                true
+            },
+        )?;
+
+        if name.trim().is_empty() {
+            return Ok(None);
+        }
+
+        // 检查账户组名称是否已存在
+        if config.account.iter().any(|a| a.account_name == name) {
+            ui.show_error("已有该账户组名称！")?;
+            return Ok(None);
+        }
+        name
+    };
+
+    let x_email = ui.get_email_input(
+        "请输入账户登陆邮箱",
+        default_values.map(|d| d.x_email.as_str()).unwrap_or(""),
+    )?;
+
+    let zone_id = ui.get_non_empty_input(
+        "请输入区域ID",
+        default_values.map(|d| d.zone_id.as_str()).unwrap_or(""),
+    )?;
+
+    let api_key = ui.get_non_empty_input(
+        "请输入API Key",
+        default_values.map(|d| d.api_key.as_str()).unwrap_or(""),
+    )?;
+
+    Ok(Some(Account {
+        account_name,
+        x_email,
+        zone_id,
+        api_key,
+    }))
+}
+
 pub struct AccountSettings {
     config_path: PathBuf,
     config: Config,
@@ -61,86 +144,8 @@ impl AccountSettings {
         Ok(())
     }
 
-    fn get_account_input(&mut self, default_values: Option<&Account>) -> Result<Option<Account>> {
-        clear_screen()?;
-
-        // 输入账户组名称
-        let account_name: String = if let Some(defaults) = default_values {
-            loop {
-                let name = self.ui.get_text_input(
-                    "请输入新的账户组名称",
-                    &defaults.account_name,
-                    |input| !input.trim().is_empty(),
-                )?;
-
-                // 如果名称没有改变，直接使用
-                if name == defaults.account_name {
-                    break name;
-                }
-
-                // 检查账户组名称是否已存在
-                if self.config.account.iter().any(|a| a.account_name == name) {
-                    self.ui.show_error("已有该账户组名称！请重新输入。")?;
-                    continue;
-                }
-
-                break name;
-            }
-        } else {
-            let name = self.ui.get_text_input(
-                "请输入自定义账户组名称（留空返回上级）",
-                "",
-                |input| {
-                    if input.trim().is_empty() {
-                        return true; // 允许空输入，由调用方处理
-                    }
-                    if input == "0" {
-                        return false; // 不允许设置为0
-                    }
-                    if !input.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-                        return false; // 只允许字母、数字和下划线
-                    }
-                    true
-                },
-            )?;
-
-            if name.trim().is_empty() {
-                return Ok(None);
-            }
-
-            // 检查账户组名称是否已存在
-            if self.config.account.iter().any(|a| a.account_name == name) {
-                self.ui.show_error("已有该账户组名称！")?;
-                return Ok(None);
-            }
-            name
-        };
-
-        let x_email = self.ui.get_email_input(
-            "请输入账户登陆邮箱",
-            default_values.map(|d| d.x_email.as_str()).unwrap_or(""),
-        )?;
-
-        let zone_id = self.ui.get_non_empty_input(
-            "请输入区域ID",
-            default_values.map(|d| d.zone_id.as_str()).unwrap_or(""),
-        )?;
-
-        let api_key = self.ui.get_non_empty_input(
-            "请输入API Key",
-            default_values.map(|d| d.api_key.as_str()).unwrap_or(""),
-        )?;
-
-        Ok(Some(Account {
-            account_name,
-            x_email,
-            zone_id,
-            api_key,
-        }))
-    }
-
     fn add_account(&mut self) -> Result<()> {
-        let account = match self.get_account_input(None)? {
+        let account = match get_account_input(&self.ui, &self.config, None)? {
             Some(acc) => acc,
             None => return Ok(()),
         };
@@ -235,20 +240,7 @@ impl AccountSettings {
         self.ui.show_message("")?;
         clear_screen()?;
 
-        // 只克隆需要的字段，而不是整个结构体
-        let account_name = self.config.account[selection_index].account_name.clone();
-        let x_email = self.config.account[selection_index].x_email.clone();
-        let zone_id = self.config.account[selection_index].zone_id.clone();
-        let api_key = self.config.account[selection_index].api_key.clone();
-        
-        let current_account = Account {
-            account_name,
-            x_email,
-            zone_id,
-            api_key,
-        };
-        
-        let account = match self.get_account_input(Some(&current_account))? {
+        let account = match get_account_input(&self.ui, &self.config, Some(&self.config.account[selection_index]))? {
             Some(acc) => acc,
             None => return Ok(()),
         };
