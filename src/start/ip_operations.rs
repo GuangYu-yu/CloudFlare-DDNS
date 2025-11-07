@@ -318,8 +318,7 @@ impl IpOperations for super::start_struct::Start {
             // 创建域名和IP的映射关系
             let domain_ip_mapping = super::utils::create_domain_ip_mapping(&ips, &domains, add_ddns);
 
-            let max_delete_width = records_to_delete.iter().map(|(d, _, _, _)| d.len()).max().unwrap_or(0);
-            let max_add_width = domain_ip_mapping.iter().map(|(_, i)| i.len()).max().unwrap_or(0);
+            let max_domain_width = records_to_delete.iter().map(|(d, _, _, _)| d.len()).max().unwrap_or(0);
 
             // 如果有需要删除的记录，则显示删除节点章节标题并执行删除
             if !records_to_delete.is_empty() {
@@ -331,7 +330,7 @@ impl IpOperations for super::start_struct::Start {
                     if self.delete_dns_record(x_email, api_key, zone_id, &record_id)? {
                         // 在这里集中处理删除记录的格式化输出
                         print!("  "); // 缩进
-                        let formatted_output = format_dns_operation(&domain, "→ -", &ip, max_delete_width);
+                        let formatted_output = format_dns_operation(&domain, "→ -", &ip, max_domain_width);
                         crate::success_println(format_args!("{}", formatted_output));
                         delete_success_count += 1;
                     }
@@ -353,7 +352,7 @@ impl IpOperations for super::start_struct::Start {
                 if res {
                     // 在这里集中处理添加记录的格式化输出
                     print!("  "); // 缩进
-                    let formatted_output = format_dns_operation(&domain, "→ +", &ip, max_add_width);
+                    let formatted_output = format_dns_operation(&domain, "→ +", &ip, max_domain_width);
                     crate::success_println(format_args!("{}", formatted_output));
                     success_count += 1;
                     domain_ip_map
