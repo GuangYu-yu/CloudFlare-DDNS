@@ -25,7 +25,7 @@
 | 📊 **数据管理** | • 支持GitHub提交（需要令牌）<br> |
 | ⚙️ **灵活配置** | • YAML配置文件<br>• 多账户支持<br>• 可直接运行 ./CFRS [解析组]<br> |
 
-<img width="751" height="930" alt="演示图" src="https://github.com/user-attachments/assets/55fd0cbb-645b-4166-9d3e-bcdbbd46306c" />
+<img width="751" height="930" alt="演示图" src="https://gitee.com/zhxdcyy/CloudFlare-DDNS/raw/master/演示.png" />
 
 ## 🔧 安装方式
 
