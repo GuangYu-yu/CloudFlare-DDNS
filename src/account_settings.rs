@@ -1,6 +1,6 @@
 use crate::{Account, Config, Settings, UIComponents, clear_screen, impl_settings};
 use anyhow::Result;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 // 独立函数，用于获取账户输入
 pub fn get_account_input(
@@ -67,12 +67,12 @@ pub fn get_account_input(
         default_values.map(|d| d.x_email.as_str()).unwrap_or(""),
     )?;
 
-    let zone_id = ui.get_non_empty_input(
+    let zone_id = ui.get_non_empty_input_with_default(
         "请输入区域ID",
         default_values.map(|d| d.zone_id.as_str()).unwrap_or(""),
     )?;
 
-    let api_key = ui.get_non_empty_input(
+    let api_key = ui.get_non_empty_input_with_default(
         "请输入API Key",
         default_values.map(|d| d.api_key.as_str()).unwrap_or(""),
     )?;
@@ -92,7 +92,7 @@ pub struct AccountSettings {
 }
 
 impl AccountSettings {
-    pub fn new(config_path: &PathBuf) -> Result<Self> {
+    pub fn new(config_path: &Path) -> Result<Self> {
         let mut settings = AccountSettings {
             config_path: config_path.to_path_buf(),
             config: Config::default(),
@@ -152,7 +152,7 @@ impl AccountSettings {
 
         self.config.account.push(account);
 
-        self.config.save(&self.config_path)?;
+        self.config.save(self.config_path.as_path())?;
         self.ui.show_success("账户添加成功！")?;
         clear_screen()?;
         Ok(())
@@ -191,7 +191,7 @@ impl AccountSettings {
 
         if confirm {
             self.config.account.remove(selection);
-            self.config.save(&self.config_path)?;
+            self.config.save(self.config_path.as_path())?;
             self.ui.show_success("账户删除成功！")?;
         } else {
             self.ui.show_message("已取消删除操作。")?;
@@ -227,20 +227,32 @@ impl AccountSettings {
 
         let selection_index = selection;
         let current_account_name = self.config.account[selection_index].account_name.clone();
-        
+
         self.ui.show_message("当前账户信息：")?;
-        self.ui
-            .show_message(&format!("账户组: {}", self.config.account[selection_index].account_name))?;
-        self.ui
-            .show_message(&format!("邮箱: {}", self.config.account[selection_index].x_email))?;
-        self.ui
-            .show_message(&format!("区域ID: {}", self.config.account[selection_index].zone_id))?;
-        self.ui
-            .show_message(&format!("API Key: {}", self.config.account[selection_index].api_key))?;
+        self.ui.show_message(&format!(
+            "账户组: {}",
+            self.config.account[selection_index].account_name
+        ))?;
+        self.ui.show_message(&format!(
+            "邮箱: {}",
+            self.config.account[selection_index].x_email
+        ))?;
+        self.ui.show_message(&format!(
+            "区域ID: {}",
+            self.config.account[selection_index].zone_id
+        ))?;
+        self.ui.show_message(&format!(
+            "API Key: {}",
+            self.config.account[selection_index].api_key
+        ))?;
         self.ui.show_message("")?;
         clear_screen()?;
 
-        let account = match get_account_input(&self.ui, &self.config, Some(&self.config.account[selection_index]))? {
+        let account = match get_account_input(
+            &self.ui,
+            &self.config,
+            Some(&self.config.account[selection_index]),
+        )? {
             Some(acc) => acc,
             None => return Ok(()),
         };
@@ -249,23 +261,23 @@ impl AccountSettings {
         let new_account_name = account.account_name;
 
         let account_ref = &mut self.config.account[selection_index];
-        account_ref.account_name = new_account_name.to_string();
+        account_ref.account_name = new_account_name.clone();
         account_ref.x_email = account.x_email;
         account_ref.zone_id = account.zone_id;
         account_ref.api_key = account.api_key;
 
         // 如果账户组名称已更改，则更新所有相关的解析组
-        if new_account_name != current_account_name {
-            if let Some(resolves) = &mut self.config.resolve {
-                for resolve in resolves {
-                    if resolve.add_ddns == current_account_name {
-                        resolve.add_ddns = new_account_name.to_string();
-                    }
+        if new_account_name != current_account_name
+            && let Some(resolves) = &mut self.config.resolve
+        {
+            for resolve in resolves {
+                if resolve.add_ddns == current_account_name {
+                    resolve.add_ddns = new_account_name.clone();
                 }
             }
         }
 
-        self.config.save(&self.config_path)?;
+        self.config.save(self.config_path.as_path())?;
         self.ui.show_success("账户修改成功！")?;
         clear_screen()?;
         Ok(())

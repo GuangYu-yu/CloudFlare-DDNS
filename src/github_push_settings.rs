@@ -1,7 +1,7 @@
 use crate::ui_components::UIComponents;
 use crate::{Config, GithubPushConfig, Settings, clear_screen, impl_settings};
 use anyhow::Result;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub struct GithubPushSettings {
     config_path: PathBuf,
@@ -10,7 +10,7 @@ pub struct GithubPushSettings {
 }
 
 impl GithubPushSettings {
-    pub fn new(config_path: &PathBuf) -> Result<Self> {
+    pub fn new(config_path: &Path) -> Result<Self> {
         let mut settings = GithubPushSettings {
             config: Config::default(),
             config_path: config_path.to_path_buf(),
@@ -40,7 +40,7 @@ impl GithubPushSettings {
                         )
                     })
                     .collect::<Vec<_>>()
-                    .join("\n");  // 使用换行符分隔不同的配置
+                    .join("\n"); // 使用换行符分隔不同的配置
                 self.ui.show_message(&config_str)?;
             } else {
                 self.ui.show_message("暂无配置")?;
@@ -90,7 +90,7 @@ impl GithubPushSettings {
         };
 
         // 获取选中的解析组名称
-        let ddns_push = resolves[selection].ddns_name.to_string();
+        let ddns_push = resolves[selection].ddns_name.clone();
 
         let file_url = self.ui.get_url_input("请输入文件URL", false)?;
 
@@ -138,7 +138,7 @@ impl GithubPushSettings {
             self.config.github_push = Some(vec![new_config]);
         }
 
-        self.config.save(&self.config_path)?;
+        self.config.save(self.config_path.as_path())?;
         self.ui.show_success("Github 推送配置已添加！")?;
         Ok(())
     }
@@ -147,30 +147,37 @@ impl GithubPushSettings {
         self.ui.show_message("删除 Github 推送")?;
 
         // 检查是否有 Github 推送配置
-        if self.config.github_push.is_none() || self.config.github_push.as_ref().unwrap().is_empty() {
+        if self.config.github_push.is_none() || self.config.github_push.as_ref().unwrap().is_empty()
+        {
             self.ui.show_message("暂无配置")?;
             self.ui.pause("")?;
             return Ok(());
         }
-        
+
         clear_screen()?;
 
         // 创建显示项
-        let display_items: Vec<String> = self.config.github_push.as_ref().unwrap()
+        let display_items: Vec<String> = self
+            .config
+            .github_push
+            .as_ref()
+            .unwrap()
             .iter()
             .map(|config| {
                 format!(
                     "解析组：{} | 文件URL：{} | 端口：{} | IPv4备注：{} | IPv6备注：{}",
-                    config.ddns_push, config.file_url, config.port, &config.remark, &config.remark6
+                    config.ddns_push, config.file_url, config.port, config.remark, config.remark6
                 )
             })
             .collect();
-        
+
         let display_items_refs: Vec<&str> = display_items.iter().map(|s| s.as_str()).collect();
 
-        let selection =
-            self.ui
-                .show_menu("请选择要删除的推送条目（按ESC返回上级）", &display_items_refs, 0)?;
+        let selection = self.ui.show_menu(
+            "请选择要删除的推送条目（按ESC返回上级）",
+            &display_items_refs,
+            0,
+        )?;
 
         // 如果用户选择空（按下ESC或通过其他方式返回），则直接返回
         let selection = match selection {
@@ -184,7 +191,7 @@ impl GithubPushSettings {
             "确认删除解析组 {} 的推送配置吗？（按ESC返回上级）",
             self.config.github_push.as_ref().unwrap()[selection_index].ddns_push
         );
-        
+
         let confirm = self.ui.show_menu(&confirm_msg, &["是", "否"], 1)?;
 
         // 如果用户按ESC返回，则直接返回
@@ -198,7 +205,7 @@ impl GithubPushSettings {
                 // 直接使用索引删除配置
                 github_configs.remove(selection_index);
 
-                self.config.save(&self.config_path)?;
+                self.config.save(self.config_path.as_path())?;
                 self.ui.show_success("Github 推送配置已删除！")?;
             }
         } else {

@@ -1,9 +1,9 @@
 use anyhow::Result;
+use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
-use std::path::PathBuf;
-use colored::Colorize;
+use std::path::Path;
 
 // 定义统一的错误、信息和警告输出函数
 pub fn error_println(args: std::fmt::Arguments<'_>) {
@@ -139,16 +139,16 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn load(path: &PathBuf) -> Result<Self> {
+    pub fn load(path: &Path) -> Result<Self> {
         if !path.exists() {
             return Ok(Config::default());
         }
         let content = fs::read_to_string(path)?;
-        let config: Config = serde_yaml::from_str(&content).unwrap_or_default();
+        let config: Config = serde_yaml::from_str(&content)?;
         Ok(config)
     }
 
-    pub fn save(&self, path: &PathBuf) -> Result<()> {
+    pub fn save(&self, path: &Path) -> Result<()> {
         let yaml = serde_yaml::to_string(self)?;
         fs::write(path, yaml)?;
         Ok(())
@@ -160,8 +160,7 @@ fn main() -> Result<()> {
 
     // 处理命令行参数
     if let Some(ddns_name) = args.nth(1) {
-        let config_path = PathBuf::from(CONFIG_FILE);
-        let mut start = Start::new(config_path)?;
+        let mut start = Start::new(Path::new(CONFIG_FILE))?;
         start.run(Some(ddns_name))?;
         return Ok(());
     }
@@ -185,7 +184,7 @@ fn main() -> Result<()> {
             }
         } else {
             // 用户按ESC键退出
-            std::process::exit(0);
+            return Ok(());
         }
     }
 }
@@ -194,7 +193,7 @@ fn main() -> Result<()> {
 #[cfg(target_os = "windows")]
 fn clear_screen() -> std::io::Result<()> {
     use std::process::Command;
-    Command::new("cmd").args(&["/C", "cls"]).status()?;
+    Command::new("cmd").args(["/C", "cls"]).status()?;
     Ok(())
 }
 
@@ -208,33 +207,28 @@ fn clear_screen() -> std::io::Result<()> {
 
 // 各个菜单项函数
 fn account_settings() -> Result<()> {
-    let config_path = PathBuf::from(CONFIG_FILE);
-    let mut account_settings = AccountSettings::new(&config_path)?;
+    let mut account_settings = AccountSettings::new(Path::new(CONFIG_FILE))?;
     account_settings.run()
 }
 
 fn resolve_settings() -> Result<()> {
-    let config_path = PathBuf::from(CONFIG_FILE);
-    let mut resolve_settings = ResolveSettings::new(&config_path)?;
+    let mut resolve_settings = ResolveSettings::new(Path::new(CONFIG_FILE))?;
     resolve_settings.run()
 }
 
 fn push_settings() -> Result<()> {
-    let config_path = PathBuf::from(CONFIG_FILE);
-    let mut push_settings = PushSettings::new(&config_path)?;
+    let mut push_settings = PushSettings::new(Path::new(CONFIG_FILE))?;
     push_settings.run()?;
     Ok(())
 }
 
 fn execute_resolve() -> Result<()> {
-    let config_path = PathBuf::from(CONFIG_FILE);
-    let mut start = Start::new(config_path)?;
+    let mut start = Start::new(Path::new(CONFIG_FILE))?;
     start.run(None)?;
     Ok(())
 }
 
 fn write_plugin_settings() -> Result<()> {
-    let config_path = PathBuf::from(CONFIG_FILE);
-    let mut plugin_settings = PluginSettings::new(&config_path)?;
+    let mut plugin_settings = PluginSettings::new(Path::new(CONFIG_FILE))?;
     plugin_settings.run()
 }

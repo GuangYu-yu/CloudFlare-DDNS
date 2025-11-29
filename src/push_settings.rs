@@ -1,7 +1,7 @@
 use crate::ui_components::UIComponents;
 use crate::{Config, PushConfig, Settings, clear_screen, impl_settings};
 use anyhow::Result;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 // 独立函数，用于获取推送配置
 pub fn get_push_config(
@@ -13,70 +13,113 @@ pub fn get_push_config(
     Ok(match name {
         "Telegram" => P {
             push_name: name.into(),
-            telegram_bot_token: Some(ui.get_non_empty_input_with_default(
-                "请输入 TELEGRAM_BOT_TOKEN", 
-                current.and_then(|c| c.telegram_bot_token.as_deref()).unwrap_or("")
-            )?),
-            telegram_user_id: Some(ui.get_non_empty_input_with_default(
-                "请输入 TELEGRAM_USER_ID", 
-                current.and_then(|c| c.telegram_user_id.as_deref()).unwrap_or("")
-            )?),
+            telegram_bot_token: Some(
+                ui.get_non_empty_input_with_default(
+                    "请输入 TELEGRAM_BOT_TOKEN",
+                    current
+                        .and_then(|c| c.telegram_bot_token.as_deref())
+                        .unwrap_or(""),
+                )?,
+            ),
+            telegram_user_id: Some(
+                ui.get_non_empty_input_with_default(
+                    "请输入 TELEGRAM_USER_ID",
+                    current
+                        .and_then(|c| c.telegram_user_id.as_deref())
+                        .unwrap_or(""),
+                )?,
+            ),
             ..Default::default()
         },
         "PushPlus" => P {
             push_name: name.into(),
-            pushplus_token: Some(ui.get_non_empty_input_with_default(
-                "请输入 PUSHPLUS_TOKEN", 
-                current.and_then(|c| c.pushplus_token.as_deref()).unwrap_or("")
-            )?),
+            pushplus_token: Some(
+                ui.get_non_empty_input_with_default(
+                    "请输入 PUSHPLUS_TOKEN",
+                    current
+                        .and_then(|c| c.pushplus_token.as_deref())
+                        .unwrap_or(""),
+                )?,
+            ),
             ..Default::default()
         },
         "Server酱" => P {
             push_name: name.into(),
-            server_sendkey: Some(ui.get_non_empty_input_with_default(
-                "请输入 SERVER_SENDKEY", 
-                current.and_then(|c| c.server_sendkey.as_deref()).unwrap_or("")
-            )?),
+            server_sendkey: Some(
+                ui.get_non_empty_input_with_default(
+                    "请输入 SERVER_SENDKEY",
+                    current
+                        .and_then(|c| c.server_sendkey.as_deref())
+                        .unwrap_or(""),
+                )?,
+            ),
             ..Default::default()
         },
         "PushDeer" => P {
             push_name: name.into(),
-            pushdeer_pushkey: Some(ui.get_non_empty_input_with_default(
-                "请输入 PUSHDEER_PUSHKEY", 
-                current.and_then(|c| c.pushdeer_pushkey.as_deref()).unwrap_or("")
-            )?),
+            pushdeer_pushkey: Some(
+                ui.get_non_empty_input_with_default(
+                    "请输入 PUSHDEER_PUSHKEY",
+                    current
+                        .and_then(|c| c.pushdeer_pushkey.as_deref())
+                        .unwrap_or(""),
+                )?,
+            ),
             ..Default::default()
         },
         "企业微信" => P {
             push_name: name.into(),
-            wechat_corpid: Some(ui.get_non_empty_input_with_default(
-                "请输入 企业ID (WECHAT_CORPID)", 
-                current.and_then(|c| c.wechat_corpid.as_deref()).unwrap_or("")
-            )?),
-            wechat_secret: Some(ui.get_non_empty_input_with_default(
-                "请输入 应用Secret (WECHAT_SECRET)", 
-                current.and_then(|c| c.wechat_secret.as_deref()).unwrap_or("")
-            )?),
-            wechat_agentid: Some(ui.get_non_empty_input_with_default(
-                "请输入 应用ID (WECHAT_AGENTID)", 
-                current.and_then(|c| c.wechat_agentid.as_deref()).unwrap_or("")
-            )?),
-            wechat_userid: Some(ui.get_non_empty_input_with_default(
-                "请输入 接收者ID (WECHAT_USERID)", 
-                current.and_then(|c| c.wechat_userid.as_deref()).unwrap_or("")
-            )?),
+            wechat_corpid: Some(
+                ui.get_non_empty_input_with_default(
+                    "请输入 企业ID (WECHAT_CORPID)",
+                    current
+                        .and_then(|c| c.wechat_corpid.as_deref())
+                        .unwrap_or(""),
+                )?,
+            ),
+            wechat_secret: Some(
+                ui.get_non_empty_input_with_default(
+                    "请输入 应用Secret (WECHAT_SECRET)",
+                    current
+                        .and_then(|c| c.wechat_secret.as_deref())
+                        .unwrap_or(""),
+                )?,
+            ),
+            wechat_agentid: Some(
+                ui.get_non_empty_input_with_default(
+                    "请输入 应用ID (WECHAT_AGENTID)",
+                    current
+                        .and_then(|c| c.wechat_agentid.as_deref())
+                        .unwrap_or(""),
+                )?,
+            ),
+            wechat_userid: Some(
+                ui.get_non_empty_input_with_default(
+                    "请输入 接收者ID (WECHAT_USERID)",
+                    current
+                        .and_then(|c| c.wechat_userid.as_deref())
+                        .unwrap_or(""),
+                )?,
+            ),
             ..Default::default()
         },
         "Synology-Chat" => P {
             push_name: name.into(),
-            synology_chat_url: Some(ui.get_url_input_with_default(
-                "请输入 Webhook URL (synology_chat_url)", 
-                false, 
-                current.and_then(|c| c.synology_chat_url.as_deref()).unwrap_or("")
-            )?),
+            synology_chat_url: Some(
+                ui.get_url_input_with_default(
+                    "请输入 Webhook URL (synology_chat_url)",
+                    false,
+                    current
+                        .and_then(|c| c.synology_chat_url.as_deref())
+                        .unwrap_or(""),
+                )?,
+            ),
             ..Default::default()
         },
-        _ => P { push_name: name.into(), ..Default::default() },
+        _ => P {
+            push_name: name.into(),
+            ..Default::default()
+        },
     })
 }
 
@@ -87,9 +130,9 @@ pub struct PushSettings {
 }
 
 impl PushSettings {
-    pub fn new(config_path: &PathBuf) -> Result<Self> {
+    pub fn new(config_path: &Path) -> Result<Self> {
         let mut s = Self {
-            config_path: config_path.clone(),
+            config_path: config_path.to_path_buf(),
             config: Config::default(),
             ui: UIComponents::new(),
         };
@@ -103,8 +146,13 @@ impl PushSettings {
             self.list_push_configs()?;
 
             let items = [
-                "Telegram", "PushPlus", "Server酱", "PushDeer",
-                "企业微信", "Synology-Chat", "提交到Github",
+                "Telegram",
+                "PushPlus",
+                "Server酱",
+                "PushDeer",
+                "企业微信",
+                "Synology-Chat",
+                "提交到Github",
             ];
 
             match self.ui.show_menu("推送管理（按ESC返回上级）", &items, 0)? {
@@ -160,10 +208,13 @@ impl PushSettings {
             clear_screen()?;
             self.ui.show_message(&format!("{} 推送管理", push_name))?;
 
-            let current = self.config.push.as_ref()
+            let current = self
+                .config
+                .push
+                .as_ref()
                 .and_then(|v| v.iter().find(|c| c.push_name == push_name));
 
-            if let Some(ref cfg) = current {
+            if let Some(cfg) = current {
                 self.ui.show_message("当前设置：")?;
                 self.ui.show_message(&Self::format_push_info(cfg))?;
             } else {
@@ -201,22 +252,27 @@ impl PushSettings {
         } else {
             list.push(cfg);
         }
-        self.config.save(&self.config_path)?;
-        self.ui.show_success(&format!("{} 参数已设置完成！", name))?;
+        self.config.save(self.config_path.as_path())?;
+        self.ui
+            .show_success(&format!("{} 参数已设置完成！", name))?;
         Ok(())
     }
 
     fn delete_push(&mut self, name: &str) -> Result<()> {
         let items = ["是", "否"];
-        match self.ui.show_menu(&format!("确认删除 {} 的推送设置吗？", name), &items, 1)? {
+        match self
+            .ui
+            .show_menu(&format!("确认删除 {} 的推送设置吗？", name), &items, 1)?
+        {
             Some(0) => {
                 if let Some(v) = &mut self.config.push {
                     v.retain(|c| c.push_name != name);
                     if v.is_empty() {
                         self.config.push = None;
                     }
-                    self.config.save(&self.config_path)?;
-                    self.ui.show_success(&format!("{} 的推送设置已删除", name))?;
+                    self.config.save(self.config_path.as_path())?;
+                    self.ui
+                        .show_success(&format!("{} 的推送设置已删除", name))?;
                 }
             }
             _ => {

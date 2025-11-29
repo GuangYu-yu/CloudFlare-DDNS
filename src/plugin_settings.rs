@@ -1,7 +1,7 @@
 use crate::ui_components::UIComponents;
 use crate::{Config, Plugin, Settings, clear_screen, impl_settings};
 use anyhow::Result;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub struct PluginSettings {
     config_path: PathBuf,
@@ -10,7 +10,7 @@ pub struct PluginSettings {
 }
 
 impl PluginSettings {
-    pub fn new(config_path: &PathBuf) -> Result<Self> {
+    pub fn new(config_path: &Path) -> Result<Self> {
         let mut settings = PluginSettings {
             config_path: config_path.to_path_buf(),
             config: Config::default(),
@@ -39,11 +39,11 @@ impl PluginSettings {
         Ok(())
     }
 
-    fn get_current_plugin(&self) -> String {
+    fn get_current_plugin(&self) -> &str {
         self.config
             .plugin
             .as_ref()
-            .map_or_else(|| "未指定".to_string(), |p| p.clien.to_string())
+            .map_or_else(|| "未指定", |p| &p.clien)
     }
 
     fn set_plugin(&mut self) -> Result<bool> {
@@ -133,7 +133,7 @@ impl PluginSettings {
             clien: plugin_name.clone(),
         });
 
-        self.config.save(&self.config_path)?;
+        self.config.save(self.config_path.as_path())?;
         self.ui
             .show_success(&format!("插件已设置为: {}", plugin_name))?;
         Ok(true)

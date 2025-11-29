@@ -1,7 +1,9 @@
-use crate::{Config, Resolve, Settings, UIComponents, clear_screen, impl_settings, CLOUDFLAREST_RUST};
+use crate::{
+    CLOUDFLAREST_RUST, Config, Resolve, Settings, UIComponents, clear_screen, impl_settings,
+};
 use anyhow::Result;
 use regex::Regex;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 // 独立函数，用于获取解析输入
 pub fn get_resolve_input(
@@ -108,9 +110,7 @@ pub fn get_resolve_input(
                     if input.trim().is_empty() && default_values.is_some() {
                         return true;
                     }
-                    input
-                        .split_whitespace()
-                        .all(|s| domain_regex.is_match(s))
+                    input.split_whitespace().all(|s| domain_regex.is_match(s))
                 },
             )?;
 
@@ -122,9 +122,7 @@ pub fn get_resolve_input(
                 break default_hostname2.to_string();
             }
 
-            let all_valid = input
-                .split_whitespace()
-                .all(|s| domain_regex.is_match(s));
+            let all_valid = input.split_whitespace().all(|s| domain_regex.is_match(s));
 
             if all_valid {
                 break input;
@@ -184,58 +182,65 @@ pub fn get_resolve_input(
     look_cfst_rules(ui)?;
 
     // CloudflareST 命令输入
-    let cf_command = loop {
+    let cf_command = {
         let default_cf = default_values.map(|d| d.cf_command.as_str()).unwrap_or("");
 
         let input = ui.get_text_input(
             #[cfg(target_os = "windows")]
-            &format!("请输入CloudflareST传入参数（无需以\".\\{}\"开头）", CLOUDFLAREST_RUST),
-
+            &format!(
+                "请输入CloudflareST传入参数（无需以\".\\{}\"开头）",
+                CLOUDFLAREST_RUST
+            ),
             #[cfg(any(target_os = "linux", target_os = "macos"))]
-            &format!("请输入CloudflareST传入参数（无需以\"./{}\"开头）", CLOUDFLAREST_RUST),
+            &format!(
+                "请输入CloudflareST传入参数（无需以\"./{}\"开头）",
+                CLOUDFLAREST_RUST
+            ),
             default_cf,
             |_| true, // 允许任何输入
         )?;
 
         if input.trim().is_empty() && default_values.is_none() {
-            break String::new();
-        }
-        if !input.trim().is_empty() {
-            break input;
+            String::new()
+        } else if !input.trim().is_empty() {
+            input
         } else {
-            break default_cf.to_string();
+            default_cf.to_string()
         }
     };
 
     // URL 读取 IPv4
-    let v4_url = loop {
+    let v4_url = {
         let default_v4 = default_values.map(|d| d.v4_url.as_str()).unwrap_or("");
-        let input = ui
-            .get_text_input("从URL链接获取IPv4地址", default_v4, |input| {
+        let mut input = ui.get_text_input("从URL链接获取IPv4地址", default_v4, |input| {
+            input.is_empty() || ui.url_regex.is_match(input)
+        })?;
+
+        // 如果输入无效，继续提示直到输入有效或为空
+        while !input.is_empty() && !ui.url_regex.is_match(&input) {
+            ui.show_error("格式不正确")?;
+            input = ui.get_text_input("从URL链接获取IPv4地址", default_v4, |input| {
                 input.is_empty() || ui.url_regex.is_match(input)
             })?;
-
-        if input.is_empty() || ui.url_regex.is_match(&input) {
-            break input;
-        } else {
-            ui.show_error("格式不正确")?;
-            continue;
         }
+        input
     };
 
     // URL 读取 IPv6
-    let v6_url = loop {
+    let v6_url = {
         let default_v6 = default_values.map(|d| d.v6_url.as_str()).unwrap_or("");
-        let input = ui
-            .get_text_input("从URL链接获取IPv6地址", default_v6, |input| {
+        let mut input = ui.get_text_input("从URL链接获取IPv6地址", default_v6, |input| {
+            input.is_empty() || ui.url_regex.is_match(input)
+        })?;
+
+        // 如果输入无效，继续提示直到输入有效或为空
+        while !input.is_empty() && !ui.url_regex.is_match(&input) {
+            ui.show_error("格式不正确")?;
+            input = ui.get_text_input("从URL链接获取IPv6地址", default_v6, |input| {
                 input.is_empty() || ui.url_regex.is_match(input)
             })?;
-
-        if input.is_empty() || ui.url_regex.is_match(&input) {
-            break input;
-        } else {
-            ui.show_error("格式不正确")?;
         }
+        input
     };
 
     // 推送方式
@@ -330,7 +335,7 @@ pub struct ResolveSettings {
 }
 
 impl ResolveSettings {
-    pub fn new(config_path: &PathBuf) -> Result<Self> {
+    pub fn new(config_path: &Path) -> Result<Self> {
         let mut settings = ResolveSettings {
             config_path: config_path.to_path_buf(),
             config: Config::default(),
@@ -391,7 +396,13 @@ impl ResolveSettings {
     fn add_resolve(&mut self) -> anyhow::Result<()> {
         clear_screen()?;
 
-        let resolve = match get_resolve_input(&self.ui, &self.config, None, &self.domain_regex, &self.name_regex)? {
+        let resolve = match get_resolve_input(
+            &self.ui,
+            &self.config,
+            None,
+            &self.domain_regex,
+            &self.name_regex,
+        )? {
             Some(resolve) => resolve,
             None => return Ok(()), // 用户选择返回上级，直接返回
         };
@@ -404,7 +415,7 @@ impl ResolveSettings {
         }
 
         // 保存配置
-        self.config.save(&self.config_path)?;
+        self.config.save(self.config_path.as_path())?;
         self.ui.show_success("解析条目添加成功！")?;
         clear_screen()?;
         Ok(())
@@ -457,7 +468,7 @@ impl ResolveSettings {
             if resolves.is_empty() {
                 self.config.resolve = None;
             }
-            self.config.save(&self.config_path)?;
+            self.config.save(self.config_path.as_path())?;
             self.ui
                 .show_success(&format!("解析组 {} 已成功删除！", name_to_delete))?;
         } else {
@@ -488,9 +499,11 @@ impl ResolveSettings {
 
         let resolve_items_refs: Vec<&str> = resolve_items.iter().map(|s| s.as_str()).collect();
 
-        let selection =
-            self.ui
-                .show_menu("选择要修改的解析组（按ESC返回上级）", &resolve_items_refs, 0)?;
+        let selection = self.ui.show_menu(
+            "选择要修改的解析组（按ESC返回上级）",
+            &resolve_items_refs,
+            0,
+        )?;
 
         // 如果用户按ESC返回，则直接返回
         let selection = match selection {
@@ -499,8 +512,14 @@ impl ResolveSettings {
         };
 
         let selected_index = selection;
-        
-        let new_resolve = match get_resolve_input(&self.ui, &self.config, Some(&self.config.resolve.as_ref().unwrap()[selected_index]), &self.domain_regex, &self.name_regex)? {
+
+        let new_resolve = match get_resolve_input(
+            &self.ui,
+            &self.config,
+            Some(&self.config.resolve.as_ref().unwrap()[selected_index]),
+            &self.domain_regex,
+            &self.name_regex,
+        )? {
             Some(resolve) => resolve,
             None => return Ok(()), // 用户选择返回上级，直接返回
         };
@@ -512,7 +531,7 @@ impl ResolveSettings {
         }
 
         // 保存配置
-        self.config.save(&self.config_path)?;
+        self.config.save(self.config_path.as_path())?;
         self.ui.show_success("解析信息修改成功！")?;
         clear_screen()?;
         Ok(())

@@ -1,8 +1,8 @@
 use anyhow::Result;
 use serde::Deserialize;
 use serde_json::Value;
-use std::process::Command;
 use std::fmt::Arguments;
+use std::process::Command;
 
 #[derive(Debug, Deserialize)]
 pub struct DnsRecord {
@@ -143,24 +143,24 @@ impl DnsOperations for super::start_struct::Start {
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             indented_error_println(format_args!("删除DNS记录失败: {}", stderr));
-            return Ok(false);
-        }
-
-        let response_text = String::from_utf8_lossy(&output.stdout);
-        let json: Value = match serde_json::from_str(&response_text) {
-            Ok(j) => j,
-            Err(e) => {
-                indented_error_println(format_args!("解析响应JSON失败: {}", e));
-                return Ok(false);
-            }
-        };
-
-        if json["success"].as_bool().unwrap_or(false) {
-            return Ok(true);
+            Ok(false)
         } else {
-            let error_message = json["errors"][0]["message"].as_str().unwrap_or("未知错误");
-            indented_error_println(format_args!("删除DNS记录失败: {}", error_message));
-            return Ok(false);
+            let response_text = String::from_utf8_lossy(&output.stdout);
+            let json: Value = match serde_json::from_str(&response_text) {
+                Ok(j) => j,
+                Err(e) => {
+                    indented_error_println(format_args!("解析响应JSON失败: {}", e));
+                    return Ok(false);
+                }
+            };
+
+            if json["success"].as_bool().unwrap_or(false) {
+                Ok(true)
+            } else {
+                let error_message = json["errors"][0]["message"].as_str().unwrap_or("未知错误");
+                indented_error_println(format_args!("删除DNS记录失败: {}", error_message));
+                Ok(false)
+            }
         }
     }
 
@@ -228,7 +228,7 @@ impl DnsOperations for super::start_struct::Start {
         let success = json["success"].as_bool().unwrap_or(false);
 
         if success {
-            return Ok(true);
+            Ok(true)
         } else {
             let code = json["errors"][0]["code"].as_i64().unwrap_or(0);
             let error_message = json["errors"][0]["message"].as_str().unwrap_or("未知错误");
@@ -237,10 +237,10 @@ impl DnsOperations for super::start_struct::Start {
             if code == 81057 {
                 print!("  ");
                 crate::warning_println(format_args!("已有 {} 的记录，不做更新", ip));
-                return Ok(false);
+                Ok(false)
             } else {
                 indented_error_println(format_args!("添加DNS记录失败: {}", error_message));
-                return Ok(false);
+                Ok(false)
             }
         }
     }

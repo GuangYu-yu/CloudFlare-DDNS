@@ -56,7 +56,10 @@ impl CloudflareApi for super::start_struct::Start {
                         } else {
                             let error_message =
                                 json["errors"][0]["message"].as_str().unwrap_or("未知错误");
-                            crate::error_println(format_args!("第 {} / {} 次登录失败", attempt, max_retries));
+                            crate::error_println(format_args!(
+                                "第 {} / {} 次登录失败",
+                                attempt, max_retries
+                            ));
                             crate::error_println(format_args!("错误信息: {}", error_message));
                         }
                     } else {

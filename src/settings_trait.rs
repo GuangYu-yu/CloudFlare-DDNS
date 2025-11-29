@@ -1,11 +1,11 @@
 use crate::Config;
 use anyhow::Result;
-use std::path::PathBuf;
+use std::path::Path;
 
 /// 通用Settings trait，统一处理配置的加载、保存和基本交互
 pub trait Settings {
     /// 获取配置路径
-    fn config_path(&self) -> &PathBuf;
+    fn config_path(&self) -> &Path;
 
     /// 获取配置的可变引用
     fn config_mut(&mut self) -> &mut Config;
@@ -23,8 +23,8 @@ pub trait Settings {
 macro_rules! impl_settings {
     ($struct_name:ident) => {
         impl $crate::settings_trait::Settings for $struct_name {
-            fn config_path(&self) -> &std::path::PathBuf {
-                &self.config_path
+            fn config_path(&self) -> &std::path::Path {
+                self.config_path.as_path()
             }
 
             fn config_mut(&mut self) -> &mut $crate::Config {

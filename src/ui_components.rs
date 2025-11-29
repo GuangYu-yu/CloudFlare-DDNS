@@ -40,7 +40,7 @@ impl UIComponents {
 
         let selection = Select::with_theme(&self.theme)
             .with_prompt(prompt)
-            .items(&items)
+            .items(items)
             .default(default)
             .interact_opt()?;
 
@@ -87,11 +87,6 @@ impl UIComponents {
         })
     }
 
-    /// 获取非空输入
-    pub fn get_non_empty_input(&self, prompt: &str, default: &str) -> Result<String> {
-        self.get_text_input(prompt, default, |input| !input.trim().is_empty())
-    }
-
     /// 获取非空输入，支持默认值
     pub fn get_non_empty_input_with_default(&self, prompt: &str, default: &str) -> Result<String> {
         self.get_text_input(prompt, default, |input| !input.trim().is_empty())
@@ -122,7 +117,12 @@ impl UIComponents {
     }
 
     /// 获取URL输入，验证URL格式，支持默认值
-    pub fn get_url_input_with_default(&self, prompt: &str, allow_empty: bool, default: &str) -> Result<String> {
+    pub fn get_url_input_with_default(
+        &self,
+        prompt: &str,
+        allow_empty: bool,
+        default: &str,
+    ) -> Result<String> {
         loop {
             let input: String = if allow_empty {
                 Input::with_theme(&self.theme)
@@ -148,7 +148,12 @@ impl UIComponents {
     }
 
     /// 显示多选菜单
-    pub fn show_multi_select(&self, prompt: &str, items: &[&str], defaults: &[bool]) -> Result<Vec<usize>> {
+    pub fn show_multi_select(
+        &self,
+        prompt: &str,
+        items: &[&str],
+        defaults: &[bool],
+    ) -> Result<Vec<usize>> {
         let selections = MultiSelect::with_theme(&self.theme)
             .with_prompt(prompt)
             .items(items)

@@ -1,8 +1,11 @@
+use super::dns_operations::DnsOperations;
 use anyhow::Result;
 use std::fs;
 use std::process::Command;
 use std::time::Duration;
-use super::dns_operations::DnsOperations;
+
+// 为复杂的返回类型添加类型别名
+type IpDomainMapping = (Vec<String>, std::collections::HashMap<String, Vec<String>>);
 
 pub trait IpOperations {
     /// 获取并过滤IP地址
@@ -24,7 +27,7 @@ pub trait IpOperations {
     ) -> Result<String>;
 
     /// 从CSV文件读取指定类型的IP地址
-    fn read_ips_from_csv(ip_type: &str, num: u32, cf_command: &str) -> Result<Vec<String>>;
+    fn read_ips_from_csv(&self, ip_type: &str, num: u32, cf_command: &str) -> Result<Vec<String>>;
 
     /// 处理单个IP类型的完整流程
     fn process_ip_type(
@@ -40,13 +43,13 @@ pub trait IpOperations {
         domains: &[String],
         output_file: Option<&str>,
 
-        #[cfg(target_os = "linux")]
-        plugin_status: Option<&str>,
+        #[cfg(target_os = "linux")] plugin_status: Option<&str>,
 
-        #[cfg(target_os = "linux")]
-        clien: &str,
+        #[cfg(target_os = "linux")] clien: &str,
+    ) -> Result<IpDomainMapping>;
 
-    ) -> Result<(Vec<String>, std::collections::HashMap<String, Vec<String>>)>;
+    /// 获取 CloudflareST-Rust 可执行文件路径
+    fn get_cfst_path(&self) -> String;
 }
 
 impl IpOperations for super::start_struct::Start {
@@ -70,23 +73,22 @@ impl IpOperations for super::start_struct::Start {
         let response_text = self.fetch_with_retry(url, max_retries, retry_delay, ip_type)?;
 
         // 过滤IP地址
-        let mut filtered_ips: Vec<String> = response_text
+        let filtered_ips: Vec<String> = response_text
             .lines()
-            .map(|line| line.trim())
-            .filter(|line| !line.is_empty())
-            .filter(|line| {
+            .filter_map(|line| {
+                let line = line.trim();
+                if line.is_empty() {
+                    return None;
+                }
                 let is_ipv4 = line.contains(".");
-                (ip_type == "IPv4" && is_ipv4) || (ip_type == "IPv6" && !is_ipv4)
+                if (ip_type == "IPv4" && is_ipv4) || (ip_type == "IPv6" && !is_ipv4) {
+                    Some(line.to_string())
+                } else {
+                    None
+                }
             })
             .take(max_count as usize)
-            .map(|line| line.to_string())
             .collect();
-
-        // 选择前max_count个IP
-        let max_count = max_count as usize;
-        if filtered_ips.len() > max_count {
-            filtered_ips.truncate(max_count);
-        }
 
         // 如果指定了输出文件，则将结果保存到文件
         if let Some(file_path) = output_file {
@@ -120,16 +122,17 @@ impl IpOperations for super::start_struct::Start {
                     if output.status.success() {
                         return Ok(String::from_utf8_lossy(&output.stdout).to_string());
                     } else {
-                        crate::warning_println(format_args!("获取{}地址失败, 重试 {} 次...", ip_type, attempt));
+                        crate::warning_println(format_args!(
+                            "获取{}地址失败, 重试 {} 次...",
+                            ip_type, attempt
+                        ));
                     }
                 }
                 Err(e) => {
-                    crate::warning_println(
-                        format_args!(
-                            "获取{}地址失败，错误: {}, 重试 {} 次...",
-                            ip_type, e, attempt
-                        )
-                    );
+                    crate::warning_println(format_args!(
+                        "获取{}地址失败，错误: {}, 重试 {} 次...",
+                        ip_type, e, attempt
+                    ));
                 }
             }
 
@@ -143,7 +146,7 @@ impl IpOperations for super::start_struct::Start {
         ))
     }
 
-    fn read_ips_from_csv(ip_type: &str, num: u32, cf_command: &str) -> Result<Vec<String>> {
+    fn read_ips_from_csv(&self, ip_type: &str, num: u32, cf_command: &str) -> Result<Vec<String>> {
         let result_csv_path = super::utils::get_result_csv_path(cf_command);
         if std::path::Path::new(&result_csv_path).exists() {
             let content = fs::read_to_string(&result_csv_path)?;
@@ -153,7 +156,7 @@ impl IpOperations for super::start_struct::Start {
                 .skip(1) // 跳过标题行
                 .filter_map(|line| {
                     let fields: Vec<&str> = line.split(',').collect();
-                    fields.first().map(|&ip| ip.to_string())
+                    fields.first().map(ToString::to_string)
                 })
                 .filter(|ip| {
                     let is_ipv4 = ip.contains('.');
@@ -181,13 +184,10 @@ impl IpOperations for super::start_struct::Start {
         domains: &[String],
         output_file: Option<&str>,
 
-        #[cfg(target_os = "linux")]
-        plugin_status: Option<&str>,
+        #[cfg(target_os = "linux")] plugin_status: Option<&str>,
 
-        #[cfg(target_os = "linux")]
-        clien: &str,
-
-    ) -> Result<(Vec<String>, std::collections::HashMap<String, Vec<String>>)> {
+        #[cfg(target_os = "linux")] clien: &str,
+    ) -> Result<IpDomainMapping> {
         let mut ips = Vec::new();
         let mut domain_ip_map = std::collections::HashMap::new();
         let record_type = if ip_type.is_empty() {
@@ -199,25 +199,22 @@ impl IpOperations for super::start_struct::Start {
         };
 
         // 下载IP地址
-        if output_file.is_some() && !url.is_empty() {
-            self.fetch_and_filter_ips(url, num, ip_type, output_file)?;
+        if let Some(file) = output_file
+            && !url.is_empty()
+        {
+            self.fetch_and_filter_ips(url, num, ip_type, Some(file))?;
         }
 
         crate::print_section_header("运行测速程序");
-        
+
+        // 获取 CloudflareST-Rust 可执行文件路径
+        let cfst_path = self.get_cfst_path();
+
         // 打印将要执行的命令
-        #[cfg(target_os = "windows")]
-        println!("[执行] .\\{} {}\n", crate::CLOUDFLAREST_RUST, cf_command);
-        
-        #[cfg(any(target_os = "linux", target_os = "macos"))]
-        println!("[执行] ./{} {}\n", crate::CLOUDFLAREST_RUST, cf_command);
+        println!("[执行] {} {}\n", cfst_path, cf_command);
 
         // 执行测速
-        #[cfg(target_os = "windows")]
-        let mut cmd = Command::new(format!(".\\{}", crate::CLOUDFLAREST_RUST));
-
-        #[cfg(any(target_os = "linux", target_os = "macos"))]
-        let mut cmd = Command::new(format!("./{}", crate::CLOUDFLAREST_RUST));
+        let mut cmd = Command::new(cfst_path);
         cmd.args(cf_command.split_whitespace());
 
         if num > 0 {
@@ -241,7 +238,7 @@ impl IpOperations for super::start_struct::Start {
                 .skip(1) // 跳过标题行
                 .filter_map(|line| {
                     let fields: Vec<&str> = line.split(',').collect();
-                    fields.first().map(|&ip| ip.to_string())
+                    fields.first().map(ToString::to_string)
                 })
                 .filter(|ip| {
                     let is_ipv4 = ip.contains('.');
@@ -256,7 +253,9 @@ impl IpOperations for super::start_struct::Start {
         // 处理DNS记录
         if add_ddns != "未指定" && !ips.is_empty() {
             // 验证Cloudflare账号
-            super::cloudflare_api::CloudflareApi::validate_cloudflare_account(self, x_email, api_key, zone_id)?;
+            super::cloudflare_api::CloudflareApi::validate_cloudflare_account(
+                self, x_email, api_key, zone_id,
+            )?;
 
             // 重启插件
             #[cfg(target_os = "linux")]
@@ -278,7 +277,7 @@ impl IpOperations for super::start_struct::Start {
 
             // 删除旧记录
             let mut records_to_delete = Vec::new();
-            
+
             // 收集所有需要删除的记录
             for domain in domains {
                 if ip_type.is_empty() {
@@ -294,7 +293,12 @@ impl IpOperations for super::start_struct::Start {
                             } else {
                                 "AAAA"
                             };
-                            records_to_delete.push((domain.to_string(), record.content.to_string(), record_type.to_string(), record.id.to_string()));
+                            records_to_delete.push((
+                                domain.to_string(),
+                                record.content.to_string(),
+                                record_type.to_string(),
+                                record.id.to_string(),
+                            ));
                         }
                     }
                 } else {
@@ -304,38 +308,59 @@ impl IpOperations for super::start_struct::Start {
                     let exclude_set: std::collections::HashSet<_> = ips.iter().cloned().collect();
                     for record in &existing_records {
                         if !exclude_set.contains(&record.content) {
-                            records_to_delete.push((domain.to_string(), record.content.to_string(), record_type.unwrap().to_string(), record.id.to_string()));
+                            records_to_delete.push((
+                                domain.to_string(),
+                                record.content.to_string(),
+                                record_type.unwrap().to_string(),
+                                record.id.to_string(),
+                            ));
                         }
                     }
                 }
             }
 
             // 统一的格式化函数，用于处理"→ -"和"→ +"的显示，实现自适应左对齐
-            fn format_dns_operation(left: &str, arrow: &str, right: &str, max_left_width: usize) -> String {
-                format!("{:<width$} {} {}", left, arrow, right, width = max_left_width)
+            fn format_dns_operation(
+                left: &str,
+                arrow: &str,
+                right: &str,
+                max_left_width: usize,
+            ) -> String {
+                format!(
+                    "{:<width$} {} {}",
+                    left,
+                    arrow,
+                    right,
+                    width = max_left_width
+                )
             }
-            
-            // 创建域名和IP的映射关系
-            let domain_ip_mapping = super::utils::create_domain_ip_mapping(&ips, &domains, add_ddns);
 
-            let max_domain_width = records_to_delete.iter().map(|(d, _, _, _)| d.len()).max().unwrap_or(0);
+            // 创建域名和IP的映射关系
+            let domain_ip_mapping = super::utils::create_domain_ip_mapping(&ips, domains, add_ddns);
+
+            let max_domain_width = records_to_delete
+                .iter()
+                .map(|(d, _, _, _)| d.len())
+                .max()
+                .unwrap_or(0);
 
             // 如果有需要删除的记录，则显示删除节点章节标题并执行删除
             if !records_to_delete.is_empty() {
                 crate::print_section_header("删除节点");
                 crate::info_println(format_args!("开始删除 {} 个节点:", records_to_delete.len()));
-                
+
                 let mut delete_success_count = 0;
                 for (domain, ip, _record_type, record_id) in records_to_delete {
                     if self.delete_dns_record(x_email, api_key, zone_id, &record_id)? {
                         // 在这里集中处理删除记录的格式化输出
                         print!("  "); // 缩进
-                        let formatted_output = format_dns_operation(&domain, "→ -", &ip, max_domain_width);
+                        let formatted_output =
+                            format_dns_operation(&domain, "→ -", &ip, max_domain_width);
                         crate::success_println(format_args!("{}", formatted_output));
                         delete_success_count += 1;
                     }
                 }
-                
+
                 crate::info_println(format_args!("总共删除了 {} 个节点", delete_success_count));
             }
 
@@ -352,7 +377,8 @@ impl IpOperations for super::start_struct::Start {
                 if res {
                     // 在这里集中处理添加记录的格式化输出
                     print!("  "); // 缩进
-                    let formatted_output = format_dns_operation(&domain, "→ +", &ip, max_domain_width);
+                    let formatted_output =
+                        format_dns_operation(&domain, "→ +", &ip, max_domain_width);
                     crate::success_println(format_args!("{}", formatted_output));
                     success_count += 1;
                     domain_ip_map
@@ -366,5 +392,14 @@ impl IpOperations for super::start_struct::Start {
         }
 
         Ok((ips, domain_ip_map))
+    }
+
+    /// 获取 CloudflareST-Rust 可执行文件路径
+    fn get_cfst_path(&self) -> String {
+        #[cfg(target_os = "windows")]
+        return format!(".\\{}", crate::CLOUDFLAREST_RUST);
+
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        return format!("./{}", crate::CLOUDFLAREST_RUST);
     }
 }

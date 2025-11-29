@@ -1,20 +1,51 @@
+use super::ddns_operations::DdnsOperations;
+use super::utils::{create_domain_ip_mapping, get_result_csv_path};
 use crate::push::PushService;
-use crate::{Config, Resolve, Settings, UIComponents, clear_screen, impl_settings, error_println};
+use crate::{Config, Resolve, Settings, UIComponents, clear_screen, error_println, impl_settings};
 use anyhow::Result;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+// 为execute_push函数创建参数结构体
+pub struct PushParams<'a> {
+    pub push_mod: &'a str,
+    pub hostnames: &'a str,
+    pub v4_num: u32,
+    pub v6_num: u32,
+    pub ip_type: &'a str,
+    pub ddns_name: &'a str,
+    pub ips: &'a [String],
+    pub domains: &'a [String],
+    pub add_ddns: &'a str,
+    pub csvfile: &'a str,
+}
+
+// 为run_push函数创建参数结构体
+struct RunPushParams<'a> {
+    push_mod: &'a str,
+    hostnames: &'a str,
+    v4_num: u32,
+    v6_num: u32,
+    ip_type: &'a str,
+    csvfile: &'a str,
+    ddns_name: &'a str,
+    domain_ip_mapping: &'a [(String, String)],
+}
 
 pub struct Start {
     config_path: PathBuf,
     config: Config,
     ui: UIComponents,
+    push_service: PushService,
 }
 
 impl Start {
-    pub fn new(config_path: PathBuf) -> Result<Self> {
+    pub fn new(config_path: &Path) -> Result<Self> {
+        let config_path_buf = config_path.to_path_buf();
         let mut settings = Start {
-            config_path: config_path.to_path_buf(),
+            config_path: config_path_buf.clone(),
             config: Config::default(),
             ui: UIComponents::new(),
+            push_service: PushService::new(&config_path_buf)?,
         };
         settings.load_config()?;
         Ok(settings)
@@ -28,46 +59,46 @@ impl Start {
         }
 
         // 交互模式
-        loop {
-            clear_screen()?;
+        clear_screen()?;
 
-            let resolves = self.get_resolves()?;
-            if resolves.is_empty() {
-                error_println(format_args!("未找到任何解析配置"));
-                self.ui.pause("")?;
-                break;
-            }
+        let resolves = self.get_resolves();
+        if resolves.is_empty() {
+            error_println(format_args!("未找到任何解析配置"));
+            self.ui.pause("")?;
+            return Ok(());
+        }
 
-            let items: Vec<String> = resolves.iter().map(|r| r.ddns_name.to_string()).collect();
-            let items_ref: Vec<&str> = items.iter().map(|s| s.as_str()).collect();
+        let items_ref = resolves
+            .iter()
+            .map(|r| r.ddns_name.as_str())
+            .collect::<Vec<_>>();
 
-            let selection =
-                match self
-                    .ui
-                    .show_menu("请选择解析组（按ESC返回上级）", &items_ref, 0)?
-                {
-                    Some(value) => value,
-                    None => return Ok(()),
-                };
+        let selection = match self
+            .ui
+            .show_menu("请选择解析组（按ESC返回上级）", &items_ref, 0)?
+        {
+            Some(value) => value,
+            None => return Ok(()),
+        };
 
-            if selection < resolves.len() {
-                let resolve = &resolves[selection];
-                self.execute_resolve(resolve)?;
-            }
-
-            break;
+        if selection < resolves.len() {
+            let resolve = &resolves[selection];
+            self.execute_resolve(resolve)?;
         }
 
         Ok(())
     }
 
-    fn get_resolves(&self) -> Result<Vec<Resolve>> {
-        Ok(self.config.resolve.as_ref().cloned().unwrap_or_default())
+    fn get_resolves(&self) -> Vec<Resolve> {
+        self.config.resolve.clone().unwrap_or_default()
     }
 
     fn execute_resolve_by_name(&mut self, ddns_name: &str) -> Result<()> {
-        let resolves = self.get_resolves()?;
-        let resolve = resolves
+        let resolve = self
+            .config
+            .resolve
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("未找到任何解析组"))?
             .iter()
             .find(|r| r.ddns_name == ddns_name)
             .ok_or_else(|| anyhow::anyhow!("未找到指定的解析组: {}", ddns_name))?;
@@ -85,15 +116,21 @@ impl Start {
                 .iter()
                 .find(|a| a.account_name == resolve.add_ddns)
                 .ok_or_else(|| anyhow::anyhow!("未找到指定的账户: {}", resolve.add_ddns))?;
-            (&account.x_email, &account.zone_id, &account.api_key)
+            // 将 &String 转换为 &str，与 else 分支的类型匹配
+            (
+                account.x_email.as_str(),
+                account.zone_id.as_str(),
+                account.api_key.as_str(),
+            )
         } else {
-            (&String::new(), &String::new(), &String::new())
+            // 使用静态空字符串，避免悬垂引用
+            ("", "", "")
         };
 
         // 获取插件配置
         #[cfg(target_os = "linux")]
         let default_clien = "未指定".to_string();
-        
+
         #[cfg(target_os = "linux")]
         let clien = self
             .config
@@ -117,112 +154,49 @@ impl Start {
             &resolve.v4_url,
             &resolve.v6_url,
             &resolve.push_mod,
-
             #[cfg(target_os = "linux")]
             clien,
-
         )?;
 
         Ok(())
     }
 
     /// 执行消息推送的统一封装
-    pub fn execute_push(
-        &self,
-        push_mod: &str,
-        hostnames: &str,
-        v4_num: u32,
-        v6_num: u32,
-        ip_type: &str,
-        ddns_name: &str,
-        ips: &[String],
-        domains: &[String],
-        add_ddns: &str,
-        csvfile: &str,
-    ) -> Result<()> {
-        if !push_mod.is_empty() && push_mod != "不设置" {
+    pub fn execute_push(&self, params: PushParams) -> Result<()> {
+        if !params.push_mod.is_empty() && params.push_mod != "不设置" {
             // 使用 create_domain_ip_mapping 创建域名和IP的映射关系
-            let domain_ip_mapping = super::utils::create_domain_ip_mapping(ips, domains, add_ddns);
+            let domain_ip_mapping =
+                create_domain_ip_mapping(params.ips, params.domains, params.add_ddns);
 
-            self.run_push(
-                push_mod,
-                hostnames,
-                v4_num,
-                v6_num,
-                ip_type,
-                &super::utils::get_result_csv_path(csvfile),
-                ddns_name,
-                &domain_ip_mapping,
-            )?;
+            let run_push_params = RunPushParams {
+                push_mod: params.push_mod,
+                hostnames: params.hostnames,
+                v4_num: params.v4_num,
+                v6_num: params.v6_num,
+                ip_type: params.ip_type,
+                csvfile: &get_result_csv_path(params.csvfile),
+                ddns_name: params.ddns_name,
+                domain_ip_mapping: &domain_ip_mapping,
+            };
+
+            self.run_push(run_push_params)?;
         }
         Ok(())
     }
 
-    fn run_push(
-        &self,
-        push_mod: &str,
-        hostnames: &str,
-        v4_num: u32,
-        v6_num: u32,
-        ip_type: &str,
-        csvfile: &str,
-        ddns_name: &str,
-        domain_ip_mapping: &[(String, String)],
-    ) -> Result<()> {
-        let push_service = PushService::new(&self.config_path)?;
-        push_service.run_push(
-            push_mod,
-            hostnames,
-            v4_num,
-            v6_num,
-            ip_type,
-            csvfile,
-            ddns_name,
-            domain_ip_mapping,
+    fn run_push(&self, params: RunPushParams) -> Result<()> {
+        self.push_service.run_push(
+            params.push_mod,
+            params.hostnames,
+            params.v4_num,
+            params.v6_num,
+            params.ip_type,
+            params.csvfile,
+            params.ddns_name,
+            params.domain_ip_mapping,
         )?;
 
         Ok(())
-    }
-
-    fn run_start_ddns(
-        &self,
-        add_ddns: &str,
-        ddns_name: &str,
-        x_email: &str,
-        zone_id: &str,
-        api_key: &str,
-        hostname1: &str,
-        hostname2: &str,
-        v4_num: u32,
-        v6_num: u32,
-        cf_command: &str,
-        v4_url: &str,
-        v6_url: &str,
-        push_mod: &str,
-
-        #[cfg(target_os = "linux")]
-        clien: &str,
-
-    ) -> Result<()> {
-        // 委托给 DdnsOperations 模块处理
-        <super::start_struct::Start as super::ddns_operations::DdnsOperations>::run_start_ddns(
-            self,
-            add_ddns,
-            ddns_name,
-            x_email,
-            zone_id,
-            api_key,
-            hostname1,
-            hostname2,
-            v4_num,
-            v6_num,
-            cf_command,
-            v4_url,
-            v6_url,
-            push_mod,
-            #[cfg(target_os = "linux")]
-            clien,
-        )
     }
 }
 
