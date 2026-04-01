@@ -134,49 +134,9 @@ pub fn get_resolve_input(
         (hostname1, hostname2)
     };
 
-    // IPv4数量
-    let v4_num = loop {
-        let default_v4 = default_values
-            .map(|d| d.v4_num.to_string())
-            .unwrap_or_else(|| "0".to_string());
-
-        let input = ui.get_text_input(
-            "请输入IPv4解析数量（可设置为0）",
-            &default_v4,
-            |input| input.trim().is_empty() || input.trim().parse::<u32>().is_ok(),
-        )?;
-
-        if input.trim().is_empty() && default_values.is_none() {
-            break 0;
-        }
-        if let Ok(num) = input.trim().parse::<u32>() {
-            break num;
-        } else {
-            ui.show_error("格式不正确")?;
-        }
-    };
-
-    // IPv6数量
-    let v6_num = loop {
-        let default_v6 = default_values
-            .map(|d| d.v6_num.to_string())
-            .unwrap_or_else(|| "0".to_string());
-
-        let input = ui.get_text_input(
-            "请输入IPv6解析数量（可设置为0）",
-            &default_v6,
-            |input| input.trim().is_empty() || input.trim().parse::<u32>().is_ok(),
-        )?;
-
-        if input.trim().is_empty() && default_values.is_none() {
-            break 0;
-        }
-        if let Ok(num) = input.trim().parse::<u32>() {
-            break num;
-        } else {
-            ui.show_error("格式不正确")?;
-        }
-    };
+    // IPv4数量和IPv6数量（使用统一的输入函数）
+    let v4_num = get_ip_count(ui, "请输入IPv4解析数量（可设置为0）", default_values.map(|d| d.v4_num));
+    let v6_num = get_ip_count(ui, "请输入IPv6解析数量（可设置为0）", default_values.map(|d| d.v6_num));
 
     // CloudflareST 示例输出
     look_cfst_rules(ui)?;
@@ -209,39 +169,17 @@ pub fn get_resolve_input(
         }
     };
 
-    // URL 读取 IPv4
-    let v4_url = {
-        let default_v4 = default_values.map(|d| d.v4_url.as_str()).unwrap_or("");
-        let mut input = ui.get_text_input("从URL链接获取IPv4地址", default_v4, |input| {
-            input.is_empty() || ui.url_regex.is_match(input)
-        })?;
+    // URL 读取 IPv4 和 IPv6（使用统一的输入函数）
+    let v4_url = get_url_input_with_validation(ui, "从URL链接获取IPv4地址", default_values.map(|d| d.v4_url.as_str()).unwrap_or(""))?;
+    let v6_url = get_url_input_with_validation(ui, "从URL链接获取IPv6地址", default_values.map(|d| d.v6_url.as_str()).unwrap_or(""))?;
 
-        // 如果输入无效，继续提示直到输入有效或为空
-        while !input.is_empty() && !ui.url_regex.is_match(&input) {
-            ui.show_error("格式不正确")?;
-            input = ui.get_text_input("从URL链接获取IPv4地址", default_v4, |input| {
-                input.is_empty() || ui.url_regex.is_match(input)
-            })?;
-        }
-        input
-    };
-
-    // URL 读取 IPv6
-    let v6_url = {
-        let default_v6 = default_values.map(|d| d.v6_url.as_str()).unwrap_or("");
-        let mut input = ui.get_text_input("从URL链接获取IPv6地址", default_v6, |input| {
-            input.is_empty() || ui.url_regex.is_match(input)
-        })?;
-
-        // 如果输入无效，继续提示直到输入有效或为空
-        while !input.is_empty() && !ui.url_regex.is_match(&input) {
-            ui.show_error("格式不正确")?;
-            input = ui.get_text_input("从URL链接获取IPv6地址", default_v6, |input| {
-                input.is_empty() || ui.url_regex.is_match(input)
-            })?;
-        }
-        input
-    };
+    // 验证配置：如果设置了 URL 但没有 -f 或 -ip 参数，提示用户修改
+    let cf_command = validate_cf_command_for_url(
+        ui,
+        cf_command,
+        &v4_url,
+        &v6_url,
+    )?;
 
     // 推送方式
     let push_options = [
@@ -535,6 +473,92 @@ impl ResolveSettings {
         self.ui.show_success("解析信息修改成功！")?;
         clear_screen()?;
         Ok(())
+    }
+}
+
+/// 获取 IP 数量输入（IPv4 或 IPv6）
+fn get_ip_count(
+    ui: &UIComponents,
+    prompt: &str,
+    default_value: Option<u32>,
+) -> u32 {
+    let default_str = default_value
+        .map(|n| n.to_string())
+        .unwrap_or_else(|| "0".to_string());
+
+    loop {
+        let input = ui.get_text_input(
+            prompt,
+            &default_str,
+            |input| input.trim().is_empty() || input.trim().parse::<u32>().is_ok(),
+        );
+
+        match input {
+            Ok(input) => {
+                if input.trim().is_empty() && default_value.is_none() {
+                    return 0;
+                }
+                if let Ok(num) = input.trim().parse::<u32>() {
+                    return num;
+                } else {
+                    ui.show_error("格式不正确").ok();
+                }
+            }
+            Err(_) => continue,
+        }
+    }
+}
+
+/// 获取 URL 输入并验证（支持默认值和重复验证）
+fn get_url_input_with_validation(
+    ui: &UIComponents,
+    prompt: &str,
+    default: &str,
+) -> Result<String> {
+    let mut input = ui.get_text_input(prompt, default, |input| {
+        input.is_empty() || ui.url_regex.is_match(input)
+    })?;
+
+    // 如果输入无效，继续提示直到输入有效或为空
+    while !input.is_empty() && !ui.url_regex.is_match(&input) {
+        ui.show_error("格式不正确")?;
+        input = ui.get_text_input(prompt, default, |input| {
+            input.is_empty() || ui.url_regex.is_match(input)
+        })?;
+    }
+
+    Ok(input)
+}
+
+/// 验证 cf_command 是否包含 -f 参数（当设置了 v4_url 或 v6_url 时）
+fn validate_cf_command_for_url(
+    ui: &UIComponents,
+    mut cf_command: String,
+    v4_url: &str,
+    v6_url: &str,
+) -> Result<String> {
+    // 1. 快速路径：不需要校验的情况直接返回
+    if (v4_url.is_empty() && v6_url.is_empty()) || cf_command.contains("-f") {
+        return Ok(cf_command);
+    }
+
+    // 2. 进入交互循环
+    loop {
+        ui.show_message("检测到问题：需要使用 -f 参数，来将 URL 的内容写入进去")?;
+
+        let input = ui.get_text_input("重新修改", &cf_command, |_| true)?;
+        let trimmed = input.trim();
+
+        if trimmed.is_empty() {
+            ui.show_error("传入的参数不能为空")?;
+            continue;
+        }
+
+        cf_command = trimmed.to_string();
+
+        if cf_command.contains("-f") {
+            return Ok(cf_command);
+        }
     }
 }
 
