@@ -11,10 +11,10 @@
 
 <p align="center">
   <a href="https://github.com/GuangYu-yu/CloudFlare-DDNS">
-    <img src="https://img.shields.io/github/stars/GuangYu-yu/CloudFlare-DDNS?style=social" alt="GitHub Stars">
+    <img src="https://img.shields.io/github/stars/GuangYu-yu/CloudFlare-DDNS?style=flat-square&label=Star&color=00ADD8&logo=github" alt="GitHub Stars">
   </a>
   <a href="https://github.com/GuangYu-yu/CloudFlare-DDNS/forks">
-    <img src="https://img.shields.io/github/forks/GuangYu-yu/CloudFlare-DDNS?style=social" alt="GitHub Forks">
+    <img src="https://img.shields.io/github/forks/GuangYu-yu/CloudFlare-DDNS?style=flat-square&label=Fork&color=00ADD8&logo=github" alt="GitHub Forks">
   </a>
 </p>
 
