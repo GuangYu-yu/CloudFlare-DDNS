@@ -14,7 +14,7 @@ on:
       project_name:
         description: '项目名称'
         type: string
-        默认: 'CFRS'
+        default: 'CFRS'
         required: true
       build_windows_amd64:
         description: '编译 Windows AMD64 版本'
@@ -208,7 +208,7 @@ jobs:
           name: "${{ github.event.inputs.project_name }} 最新版本"
           tag_name: "${{ github.ref_name }}-latest"
           target_commitish: ${{ github.sha }}
-          文件: release/*
+          files: release/*
           draft: false
           prerelease: false
         env:
