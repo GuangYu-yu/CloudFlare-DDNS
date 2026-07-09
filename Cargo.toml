@@ -13,7 +13,7 @@ colored = "3.0"
 anyhow = "1.0"
 dialoguer = "0.12"
 console = "0.16"
-regex = "1.11"
+regex = "1.12"
 urlencoding = "2.1"
 
 [profile.release]
